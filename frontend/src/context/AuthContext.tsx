@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { storage } from "@/src/utils/storage";
-import { api, TOKEN_KEY } from "@/src/lib/api";
+import { api, REFRESH_TOKEN_KEY, TOKEN_KEY } from "@/src/lib/api";
 
 type User = {
   id: string;
@@ -34,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(me);
       } catch {
         await storage.secureRemove(TOKEN_KEY);
+        await storage.secureRemove(REFRESH_TOKEN_KEY);
         setUser(null);
       }
     }
@@ -46,19 +47,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const res = await api.post("/auth/login", { email, password });
-    await storage.secureSet(TOKEN_KEY, res.token);
+    await storage.secureSet(TOKEN_KEY, res.access_token);
+    await storage.secureSet(REFRESH_TOKEN_KEY, res.refresh_token);
     setUser(res.user);
   };
 
   const register = async (email: string, password: string, name: string) => {
     const res = await api.post("/auth/register", { email, password, name });
-    await storage.secureSet(TOKEN_KEY, res.token);
+    await storage.secureSet(TOKEN_KEY, res.access_token);
+    await storage.secureSet(REFRESH_TOKEN_KEY, res.refresh_token);
     setUser(res.user);
   };
 
   const logout = async () => {
-    await storage.secureRemove(TOKEN_KEY);
-    setUser(null);
+    try {
+      await api.post("/auth/logout");
+    } finally {
+      await storage.secureRemove(TOKEN_KEY);
+      await storage.secureRemove(REFRESH_TOKEN_KEY);
+      setUser(null);
+    }
   };
 
   const refreshUser = async () => {

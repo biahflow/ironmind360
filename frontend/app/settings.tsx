@@ -114,10 +114,10 @@ export default function Settings() {
 
         <Text style={styles.section}>METAS DIÁRIAS</Text>
         <View style={styles.goalGrid}>
-          <GoalField label="Calorias (kcal)" value={String(goals.calories)} onChange={(v) => setGoal("calories", v)} testID="goal-calories" />
-          <GoalField label="Proteína (g)" value={String(goals.protein)} onChange={(v) => setGoal("protein", v)} testID="goal-protein" />
-          <GoalField label="Água (ml)" value={String(goals.water_ml)} onChange={(v) => setGoal("water_ml", v)} testID="goal-water" />
-          <GoalField label="Sono (h)" value={String(goals.sleep_hours)} onChange={(v) => setGoal("sleep_hours", v)} testID="goal-sleep" />
+          <GoalField label="Calorias (kcal)" value={String(goals.calories)} onChange={(v: string) => setGoal("calories", v)} testID="goal-calories" />
+          <GoalField label="Proteína (g)" value={String(goals.protein)} onChange={(v: string) => setGoal("protein", v)} testID="goal-protein" />
+          <GoalField label="Água (ml)" value={String(goals.water_ml)} onChange={(v: string) => setGoal("water_ml", v)} testID="goal-water" />
+          <GoalField label="Sono (h)" value={String(goals.sleep_hours)} onChange={(v: string) => setGoal("sleep_hours", v)} testID="goal-sleep" />
         </View>
 
         {err ? <Text style={styles.err}>{err}</Text> : null}

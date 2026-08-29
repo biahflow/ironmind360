@@ -1,0 +1,19 @@
+from typing import Protocol
+
+
+class StorageProvider(Protocol):
+    async def put(self, key: str, data: bytes, content_type: str) -> None: ...
+    async def get(self, key: str) -> tuple[bytes, str]: ...
+    async def delete(self, key: str) -> None: ...
+
+
+class AIProvider(Protocol):
+    async def complete(self, *, system: str, prompt: str) -> str: ...
+
+
+class EmailProvider(Protocol):
+    async def send(self, *, to: str, subject: str, text: str) -> None: ...
+
+
+class IntervalsProvider(Protocol):
+    def activities(self, *, api_key: str, athlete_id: str, oldest: str, newest: str) -> list[dict]: ...

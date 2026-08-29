@@ -13,8 +13,8 @@ if FE_ENV.exists():
 BASE_URL = (os.environ.get("EXPO_PUBLIC_BACKEND_URL") or os.environ.get("EXPO_BACKEND_URL") or "").rstrip("/")
 assert BASE_URL, "EXPO_PUBLIC_BACKEND_URL must be set"
 
-DEMO_EMAIL = "demo@ironmind.app"
-DEMO_PW = "Goggins@43"
+DEMO_EMAIL = os.environ.get("DEMO_EMAIL", "demo@ironmind.app")
+DEMO_PW = os.environ.get("DEMO_PASSWORD", "LocalDemo123!")
 
 
 @pytest.fixture(scope="session")

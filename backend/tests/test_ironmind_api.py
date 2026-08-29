@@ -16,7 +16,7 @@ class TestAuth:
 
     def test_login_demo(self, base_url, api_client):
         r = api_client.post(f"{base_url}/api/auth/login",
-                            json={"email": "demo@ironmind.app", "password": "Goggins@43"})
+                            json={"email": "demo@ironmind.app", "password": os.environ.get("DEMO_PASSWORD", "LocalDemo123!")})
         assert r.status_code == 200
         data = r.json()
         assert "token" in data and "user" in data
@@ -151,6 +151,7 @@ class TestIntervals:
 
 
 # ---------------- Coach ----------------
+@pytest.mark.skipif(not os.environ.get("EMERGENT_LLM_KEY"), reason="provider de IA nao configurado")
 class TestCoach:
     def test_chat_returns_reply(self, base_url, auth_headers):
         r = requests.post(f"{base_url}/api/coach/chat",
@@ -199,9 +200,10 @@ def _real_food_jpeg_bytes():
     return buf.getvalue(), "image/jpeg"
 
 
+@pytest.mark.skipif(not os.environ.get("EMERGENT_LLM_KEY"), reason="provider de IA nao configurado")
 class TestNutrition:
     _meal_id = None
-    _photo_path = None
+    _photo_id = None
 
     def test_analyze_photo(self, base_url, auth_token):
         img, mime = _real_food_jpeg_bytes()
@@ -214,12 +216,12 @@ class TestNutrition:
         j = r.json()
         # Validate returned nutrition fields
         for k in ("id", "title", "calories", "protein_g", "carbs_g", "fat_g",
-                  "coach_note", "photo_url", "storage_path"):
+                  "coach_note", "photo_url", "photo_file_id"):
             assert k in j, f"missing {k}: {j}"
         assert isinstance(j["calories"], (int, float))
-        assert j["photo_url"].startswith("/api/files/")
+        assert j["photo_url"].startswith("/api/v1/files/")
         TestNutrition._meal_id = j["id"]
-        TestNutrition._photo_path = j["storage_path"]
+        TestNutrition._photo_id = j["photo_file_id"]
 
     def test_list_nutrition_contains_meal(self, base_url, auth_headers):
         assert TestNutrition._meal_id, "previous test must have created a meal"
@@ -231,11 +233,12 @@ class TestNutrition:
         assert TestNutrition._meal_id in ids
         assert j["totals"]["calories"] >= 0
 
-    def test_serve_file(self, base_url):
-        assert TestNutrition._photo_path
-        r = requests.get(f"{base_url}/api/files/{TestNutrition._photo_path}", timeout=30)
+    def test_serve_file(self, base_url, auth_headers):
+        assert TestNutrition._photo_id
+        r = requests.get(f"{base_url}/api/v1/files/{TestNutrition._photo_id}", headers=auth_headers, timeout=30)
         assert r.status_code == 200
         assert r.headers.get("Content-Type", "").startswith("image/")
+        assert r.headers.get("Cache-Control") == "private, no-store"
         assert len(r.content) > 500
 
     def test_delete_meal_soft(self, base_url, auth_headers):
@@ -246,3 +249,107 @@ class TestNutrition:
         r2 = requests.get(f"{base_url}/api/nutrition", headers=auth_headers)
         ids = [m["id"] for m in r2.json()["meals"]]
         assert TestNutrition._meal_id not in ids
+
+
+# ---------------- Perfil esportivo e onboarding (Fase 1) ----------------
+class TestProfile:
+    """Registra um usuário próprio para validar a transição de onboarding."""
+
+    _headers = None
+
+    @classmethod
+    def _register(cls, base_url):
+        if cls._headers:
+            return cls._headers
+        suffix = int(time.time() * 1000)
+        email = f"TEST_profile_{suffix}@ironmind.app"
+        r = requests.post(f"{base_url}/api/auth/register",
+                          json={"email": email, "password": "TestPass123!", "name": "TEST Profile"}, timeout=30)
+        assert r.status_code == 200, r.text
+        token = r.json()["token"]
+        cls._headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        return cls._headers
+
+    def test_profile_starts_empty(self, base_url):
+        headers = self._register(base_url)
+        r = requests.get(f"{base_url}/api/v1/profile", headers=headers, timeout=30)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["onboarding_completed"] is False
+        assert d["sport"] is None
+        # Sem autoavaliação, a recomendação padrão é iniciante.
+        assert d["complementary_level"]["recommended"] == "beginner"
+
+    def test_sport_onboarding_returning_recommends_beginner(self, base_url):
+        headers = self._register(base_url)
+        payload = {
+            "disciplines": ["swim", "bike", "run"],
+            "experience": "recreational",
+            "weekly_availability_days": 5,
+            "weekly_availability_hours": 8.5,
+            "environment": "gym",
+            "equipment": ["bicicleta", "tênis de corrida"],
+            "restrictions": ["joelho sensível"],
+            "self_assessment": {
+                "strength_training_months": 36,
+                "weekly_active_days": 5,
+                "returning_from_sedentary": True,
+                "can_squat_bodyweight": True,
+                "can_hinge_pattern": True,
+            },
+        }
+        r = requests.put(f"{base_url}/api/v1/profile/sport", headers=headers, json=payload, timeout=30)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["onboarding_completed"] is True
+        level = d["complementary_level"]
+        # Retorno após sedentarismo força iniciante mesmo com histórico de força.
+        assert level["recommended"] == "beginner"
+        assert level["effective"] == "beginner"
+        assert level["source"] == "recommended"
+        assert any("sedentário" in reason for reason in level["reasons"])
+
+    def test_manual_level_override_wins(self, base_url):
+        headers = self._register(base_url)
+        payload = {
+            "self_assessment": {"returning_from_sedentary": True},
+            "complementary_level_override": "intermediate",
+        }
+        r = requests.put(f"{base_url}/api/v1/profile/sport", headers=headers, json=payload, timeout=30)
+        assert r.status_code == 200, r.text
+        level = r.json()["complementary_level"]
+        assert level["recommended"] == "beginner"
+        assert level["effective"] == "intermediate"
+        assert level["source"] == "manual"
+
+    def test_nutrition_profile_persists(self, base_url):
+        headers = self._register(base_url)
+        payload = {
+            "allergies": ["amendoim"],
+            "intolerances": ["lactose"],
+            "preferences": ["vegetariano"],
+            "disliked_foods": ["fígado"],
+        }
+        r = requests.put(f"{base_url}/api/v1/profile/nutrition", headers=headers, json=payload, timeout=30)
+        assert r.status_code == 200, r.text
+        assert r.json()["nutrition"]["allergies"] == ["amendoim"]
+        r2 = requests.get(f"{base_url}/api/v1/profile", headers=headers, timeout=30)
+        assert r2.json()["nutrition"]["intolerances"] == ["lactose"]
+
+    def test_profile_requires_auth(self, base_url):
+        r = requests.get(f"{base_url}/api/v1/profile", timeout=30)
+        assert r.status_code == 401
+
+    def test_other_user_cannot_see_profile(self, base_url):
+        """Perfil é isolado por proprietário (IDOR)."""
+        headers = self._register(base_url)
+        requests.put(f"{base_url}/api/v1/profile/nutrition", headers=headers,
+                     json={"allergies": ["camarão"]}, timeout=30)
+        # Novo usuário independente não enxerga o perfil do primeiro.
+        suffix = int(time.time() * 1000)
+        r = requests.post(f"{base_url}/api/auth/register",
+                          json={"email": f"TEST_profile_b_{suffix}@ironmind.app",
+                                "password": "TestPass123!", "name": "TEST B"}, timeout=30)
+        other = {"Authorization": f"Bearer {r.json()['token']}"}
+        r2 = requests.get(f"{base_url}/api/v1/profile", headers=other, timeout=30)
+        assert r2.json()["nutrition"] is None

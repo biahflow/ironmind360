@@ -10,7 +10,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 
 import { colors, spacing, radius, fonts, type } from "@/src/theme";
-import { api, fileUrl } from "@/src/lib/api";
+import { api, authHeaders, fileUrl } from "@/src/lib/api";
 
 export default function Nutrition() {
   const insets = useSafeAreaInsets();
@@ -21,6 +21,7 @@ export default function Nutrition() {
   const [picker, setPicker] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [permMsg, setPermMsg] = useState("");
+  const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
   const tabBarPad = 64 + insets.bottom + 90;
 
   const load = useCallback(async () => {
@@ -29,6 +30,7 @@ export default function Nutrition() {
       setMeals(d.meals || []);
       setTotals(d.totals || {});
       setGoals(d.goals || {});
+      setImageHeaders(await authHeaders());
     } catch {}
     setLoading(false);
   }, []);
@@ -135,7 +137,7 @@ export default function Nutrition() {
           ) : (
             meals.map((m) => (
               <View key={m.id} style={styles.meal} testID={`meal-${m.id}`}>
-                <Image source={{ uri: fileUrl(m.photo_url) }} style={styles.mealImg} contentFit="cover" />
+                <Image source={{ uri: fileUrl(m.photo_url), headers: imageHeaders }} style={styles.mealImg} contentFit="cover" />
                 <View style={{ flex: 1 }}>
                   <View style={styles.mealHead}>
                     <Text style={styles.mealTitle} numberOfLines={1}>{m.title}</Text>

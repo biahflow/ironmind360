@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Build and start services
+        run: docker compose up --build -d
+      - name: Wait for API
+        run: |
+          for attempt in {1..40}; do
+            if curl --fail --silent http://localhost:8000/api/v1/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs api
+          exit 1
+      - name: Python lint and dependency check
+        run: |
+          docker compose exec -T api flake8 app --max-line-length=120 --extend-ignore=E203,W503
+          docker compose exec -T api mypy app --ignore-missing-imports --disable-error-code=import-untyped
+          docker compose exec -T api python -m pip check
+      - name: Backend tests
+        run: docker compose exec -T -e EXPO_PUBLIC_BACKEND_URL=http://localhost:8000 api pytest -n 0
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - run: corepack enable
+      - run: yarn install --frozen-lockfile
+      - name: Type checking
+        run: yarn tsc --noEmit
+      - name: Lint
+        run: yarn lint

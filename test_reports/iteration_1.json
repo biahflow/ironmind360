@@ -36,6 +36,6 @@
   "seed_data_creation": "One TEST_user_<ts>@ironmind.app created by register test (kept, harmless). One test meal was created and soft-deleted during nutrition test class.",
   "retest_needed": false,
   "should_main_agent_self_test": false,
-  "context_for_next_testing_agent": "Backend base URL from frontend/.env EXPO_PUBLIC_BACKEND_URL. Demo user demo@ironmind.app / Goggins@43 auto-seeded on startup. Nutrition test uses a real food JPEG downloaded from Unsplash (fallback to Pillow-generated JPEG). AI endpoints (coach + vision) work through EMERGENT_LLM_KEY; both took <15s per call.",
+  "context_for_next_testing_agent": "Backend base URL comes from EXPO_PUBLIC_BACKEND_URL. Development credentials must come from environment variables and must not be embedded in reports. Nutrition test uses a real food JPEG downloaded from Unsplash (fallback to Pillow-generated JPEG). AI endpoints require an explicitly configured provider key.",
   "rca_of_issue": "N/A - no failures."
 }

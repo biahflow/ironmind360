@@ -97,9 +97,6 @@ export default function Login() {
               <Text style={styles.link}>Criar conta</Text>
             </Pressable>
 
-            <View style={styles.demoBox}>
-              <Text style={styles.demoText}>Demo: demo@ironmind.app / Goggins@43</Text>
-            </View>
           </View>
         </View>
       </KeyboardAwareScrollView>
