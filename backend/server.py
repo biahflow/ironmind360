@@ -14,6 +14,7 @@ from app.routes.races import router as races_router
 from app.routes.settings import router as settings_router
 from app.routes.system import router as system_router
 from app.routes.wellness import router as wellness_router
+from app.routes.exercises import router as exercises_router
 from app.routes.workouts import router as workouts_router
 
 
@@ -27,6 +28,7 @@ for router in (
     profile_router,
     races_router,
     settings_router,
+    exercises_router,
     workouts_router,
     nutrition_router,
     wellness_router,

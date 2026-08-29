@@ -25,14 +25,19 @@ export default function CommandCenter() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
+  const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const tabBarPad = 64 + insets.bottom + spacing.lg;
 
   const load = useCallback(async () => {
     try {
-      const d = await api.get("/dashboard");
+      const [d, p] = await Promise.all([
+        api.get("/dashboard"),
+        api.get("/training/active"),
+      ]);
       setData(d);
+      setPlan(p?.plan || null);
     } catch {}
     setLoading(false);
   }, []);
@@ -96,6 +101,30 @@ export default function CommandCenter() {
           </View>
           <Text style={styles.scoreCaption}>Score de Disciplina · Hoje</Text>
         </View>
+
+        {/* Training plan progress */}
+        {plan && plan.status !== "completed" && (
+          <Pressable
+            testID="training-plan-card"
+            style={styles.trainingCard}
+            onPress={() => router.push("/session")}
+          >
+            <View style={styles.trainingLeft}>
+              <Text style={styles.trainingKicker}>PREPARAÇÃO FÍSICA</Text>
+              <Text style={styles.trainingName} numberOfLines={1}>{plan.program_name}</Text>
+              <Text style={styles.trainingMeta}>
+                Sessão {plan.current_session} de {plan.total_sessions}
+              </Text>
+            </View>
+            <View style={styles.trainingRight}>
+              <ProgressRing size={56} strokeWidth={5} progress={plan.completed_sessions / plan.total_sessions}>
+                <Text style={styles.trainingPct}>
+                  {Math.round((plan.completed_sessions / plan.total_sessions) * 100)}%
+                </Text>
+              </ProgressRing>
+            </View>
+          </Pressable>
+        )}
 
         {/* Daily Challenge */}
         <View style={styles.challengeCard} testID="daily-challenge-card">
@@ -305,4 +334,16 @@ const styles = StyleSheet.create({
   anxChipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
   anxText: { fontFamily: fonts.bold, fontSize: type.lg, color: colors.onSurfaceSecondary },
   anxTextActive: { color: colors.onBrandPrimary },
+
+  trainingCard: {
+    flexDirection: "row", alignItems: "center", backgroundColor: colors.brandTertiary,
+    borderRadius: radius.md, padding: spacing.lg, marginBottom: spacing.md,
+    borderWidth: 1, borderColor: colors.brandPrimary,
+  },
+  trainingLeft: { flex: 1 },
+  trainingKicker: { fontFamily: fonts.bold, fontSize: 10, color: colors.brandSecondary, letterSpacing: 2 },
+  trainingName: { fontFamily: fonts.display, fontSize: type.xl, color: colors.onSurface, letterSpacing: 1, marginTop: 2 },
+  trainingMeta: { fontFamily: fonts.mono, fontSize: type.sm, color: colors.onSurfaceSecondary, marginTop: 2 },
+  trainingRight: { marginLeft: spacing.md },
+  trainingPct: { fontFamily: fonts.display, fontSize: type.base, color: colors.onSurface },
 });

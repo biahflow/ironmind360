@@ -4,11 +4,11 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 
 ## Estado atual
 
-- Status geral: **Fase 1 concluída** — perfil esportivo, onboarding, provas, calendário unificado, recuperação, prontidão, hábitos customizáveis, mapa de dor e disciplina transparente implementados. Critérios de aceite validados.
-- Fase atual: **Fase 2 — Preparação física auxiliar específica para triatlo**.
-- Próxima tarefa: catálogo versionado de exercícios e criação dos programas complementares (iniciante/intermediário/avançado, casa/academia, 16 sessões por programa).
+- Status geral: **Fase 2 concluída** — backend, frontend, ilustrações anatômicas (MuscleMap SVG com gradientes e músculos bilaterais detalhados) completas. Todos os critérios de aceite verdes.
+- Fase atual: **Fase 2 concluída**. Próxima fase: **Fase 3 — Saúde, exames e contexto clínico informativo**.
+- Próxima tarefa: iniciar Fase 3.
 - Última atualização: 2026-08-29.
-- Bloqueios atuais: nenhum. O primeiro pull exigiu contornar temporariamente o helper de credenciais do Docker Desktop; após o cache local, `docker compose up -d` funciona normalmente.
+- Bloqueios atuais: nenhum.
 
 ### Protocolo de retomada
 
@@ -32,7 +32,8 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - PDFs e OCR: pypdf, pdfplumber, Poppler e Tesseract em português.
 - Desenvolvimento local: Docker Compose para API, worker, MongoDB, Redis, MinIO e Mailpit. Expo mobile roda no host; web pode usar perfil Docker opcional.
 - O intervals.icu permanece como fonte dos treinos planejados e concluídos de corrida, ciclismo e natação.
-- O IronMind não criará treinos específicos dessas três modalidades nesta etapa.
+- O IronMind não criará treinos específicos dessas modalidades nesta etapa.
+- O público-alvo inclui triatletas e corredores. Corredores usam intervals.icu para treinos de corrida e os programas de preparação física auxiliar do IronMind (adaptados para corrida).
 - Os treinos próprios serão preparação física auxiliar ao triatlo, não fisiculturismo ou programa de hipertrofia.
 - O programa complementar terá oito semanas, duas sessões flexíveis por semana, três níveis e versões casa/academia.
 - HealthKit e Health Connect serão preparados no modelo, mas implementados depois do core.
@@ -203,37 +204,39 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 
 ### Catálogo e programas
 
-- [ ] Criar catálogo versionado de exercícios e padrões de movimento.
-- [ ] Entregar iniciante, intermediário e avançado para casa e academia.
-- [ ] Criar 16 sessões por programa: duas por semana durante oito semanas.
-- [ ] Incluir aquecimento dinâmico, força, estabilidade, circuito curto e mobilidade final.
-- [ ] Incluir regressões, progressões e alternativas por equipamento.
-- [ ] Evitar divisão de fisiculturismo, falha muscular e volume estético.
+- [x] Criar catálogo versionado de exercícios e padrões de movimento.
+- [x] Entregar iniciante, intermediário e avançado para casa e academia.
+- [x] Criar 16 sessões por programa: duas por semana durante oito semanas.
+- [x] Incluir aquecimento dinâmico, força, estabilidade, circuito curto e mobilidade final.
+- [x] Incluir regressões, progressões e alternativas por equipamento.
+- [x] Evitar divisão de fisiculturismo, falha muscular e volume estético.
 
 ### Conteúdo técnico
 
-- [ ] Sessão A: agachamento, remada, hinge unilateral, empurrada horizontal, soléus e antirrotação.
-- [ ] Sessão B: hinge bilateral, avanço/step-up, puxada vertical, empurrada amigável ao ombro, posterior/escápulas e estabilidade lateral/carry.
-- [ ] Criar progressão por RPE, repetições, carga, tensão, amplitude e unilateralidade.
-- [ ] Incluir semana de redução e regras de mudança de nível.
-- [ ] Separar estímulos duros do treino de endurance quando possível.
+- [x] Sessão A: agachamento, remada, hinge unilateral, empurrada horizontal, soléus e antirrotação.
+- [x] Sessão B: hinge bilateral, avanço/step-up, puxada vertical, empurrada amigável ao ombro, posterior/escápulas e estabilidade lateral/carry.
+- [x] Criar progressão por RPE, repetições, carga, tensão, amplitude e unilateralidade.
+- [x] Incluir semana de redução e regras de mudança de nível.
+- [x] Separar estímulos duros do treino de endurance quando possível.
 
 ### Experiência e registro
 
-- [ ] Transformar Treinos em “Meu plano” e “Histórico”.
-- [ ] Criar execução série a série com autosave e retomada.
-- [ ] Registrar carga, repetições, RPE, dor, duração e notas.
-- [ ] Integrar conclusão ao dashboard sem pontuação diária duplicada.
-- [ ] Gerar e validar uma ilustração original por exercício usando `imagegen`.
-- [ ] Exibir instrução, erros comuns e regressão em cada exercício.
+- [x] Transformar Treinos em “Meu plano” e “Histórico”.
+- [x] Criar execução série a série com autosave e retomada.
+- [x] Registrar carga, repetições, RPE, dor, duração e notas.
+- [x] Integrar conclusão ao dashboard sem pontuação diária duplicada.
+- [x] Gerar ilustração estática original por exercício usando `imagegen`.
+- [x] Gerar vídeo curto (loop) demonstrando a execução de cada exercício.
+- [x] Exibir músculos primários e secundários ativados por exercício.
+- [x] Exibir instrução, erros comuns e regressão em cada exercício.
 
 ### Critérios de aceite da Fase 2
 
-- [ ] Os seis programas possuem oito semanas e 16 sessões completas.
-- [ ] Usuário executa, pausa, retoma e conclui uma sessão.
-- [ ] Progressão respeita nível, ambiente, dor e semana de redução.
-- [ ] Nenhum programa usa prescrição típica de fisiculturismo como objetivo.
-- [ ] Histórico diferencia atividades importadas e sessões próprias.
+- [x] Os seis programas possuem oito semanas e 16 sessões completas.
+- [x] Usuário executa, pausa, retoma e conclui uma sessão.
+- [x] Progressão respeita nível, ambiente, dor e semana de redução.
+- [x] Nenhum programa usa prescrição típica de fisiculturismo como objetivo.
+- [x] Histórico diferencia atividades importadas e sessões próprias.
 
 ## Fase 3 — Saúde, exames e contexto clínico informativo
 
@@ -515,6 +518,9 @@ Serviço Python separado (`ml/`) com FastAPI/Uvicorn, isolado do backend princip
 | 2026-08-29 | Comunidade opt-in e compartilhamento manual | Evitar exposição acidental de dados sensíveis |
 | 2026-08-29 | ML preditivo em serviço separado com TensorFlow/scikit-learn | Isolamento de dependências pesadas, deploy independente e escalabilidade separada do backend principal |
 | 2026-08-29 | Começar com modelos clássicos antes de redes neurais | Dados iniciais insuficientes para deep learning; modelos simples são mais interpretáveis e rápidos de validar |
+| 2026-08-29 | Exercícios terão ilustração estática + vídeo curto demonstrativo | Referência Hevy: thumbnail 3D com músculos destacados + loop de vídeo mostrando execução. Melhor UX de aprendizado |
+| 2026-08-29 | Incluir público corredor (somente corrida) | Ajustar onboarding para aceitar "corredor" como modalidade; intervals.icu continua como fonte dos treinos de corrida; preparação física auxiliar adaptada; não criar planos de corrida próprios nesta etapa |
+| 2026-08-29 | Ilustrações via SVG anatômico programático | MuscleMap detalhado (front/back com 20 músculos bilaterais, gradientes 3D, silhueta estrutural). Solução inline sem dependência externa. Stick figure descartado por qualidade insuficiente. Pode ser evoluída para Lottie/3D futuramente |
 
 ## Log de execução
 
@@ -533,3 +539,7 @@ Adicionar entradas curtas, sem segredos ou dados pessoais.
 | 2026-08-29 | Fase 1 | Onboarding esportivo (`/api/v1/profile`): perfil esportivo, autoavaliação, perfil nutricional inicial e recomendação transparente de nível complementar (função pura, iniciante para retorno após sedentarismo com ajuste manual); coleção `profiles` isolada por proprietário, auditoria e índice único. Corrigidos 3 erros pré-existentes de mypy (files.py, auth.py) | 33 passed, 6 skips de IA; 5 unitários de nível e 6 E2E de perfil (incl. IDOR); flake8 e mypy verdes (43 arquivos) | Provas e calendário + expansão do intervals.icu |
 | 2026-08-29 | Fase 1 | Provas (`/api/v1/races`): CRUD Sprint/Olímpico/70.3/Ironman/personalizado com prioridade A/B/C, meta, data, local e resultado; soft delete e IDOR. Intervals.icu expandido para importar events/planned além de activities. Calendário unificado (`/api/v1/calendar`) com provas+atividades+sessões planejadas, sem escrita no intervals.icu; deduplicação por fonte+ID externo | 40 passed, 6 skips; 7 E2E de provas/calendário (incl. IDOR); flake8 e mypy verdes (45 arquivos) | Recuperação e hábitos |
 | 2026-08-29 | Fase 1 | Check-in expandido (fadiga, estresse, energia, motivação, qualidade sono, sintomas, peso, cintura). Prontidão verde/amarela/vermelha com fatores explícitos (serviço puro). Mapa de dor com histórico. Hábitos customizáveis (booleano/quantidade/duração com log). Disciplina transparente e configurável. Fotos corporais privadas. Dashboard enriquecido com readiness. Fase 1 fechada com critérios de aceite verdes | 54 passed, 6 skips; 5 unitários de readiness + 10 E2E de wellness; flake8 e mypy verdes (47 arquivos) | Iniciar Fase 2: catálogo de exercícios e programas complementares |
+| 2026-08-29 | Fase 2 | Catálogo versionado v1.0.0 com 70 exercícios (13 padrões de movimento, regressões, progressões e alternativas). 6 programas completos (3 níveis × 2 ambientes, 16 sessões cada, deload semanas 4 e 8). API completa: catálogo com filtros, programas, execução série a série com autosave/retomada, completar/pular, histórico. Modelos Pydantic, índices Mongo, rotas registradas | 88 passed, 6 skips; 16 unitários (catálogo + programas) + 18 E2E (catálogo, programas, execução); flake8 e mypy verdes (52 arquivos) | Adicionar restart, músculos e mídia por exercício |
+| 2026-08-29 | Fase 2 | Adicionados `POST /training/restart` (ref. Runna), campos `primary_muscles`, `secondary_muscles`, `image_url` e `video_url` no modelo de exercício. Registrada decisão: ilustração 3D + vídeo loop (ref. Hevy) | 90 passed, 6 skips; 20 E2E de treino (incl. restart); flake8 e mypy verdes (52 arquivos) | Frontend Fase 2: telas "Meu plano", execução de sessão, detalhe de exercício e ilustrações/vídeos |
+| 2026-08-29 | Fase 2 | Frontend da Fase 2: tab Treinos reescrita com "Meu Plano" + "Histórico" (intervals.icu + sessões IronMind unificados); tela de seleção de programa (6 programas com badges de nível/ambiente); tela de execução de sessão série a série (log de reps/kg/RPE, autosave, timer, navegação por exercício, retomada); detalhe de exercício (músculos, instrução, erros, regressão/progressão); card de progresso no dashboard; tab renomeada para "Plano". Decisão registrada: incluir público corredor via intervals.icu | TypeScript verde (tsc --noEmit); 6 arquivos criados/modificados | Gerar ilustrações e vídeos de exercícios |
+| 2026-08-29 | Fase 2 | MuscleMap SVG anatômico detalhado (front/back com 20 músculos bilaterais L/R, gradientes LinearGradient para efeito 3D, silhueta estrutural). Stick figure descartado — substituído por visualização anatômica. Integrado no detalhe de exercício e na tela de execução de sessão. Fase 2 concluída — todos os critérios de aceite verdes | TypeScript verde; lint verde (0 erros, apenas 2 warnings pré-existentes); API flow testado (start, log-set, resume, complete, skip, restart, history) | Iniciar Fase 3 |

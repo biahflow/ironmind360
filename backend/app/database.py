@@ -95,6 +95,23 @@ async def ensure_indexes() -> None:
     await db.audit_events.create_index(
         [("actor_user_id", ASCENDING), ("created_at", DESCENDING)]
     )
+    await db.training_plans.create_indexes(
+        [
+            IndexModel(
+                [("user_id", ASCENDING), ("status", ASCENDING)],
+            ),
+        ]
+    )
+    await db.training_sessions.create_indexes(
+        [
+            IndexModel(
+                [("user_id", ASCENDING), ("status", ASCENDING)],
+            ),
+            IndexModel(
+                [("user_id", ASCENDING), ("completed_at", DESCENDING)],
+            ),
+        ]
+    )
 
 
 @asynccontextmanager
