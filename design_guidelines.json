@@ -1,0 +1,167 @@
+{
+  "app_name": "IronMind 360",
+  "personality": "7 Dark-First Utility",
+  "personality_one_liner": "A gritty, high-intensity command center that demands accountability through raw metrics and uncompromising tough love.",
+  "color": {
+    "surface": "#070709",
+    "onSurface": "#F3F4F6",
+    "surfaceSecondary": "#111216",
+    "onSurfaceSecondary": "#A1A1AA",
+    "surfaceTertiary": "#1A1B22",
+    "onSurfaceTertiary": "#D4D4D8",
+    "surfaceInverse": "#F3F4F6",
+    "onSurfaceInverse": "#070709",
+    "brand": "#D83E27",
+    "brandPrimary": "#D83E27",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#F26B4D",
+    "onBrandSecondary": "#070709",
+    "brandTertiary": "#3A130D",
+    "onBrandTertiary": "#F26B4D",
+    "success": "#2E8B57",
+    "onSuccess": "#FFFFFF",
+    "warning": "#D4A373",
+    "onWarning": "#070709",
+    "error": "#C9184A",
+    "onError": "#FFFFFF",
+    "border": "#27272A",
+    "borderStrong": "#3F3F46",
+    "divider": "#1F1F22"
+  },
+  "typography": {
+    "displayFontFamily": "BebasNeue_400Regular",
+    "textFontFamily": "DMSans_400Regular",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32,
+      "4xl": 48,
+      "5xl": 72
+    }
+  },
+  "spacing": {
+    "rule": "Dense, tactical spacing for data tables, but generous negative space around massive metric headers.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Bottom tab bar over scrolling tactical data",
+      "Sticky headers when scrolling through the workout timeline",
+      "Floating action buttons (e.g., Quick Camera Log) with a brandTertiary tint"
+    ],
+    "dont's": [
+      "No glass on data cards or metric modules",
+      "No glass on form inputs or chat bubbles"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Auth",
+      "purpose": "Onboarding and login with an intense, cinematic backdrop.",
+      "states": {
+        "loading": "Dark spinner with 'INITIALIZING PROTOCOL...' text.",
+        "empty": "N/A",
+        "error": "Harsh red text 'ACCESS DENIED' with retry button."
+      },
+      "layout": "Full-bleed hero image with a heavy 3-stop bottom gradient scrim (opacity up to 90%). Minimalist, rigid form inputs. CTA button sticks to the keyboard top."
+    },
+    {
+      "name": "CommandCenter",
+      "purpose": "The daily 360 dashboard (Dashboard / Home). Shows massive Discipline Score, Intervals.icu training load, daily Goggins challenge, and quick habit check-ins.",
+      "states": {
+        "loading": "Skeleton rings and data blocks.",
+        "empty": "Zero state indicating it's a new day, time to put in the work.",
+        "error": "Sync failure banner for Intervals.icu data."
+      },
+      "layout": "Scrollable operational surface. Top section: Huge 5xl typography for 'Discipline Score' alongside a progress ring. Middle section: Stacked module for Daily Challenge (highlighted with brandPrimary). Bottom section: 2-column tactical grid for Habits (Water, Sleep, Read, Meditate) using segmented toggles instead of soft checkboxes."
+    },
+    {
+      "name": "Workouts",
+      "purpose": "Synced intervals.icu data showing past and upcoming training.",
+      "states": {
+        "loading": "Pulsing grey tactical rows.",
+        "empty": "'NO MISSIONS LOGGED' with an intense background illustration.",
+        "error": "API Key invalid error state prompting settings navigation."
+      },
+      "layout": "List-heavy view. Each card emphasizes raw metrics (Load, Distance, HR) using the displayFontFamily. No decorative visuals on cards, just hard data, dividers, and brand accent colors indicating intensity."
+    },
+    {
+      "name": "Nutrition",
+      "purpose": "Log meals via camera (AI analysis) and track macro timeline.",
+      "states": {
+        "loading": "AI scanning animation over the photo.",
+        "empty": "Dark plate empty state illustration. 'FUEL TANK EMPTY'.",
+        "error": "AI failure message, fallback to manual entry."
+      },
+      "layout": "Macro summary sticky at the top. Chronological timeline of meals below. A prominent, glassmorphic FAB anchored bottom-center for 'Camera Log'. Camera view should feel like a tactical HUD."
+    },
+    {
+      "name": "CoachChat",
+      "purpose": "Streaming tough-love AI coach chat and weekly 'After Action Report'.",
+      "states": {
+        "loading": "Coach typing indicator using sharp, rigid dots.",
+        "empty": "Initial greeting from Coach.",
+        "error": "Connection lost message."
+      },
+      "layout": "Chat interface but stripped of 'bubbly' aesthetics. Messages are sharp, rectangular blocks (`sm` radius) with monospace timestamps. The top of the screen features a dismissable 'Weekly After Action Report' module summarizing the week's discipline."
+    }
+  ],
+  "images": {
+    "auth_hero": {
+      "url": "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3JpdHR5JTIwcnVubmluZyUyMG1hcmF0aG9uJTIwdG91Z2glMjBmaXRuZXNzfGVufDB8fHx8MTc4ODAyNzc2N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Silhouette of women running on a dark road"
+    },
+    "coach_avatar": {
+      "url": "https://images.unsplash.com/photo-1581889470536-467bdbe30cd0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwyfHxkYXJrJTIwZ3JpdHR5JTIwcnVubmluZyUyMG1hcmF0aG9uJTIwdG91Z2glMjBmaXRuZXNzfGVufDB8fHx8MTc4ODAyNzc2N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Gritty image of a runner on asphalt"
+    },
+    "workout_hero": {
+      "url": "https://images.unsplash.com/photo-1632077804406-188472f1a810?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwyfHxkYXJrJTIwZ3ltJTIwa2V0dGxlYmVsbCUyMGludGVuc2UlMjBsaWZ0aW5nfGVufDB8fHx8MTc4ODAyNzc2N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Row of kettlebells in a dark gym"
+    },
+    "nutrition_empty": {
+      "url": "https://images.unsplash.com/photo-1598577789978-b87168a57b69?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwzfHxoZWFsdGh5JTIwbWVhbCUyMHByZXAlMjBzdGVhayUyMHByb3RlaW4lMjBkYXJrJTIwcGxhdGV8ZW58MHx8fHwxNzg4MDI3NzY3fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Grilled meat on a black plate"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Implement the 'Dark-First Utility' personality: The interface must feel like a live, tactical command center. Avoid pure black; use #070709 and #111216 to create depth without eye fatigue.",
+    "Typography is critical: Use 'BebasNeue_400Regular' at massive scales (up to 72pt) for primary metrics like the Discipline Score, Training Load, and Calories. Ensure tabular-nums are enabled so numbers don't shift.",
+    "Strict Layout Rules: Avoid bubbly or heavily rounded UI. Cap border radii at `md` (8pt). Use sharp, rigid structures for data tables and chat bubbles to maintain the military/Goggins aesthetic.",
+    "Images MUST have scrims: Apply a heavy 3-stop vertical gradient scrim (transparent to 90% surfaceInverse) anywhere text overlays an image (e.g., Auth, Profile banners). Never rely on the raw image for contrast.",
+    "Accountability actions (logging a habit, completing a workout) must provide instant visual state changes (color flips to brandPrimary) and trigger haptics. The app should feel highly responsive and mechanical.",
+    "The AI Coach Chat should look like a raw tactical feed, not a standard iMessage clone. Use monospace fonts for timestamps and sharp-cornered message blocks.",
+    "Glassmorphism should be used strictly for the bottom tab bar and floating action buttons (like the camera log button) to elevate the 'modern, fluid, refined' feel the user requested, contrasting with the gritty data below."
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "summary": "Full E2E for IronMind 360 MVP passed. Backend: 20/20 pytest cases green (auth register/login/me, dashboard shape+score, habits upsert PUT/GET + score persistence, settings GET/PUT goals, intervals sync=400 without key, workouts empty+connected=false, coach chat via Claude Sonnet 5 returning real reply, coach history, nutrition analyze via gpt-5.4 vision on a real JPEG food photo returning title/calories/macros/coach_note, /api/nutrition list+totals, /api/files/{path} serves image with image/* content-type, DELETE meal soft-delete verified via re-GET). Frontend (mobile viewport 390x844): login → dashboard (discipline score 55) → habit toggles (meditate/read/cold) + water +/- responsive → Coach tab AI reply received in Goggins style → Nutrição tab loads → Treinos shows empty-state with 'Conectar intervals.icu' CTA (correct since demo user has no key) → back to Comando → Settings screen opens (name, API key, athlete_id, 4 goal inputs). No red screen. Only cosmetic RN-web warnings (fonts DMSans failing to decode fall back gracefully; 'shadow*' and 'pointerEvents' style prop deprecation warnings from RN web).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "global", "issues": [
+        "RN-web console warnings: 'shadow*' style props deprecated (use boxShadow), 'props.pointerEvents' deprecated (use style.pointerEvents). Cosmetic only.",
+        "Custom DMSans font files fail to decode on web ('OTS parsing error: invalid sfntVersion'); fallback fonts render fine but consider fixing font asset paths for web preview."
+      ]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ironmind_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Investigate custom font asset serving on web preview - DMSans .ttf files return HTML/text and fail decode; fonts currently fall back but the console is noisy.",
+    "(Optional) Replace deprecated RN-web style props: rename shadow* -> boxShadow and move pointerEvents into style prop."
+  ],
+  "critical_code_review_comments": [
+    "server.py file is ~670 lines - still manageable but approaching the 700-line split threshold; consider splitting routers per domain (auth/nutrition/coach/habits) if it grows.",
+    "compute_discipline correctly capped at 100; ObjectId excluded from responses; env vars used with hard-fail on missing MONGO_URL/DB_NAME/JWT_SECRET (good).",
+    "nutrition_list assigns `out = []` then overwrites with `meals` – dead assignment, harmless.",
+    "gather_context: on days with zero registered activities but recorded habits, avg_mood/sleep computed only over `habits` length; safe."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py (new)",
+    "/app/backend/tests/test_ironmind_api.py (new)",
+    "/app/test_reports/iteration_1.json (new)"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "100% smoke (login, 4 tabs nav, habits, coach chat, settings)"},
+  "seed_data_creation": "One TEST_user_<ts>@ironmind.app created by register test (kept, harmless). One test meal was created and soft-deleted during nutrition test class.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend base URL from frontend/.env EXPO_PUBLIC_BACKEND_URL. Demo user demo@ironmind.app / Goggins@43 auto-seeded on startup. Nutrition test uses a real food JPEG downloaded from Unsplash (fallback to Pillow-generated JPEG). AI endpoints (coach + vision) work through EMERGENT_LLM_KEY; both took <15s per call.",
+  "rca_of_issue": "N/A - no failures."
+}
