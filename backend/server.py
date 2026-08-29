@@ -10,6 +10,7 @@ from app.routes.files import router as files_router
 from app.routes.nutrition import router as nutrition_router
 from app.routes.privacy import router as privacy_router
 from app.routes.profile import router as profile_router
+from app.routes.races import router as races_router
 from app.routes.settings import router as settings_router
 from app.routes.system import router as system_router
 from app.routes.wellness import router as wellness_router
@@ -24,6 +25,7 @@ for router in (
     files_router,
     privacy_router,
     profile_router,
+    races_router,
     settings_router,
     workouts_router,
     nutrition_router,

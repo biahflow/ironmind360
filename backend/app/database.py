@@ -65,6 +65,33 @@ async def ensure_indexes() -> None:
         [("user_id", ASCENDING), ("purpose", ASCENDING), ("created_at", DESCENDING)]
     )
     await db.profiles.create_index([("user_id", ASCENDING)], unique=True)
+    await db.races.create_index(
+        [("user_id", ASCENDING), ("date", ASCENDING), ("deleted_at", ASCENDING)]
+    )
+    await db.planned_sessions.create_indexes(
+        [
+            IndexModel(
+                [("user_id", ASCENDING), ("icu_event_id", ASCENDING)],
+                unique=True,
+            ),
+            IndexModel(
+                [("user_id", ASCENDING), ("start_date_local", ASCENDING)],
+            ),
+        ]
+    )
+    await db.pain_logs.create_index(
+        [("user_id", ASCENDING), ("date", DESCENDING)], unique=True
+    )
+    await db.custom_habits.create_index(
+        [("user_id", ASCENDING), ("deleted_at", ASCENDING)]
+    )
+    await db.custom_habit_logs.create_index(
+        [("habit_id", ASCENDING), ("user_id", ASCENDING), ("date", DESCENDING)],
+        unique=True,
+    )
+    await db.body_photos.create_index(
+        [("user_id", ASCENDING), ("date", DESCENDING)]
+    )
     await db.audit_events.create_index(
         [("actor_user_id", ASCENDING), ("created_at", DESCENDING)]
     )

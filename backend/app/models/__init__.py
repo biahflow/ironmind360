@@ -11,10 +11,16 @@ from app.models.auth import (
     SettingsIn,
 )
 from app.models.privacy import ConsentIn, DeleteAccountIn
+from app.models.race import RaceIn
 from app.models.profile import (
     NutritionProfileIn,
     SelfAssessment,
     SportProfileIn,
+)
+from app.models.wellness import (
+    CustomHabitIn,
+    CustomHabitLogIn,
+    PainCheckIn,
 )
 
 __all__ = [
@@ -27,10 +33,14 @@ __all__ = [
     "HabitIn",
     "LoginIn",
     "NutritionProfileIn",
+    "RaceIn",
     "RefreshIn",
     "RegisterIn",
     "ResetPasswordIn",
     "SelfAssessment",
     "SettingsIn",
     "SportProfileIn",
+    "CustomHabitIn",
+    "CustomHabitLogIn",
+    "PainCheckIn",
 ]

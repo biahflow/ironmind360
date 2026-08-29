@@ -1,11 +1,15 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Query
+from bson import ObjectId
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 from app.database import db
 from app.dependencies import current_user
 from app.models import Goals, HabitIn
+from app.models.wellness import CustomHabitIn, CustomHabitLogIn, PainCheckIn
 from app.services.discipline import compute_discipline
+from app.services.files import create_file
+from app.services.readiness import compute_readiness
 from app.utils.time import now_utc, today_str
 
 
@@ -25,6 +29,8 @@ DAILY_CHALLENGES = [
 ]
 
 
+# --------------- Check-in diário ---------------
+
 @router.get("/habits")
 async def get_habits(date: str | None = Query(None), user: dict = Depends(current_user)):
     target_date = date or today_str()
@@ -36,12 +42,20 @@ async def get_habits(date: str | None = Query(None), user: dict = Depends(curren
             "date": target_date,
             "water_ml": 0,
             "sleep_hours": None,
+            "sleep_quality": None,
             "meditate": False,
             "read": False,
             "cold_shower": False,
             "mood": None,
             "anxiety": None,
+            "fatigue": None,
+            "stress": None,
+            "energy": None,
+            "motivation": None,
+            "symptoms": "",
             "notes": "",
+            "weight_kg": None,
+            "waist_cm": None,
         }
     document["id"] = str(document.pop("_id"))
     return document
@@ -67,6 +81,224 @@ async def put_habits(data: HabitIn, user: dict = Depends(current_user)):
     document["id"] = str(document.pop("_id"))
     return document
 
+
+# --------------- Prontidão ---------------
+
+@router.get("/readiness")
+async def get_readiness(date: str | None = Query(None), user: dict = Depends(current_user)):
+    target_date = date or today_str()
+    user_id = str(user["_id"])
+    checkin = await db.habits.find_one({"user_id": user_id, "date": target_date})
+    pain_doc = await db.pain_logs.find_one({"user_id": user_id, "date": target_date})
+    pain_entries = (pain_doc or {}).get("entries", [])
+    result = compute_readiness(checkin or {}, pain_entries)
+    result["date"] = target_date
+    return result
+
+
+# --------------- Mapa de dor ---------------
+
+@router.put("/pain")
+async def put_pain(data: PainCheckIn, user: dict = Depends(current_user)):
+    user_id = str(user["_id"])
+    now = now_utc()
+    await db.pain_logs.update_one(
+        {"user_id": user_id, "date": data.date},
+        {"$set": {"entries": [e.model_dump() for e in data.entries], "updated_at": now}},
+        upsert=True,
+    )
+    return {"ok": True, "date": data.date, "count": len(data.entries)}
+
+
+@router.get("/pain")
+async def get_pain(
+    date: str | None = Query(None),
+    days: int = Query(default=30, ge=1, le=365),
+    user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    if date:
+        doc = await db.pain_logs.find_one({"user_id": user_id, "date": date})
+        return {"date": date, "entries": (doc or {}).get("entries", [])}
+    oldest = (now_utc() - timedelta(days=days)).strftime("%Y-%m-%d")
+    docs = (
+        await db.pain_logs.find({"user_id": user_id, "date": {"$gte": oldest}})
+        .sort("date", -1)
+        .to_list(days)
+    )
+    return {"history": [{"date": d["date"], "entries": d.get("entries", [])} for d in docs]}
+
+
+# --------------- Hábitos customizáveis ---------------
+
+@router.post("/custom-habits", status_code=201)
+async def create_custom_habit(data: CustomHabitIn, user: dict = Depends(current_user)):
+    user_id = str(user["_id"])
+    count = await db.custom_habits.count_documents({"user_id": user_id, "deleted_at": None})
+    if count >= 50:
+        raise HTTPException(400, "Limite de 50 hábitos customizáveis atingido")
+    now = now_utc()
+    document = {
+        "user_id": user_id,
+        **data.model_dump(),
+        "created_at": now,
+        "deleted_at": None,
+    }
+    result = await db.custom_habits.insert_one(document)
+    return {"id": str(result.inserted_id), **data.model_dump()}
+
+
+@router.get("/custom-habits")
+async def list_custom_habits(user: dict = Depends(current_user)):
+    docs = (
+        await db.custom_habits.find({"user_id": str(user["_id"]), "deleted_at": None})
+        .sort("created_at", 1)
+        .to_list(50)
+    )
+    for d in docs:
+        d["id"] = str(d.pop("_id"))
+        d.pop("user_id", None)
+        d.pop("deleted_at", None)
+    return {"habits": docs}
+
+
+@router.delete("/custom-habits/{habit_id}")
+async def delete_custom_habit(habit_id: str, user: dict = Depends(current_user)):
+    if not ObjectId.is_valid(habit_id):
+        raise HTTPException(404, "Hábito nao encontrado")
+    result = await db.custom_habits.update_one(
+        {"_id": ObjectId(habit_id), "user_id": str(user["_id"]), "deleted_at": None},
+        {"$set": {"deleted_at": now_utc()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Hábito nao encontrado")
+    return {"ok": True}
+
+
+@router.put("/custom-habits/{habit_id}/log")
+async def log_custom_habit(
+    habit_id: str, data: CustomHabitLogIn, user: dict = Depends(current_user)
+):
+    user_id = str(user["_id"])
+    if not ObjectId.is_valid(habit_id):
+        raise HTTPException(404, "Hábito nao encontrado")
+    habit = await db.custom_habits.find_one(
+        {"_id": ObjectId(habit_id), "user_id": user_id, "deleted_at": None}
+    )
+    if not habit:
+        raise HTTPException(404, "Hábito nao encontrado")
+    await db.custom_habit_logs.update_one(
+        {"habit_id": habit_id, "user_id": user_id, "date": data.date},
+        {"$set": {"value": data.value, "updated_at": now_utc()}},
+        upsert=True,
+    )
+    return {"ok": True, "habit_id": habit_id, "date": data.date, "value": data.value}
+
+
+@router.get("/custom-habits/{habit_id}/log")
+async def get_custom_habit_logs(
+    habit_id: str,
+    days: int = Query(default=30, ge=1, le=365),
+    user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    oldest = (now_utc() - timedelta(days=days)).strftime("%Y-%m-%d")
+    docs = (
+        await db.custom_habit_logs.find(
+            {"habit_id": habit_id, "user_id": user_id, "date": {"$gte": oldest}}
+        )
+        .sort("date", -1)
+        .to_list(days)
+    )
+    return {"logs": [{"date": d["date"], "value": d["value"]} for d in docs]}
+
+
+# --------------- Fotos corporais ---------------
+
+@router.post("/body-photos", status_code=201)
+async def upload_body_photo(
+    date: str = Query(pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    file: UploadFile = File(...),
+    user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(400, "Apenas JPEG, PNG ou WebP")
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(400, "Arquivo maior que 10 MB")
+    file_doc = await create_file(
+        owner_user_id=user_id,
+        data=data,
+        content_type=file.content_type or "image/jpeg",
+        original_name=file.filename,
+    )
+    await db.body_photos.insert_one({
+        "user_id": user_id,
+        "file_id": file_doc["_id"],
+        "date": date,
+        "created_at": now_utc(),
+    })
+    return {"ok": True, "file_id": file_doc["_id"], "date": date}
+
+
+@router.get("/body-photos")
+async def list_body_photos(
+    days: int = Query(default=90, ge=1, le=730),
+    user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    oldest = (now_utc() - timedelta(days=days)).strftime("%Y-%m-%d")
+    docs = (
+        await db.body_photos.find({"user_id": user_id, "date": {"$gte": oldest}})
+        .sort("date", -1)
+        .to_list(200)
+    )
+    return {"photos": [{"file_id": d["file_id"], "date": d["date"]} for d in docs]}
+
+
+# --------------- Disciplina (configurável) ---------------
+
+@router.get("/discipline")
+async def get_discipline(date: str | None = Query(None), user: dict = Depends(current_user)):
+    user_id = str(user["_id"])
+    target_date = date or today_str()
+    goals = user.get("goals", Goals().model_dump())
+    config = user.get("discipline_config") or {}
+    habits = await db.habits.find_one({"user_id": user_id, "date": target_date})
+    meals = await db.meals.find(
+        {"user_id": user_id, "date": target_date, "deleted_at": None}
+    ).to_list(100)
+    activities_today = await db.activities.find(
+        {"user_id": user_id, "start_date_local": {"$regex": f"^{target_date}"}}
+    ).to_list(20)
+    workout_today = bool(activities_today)
+    score = compute_discipline(habits, len(meals), workout_today, goals)
+
+    weights = {
+        "workout": config.get("weight_workout", 30),
+        "water": config.get("weight_water", 20),
+        "sleep": config.get("weight_sleep", 15),
+        "meals": config.get("weight_meals", 15),
+        "extras": config.get("weight_extras", 20),
+    }
+    return {
+        "date": target_date,
+        "score": score,
+        "weights": weights,
+        "factors": {
+            "workout_today": workout_today,
+            "water_ml": (habits or {}).get("water_ml", 0),
+            "sleep_hours": (habits or {}).get("sleep_hours"),
+            "meals_count": len(meals),
+            "extras": sum(
+                bool((habits or {}).get(n)) for n in ("meditate", "read", "cold_shower")
+            ),
+        },
+    }
+
+
+# --------------- Dashboard ---------------
 
 @router.get("/dashboard")
 async def dashboard(user: dict = Depends(current_user)):
@@ -101,12 +333,17 @@ async def dashboard(user: dict = Depends(current_user)):
             streak += 1
         elif offset:
             break
+
+    pain_doc = await db.pain_logs.find_one({"user_id": user_id, "date": current_date})
+    readiness = compute_readiness(habits or {}, (pain_doc or {}).get("entries", []))
+
     return {
         "date": current_date,
         "name": user.get("name"),
         "discipline_score": compute_discipline(
             habits, len(meals), workout_today, goals
         ),
+        "readiness": readiness,
         "streak": streak,
         "daily_challenge": DAILY_CHALLENGES[
             now_utc().timetuple().tm_yday % len(DAILY_CHALLENGES)

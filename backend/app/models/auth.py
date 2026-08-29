@@ -49,12 +49,20 @@ class HabitIn(BaseModel):
     date: str
     water_ml: Optional[int] = None
     sleep_hours: Optional[float] = None
+    sleep_quality: Optional[int] = Field(default=None, ge=1, le=5)
     meditate: Optional[bool] = None
     read: Optional[bool] = None
     cold_shower: Optional[bool] = None
-    mood: Optional[int] = None
-    anxiety: Optional[int] = None
-    notes: Optional[str] = None
+    mood: Optional[int] = Field(default=None, ge=1, le=5)
+    anxiety: Optional[int] = Field(default=None, ge=1, le=5)
+    fatigue: Optional[int] = Field(default=None, ge=1, le=5)
+    stress: Optional[int] = Field(default=None, ge=1, le=5)
+    energy: Optional[int] = Field(default=None, ge=1, le=5)
+    motivation: Optional[int] = Field(default=None, ge=1, le=5)
+    symptoms: Optional[str] = Field(default=None, max_length=500)
+    notes: Optional[str] = Field(default=None, max_length=2000)
+    weight_kg: Optional[float] = Field(default=None, ge=20, le=300)
+    waist_cm: Optional[float] = Field(default=None, ge=30, le=250)
 
 
 class ChatIn(BaseModel):

@@ -4,9 +4,9 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 
 ## Estado atual
 
-- Status geral: **Fase 1 em andamento** — perfil esportivo/onboarding, autoavaliação de nível complementar e perfil nutricional inicial implementados. Consentimentos por finalidade já existiam da Fase 0 (rota `/privacy/consents`, versionados/revogáveis).
-- Fase atual: **Fase 1 — Perfil esportivo, provas, hábitos e recuperação**.
-- Próxima tarefa: bloco "Provas e calendário" — calendário de provas (Sprint/Olímpico/70.3/Ironman/personalizado) com prioridade A/B/C, meta, data, local e resultado; e expansão do adaptador intervals.icu.
+- Status geral: **Fase 1 concluída** — perfil esportivo, onboarding, provas, calendário unificado, recuperação, prontidão, hábitos customizáveis, mapa de dor e disciplina transparente implementados. Critérios de aceite validados.
+- Fase atual: **Fase 2 — Preparação física auxiliar específica para triatlo**.
+- Próxima tarefa: catálogo versionado de exercícios e criação dos programas complementares (iniciante/intermediário/avançado, casa/academia, 16 sessões por programa).
 - Última atualização: 2026-08-29.
 - Bloqueios atuais: nenhum. O primeiro pull exigiu contornar temporariamente o helper de credenciais do Docker Desktop; após o cache local, `docker compose up -d` funciona normalmente.
 
@@ -160,27 +160,27 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 
 ### Provas e calendário
 
-- [ ] Criar calendário de provas Sprint, Olímpico, 70.3, Ironman e personalizado.
-- [ ] Registrar prioridade A/B/C, meta, data, local e resultado.
-- [ ] Expandir o adaptador intervals.icu para importar sessões planejadas e concluídas.
-- [ ] Deduplicar importações por fonte e ID externo.
-- [ ] Exibir calendário unificado sem escrever no intervals.icu.
+- [x] Criar calendário de provas Sprint, Olímpico, 70.3, Ironman e personalizado.
+- [x] Registrar prioridade A/B/C, meta, data, local e resultado.
+- [x] Expandir o adaptador intervals.icu para importar sessões planejadas e concluídas.
+- [x] Deduplicar importações por fonte e ID externo.
+- [x] Exibir calendário unificado sem escrever no intervals.icu.
 
 ### Recuperação e hábitos
 
-- [ ] Criar check-in de sono, fadiga, dor, estresse, humor, ansiedade, energia, motivação e sintomas.
-- [ ] Mostrar prontidão verde/amarela/vermelha com fatores explícitos.
-- [ ] Criar mapa simples de dor e histórico.
-- [ ] Permitir hábitos booleanos, quantitativos e por duração.
-- [ ] Tornar a pontuação de disciplina transparente e configurável.
-- [ ] Adicionar peso, cintura e fotos opcionais, sempre privados.
+- [x] Criar check-in de sono, fadiga, dor, estresse, humor, ansiedade, energia, motivação e sintomas.
+- [x] Mostrar prontidão verde/amarela/vermelha com fatores explícitos.
+- [x] Criar mapa simples de dor e histórico.
+- [x] Permitir hábitos booleanos, quantitativos e por duração.
+- [x] Tornar a pontuação de disciplina transparente e configurável.
+- [x] Adicionar peso, cintura e fotos opcionais, sempre privados.
 
 ### Critérios de aceite da Fase 1
 
-- [ ] Novo usuário conclui onboarding e recebe nível recomendado.
-- [ ] Provas e sessões do intervals.icu aparecem no calendário correto.
-- [ ] Check-in explica por que mostrou cada cautela.
-- [ ] Hábitos personalizados persistem e não expõem métricas privadas.
+- [x] Novo usuário conclui onboarding e recebe nível recomendado.
+- [x] Provas e sessões do intervals.icu aparecem no calendário correto.
+- [x] Check-in explica por que mostrou cada cautela.
+- [x] Hábitos personalizados persistem e não expõem métricas privadas.
 
 ## Fase 2 — Preparação física auxiliar específica para triatlo
 
@@ -462,3 +462,5 @@ Adicionar entradas curtas, sem segredos ou dados pessoais.
 | 2026-08-29 | Fase 0 | Política KMS/envelope encryption definida e validada em produção; CI criado com secret scan, Compose, flake8, mypy, pip check, pytest, TypeScript e ESLint | Regressão core: 19 verdes e 6 skips explícitos de IA; 2 testes de configuração verdes; varredura local sem credenciais conhecidas | Extrair rotas e serviços restantes do monólito e validar fotos legadas quando houver fixture |
 | 2026-08-29 | Fase 0 | Extração do monólito confirmada concluída (server.py como ASGI fino sobre o pacote `app/`); teste de integração de fotos legadas adicionado cobrindo migração para `files` opaco, autorização de proprietário (IDOR) e idempotência | Regressão completa verde: 22 passed, 6 skips de IA (`pytest -n 2 --dist loadscope`); Fase 0 fechada | Iniciar Fase 1 pelo onboarding esportivo e consentimentos por finalidade |
 | 2026-08-29 | Fase 1 | Onboarding esportivo (`/api/v1/profile`): perfil esportivo, autoavaliação, perfil nutricional inicial e recomendação transparente de nível complementar (função pura, iniciante para retorno após sedentarismo com ajuste manual); coleção `profiles` isolada por proprietário, auditoria e índice único. Corrigidos 3 erros pré-existentes de mypy (files.py, auth.py) | 33 passed, 6 skips de IA; 5 unitários de nível e 6 E2E de perfil (incl. IDOR); flake8 e mypy verdes (43 arquivos) | Provas e calendário + expansão do intervals.icu |
+| 2026-08-29 | Fase 1 | Provas (`/api/v1/races`): CRUD Sprint/Olímpico/70.3/Ironman/personalizado com prioridade A/B/C, meta, data, local e resultado; soft delete e IDOR. Intervals.icu expandido para importar events/planned além de activities. Calendário unificado (`/api/v1/calendar`) com provas+atividades+sessões planejadas, sem escrita no intervals.icu; deduplicação por fonte+ID externo | 40 passed, 6 skips; 7 E2E de provas/calendário (incl. IDOR); flake8 e mypy verdes (45 arquivos) | Recuperação e hábitos |
+| 2026-08-29 | Fase 1 | Check-in expandido (fadiga, estresse, energia, motivação, qualidade sono, sintomas, peso, cintura). Prontidão verde/amarela/vermelha com fatores explícitos (serviço puro). Mapa de dor com histórico. Hábitos customizáveis (booleano/quantidade/duração com log). Disciplina transparente e configurável. Fotos corporais privadas. Dashboard enriquecido com readiness. Fase 1 fechada com critérios de aceite verdes | 54 passed, 6 skips; 5 unitários de readiness + 10 E2E de wellness; flake8 e mypy verdes (47 arquivos) | Iniciar Fase 2: catálogo de exercícios e programas complementares |

@@ -353,3 +353,220 @@ class TestProfile:
         other = {"Authorization": f"Bearer {r.json()['token']}"}
         r2 = requests.get(f"{base_url}/api/v1/profile", headers=other, timeout=30)
         assert r2.json()["nutrition"] is None
+
+
+# ---------------- Provas e calendário (Fase 1) ----------------
+class TestRaces:
+    _race_id = None
+
+    def test_create_race(self, base_url, auth_headers):
+        payload = {
+            "name": "Ironman 70.3 Florianópolis",
+            "race_type": "half_ironman",
+            "priority": "A",
+            "date": "2027-04-20",
+            "location": "Florianópolis, SC",
+            "goal": "Sub 5h",
+        }
+        r = requests.post(f"{base_url}/api/v1/races", headers=auth_headers, json=payload, timeout=30)
+        assert r.status_code == 201, r.text
+        d = r.json()
+        assert d["race_type"] == "half_ironman"
+        assert d["priority"] == "A"
+        TestRaces._race_id = d["id"]
+
+    def test_list_races(self, base_url, auth_headers):
+        r = requests.get(f"{base_url}/api/v1/races", headers=auth_headers, timeout=30)
+        assert r.status_code == 200
+        assert any(race["id"] == TestRaces._race_id for race in r.json()["races"])
+
+    def test_update_race(self, base_url, auth_headers):
+        assert TestRaces._race_id
+        payload = {
+            "name": "Ironman 70.3 Florianópolis 2027",
+            "race_type": "half_ironman",
+            "priority": "A",
+            "date": "2027-04-20",
+            "location": "Florianópolis, SC",
+            "goal": "Sub 5h",
+            "result": "4:58:32",
+        }
+        r = requests.put(
+            f"{base_url}/api/v1/races/{TestRaces._race_id}",
+            headers=auth_headers, json=payload, timeout=30,
+        )
+        assert r.status_code == 200
+        assert r.json()["result"] == "4:58:32"
+
+    def test_delete_race(self, base_url, auth_headers):
+        # Create a race to delete (keep the main one alive for calendar tests).
+        payload = {
+            "name": "Sprint Test",
+            "race_type": "sprint",
+            "priority": "C",
+            "date": "2027-01-15",
+        }
+        r = requests.post(f"{base_url}/api/v1/races", headers=auth_headers, json=payload, timeout=30)
+        del_id = r.json()["id"]
+        r2 = requests.delete(f"{base_url}/api/v1/races/{del_id}", headers=auth_headers, timeout=30)
+        assert r2.status_code == 200
+        r3 = requests.get(f"{base_url}/api/v1/races", headers=auth_headers, timeout=30)
+        assert del_id not in [race["id"] for race in r3.json()["races"]]
+
+    def test_race_idor(self, base_url, auth_headers):
+        """Outro usuário não pode editar a prova."""
+        assert TestRaces._race_id
+        suffix = int(time.time() * 1000)
+        r = requests.post(
+            f"{base_url}/api/auth/register",
+            json={"email": f"TEST_race_b_{suffix}@ironmind.app", "password": "TestPass123!", "name": "B"},
+            timeout=30,
+        )
+        other = {"Authorization": f"Bearer {r.json()['token']}", "Content-Type": "application/json"}
+        r2 = requests.put(
+            f"{base_url}/api/v1/races/{TestRaces._race_id}",
+            headers=other,
+            json={"name": "Hack", "race_type": "sprint", "priority": "C", "date": "2027-01-01"},
+            timeout=30,
+        )
+        assert r2.status_code == 404
+
+    def test_calendar_shape(self, base_url, auth_headers):
+        r = requests.get(
+            f"{base_url}/api/v1/calendar",
+            headers=auth_headers,
+            params={"oldest": "2027-01-01", "newest": "2027-12-31"},
+            timeout=30,
+        )
+        assert r.status_code == 200
+        entries = r.json()["entries"]
+        race_entries = [e for e in entries if e["kind"] == "race"]
+        assert any(e["race_type"] == "half_ironman" for e in race_entries)
+
+    def test_calendar_requires_auth(self, base_url):
+        r = requests.get(
+            f"{base_url}/api/v1/calendar",
+            params={"oldest": "2027-01-01", "newest": "2027-12-31"},
+            timeout=30,
+        )
+        assert r.status_code == 401
+
+
+# ---------------- Recuperação e hábitos expandidos (Fase 1) ----------------
+class TestWellness:
+    _custom_habit_id = None
+
+    def test_readiness_default_green(self, base_url, auth_headers):
+        r = requests.get(f"{base_url}/api/v1/readiness", headers=auth_headers, timeout=30)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["level"] == "green"
+        assert "factors" in d
+
+    def test_checkin_with_new_fields(self, base_url, auth_headers):
+        payload = {
+            "date": "2027-06-15",
+            "sleep_hours": 4.5,
+            "sleep_quality": 2,
+            "fatigue": 5,
+            "stress": 4,
+            "energy": 2,
+            "mood": 2,
+            "anxiety": 4,
+            "motivation": 2,
+            "symptoms": "dor de cabeça leve",
+            "weight_kg": 75.5,
+            "waist_cm": 82.0,
+        }
+        r = requests.put(f"{base_url}/api/v1/habits", headers=auth_headers, json=payload, timeout=30)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["fatigue"] == 5
+        assert d["weight_kg"] == 75.5
+
+    def test_readiness_reflects_checkin(self, base_url, auth_headers):
+        r = requests.get(
+            f"{base_url}/api/v1/readiness",
+            headers=auth_headers,
+            params={"date": "2027-06-15"},
+            timeout=30,
+        )
+        assert r.status_code == 200
+        d = r.json()
+        assert d["level"] in ("yellow", "red")
+        assert len(d["factors"]) > 0
+
+    def test_pain_map(self, base_url, auth_headers):
+        payload = {
+            "date": "2027-06-15",
+            "entries": [
+                {"location": "joelho direito", "intensity": 6, "notes": "após corrida"},
+                {"location": "lombar", "intensity": 3},
+            ],
+        }
+        r = requests.put(f"{base_url}/api/v1/pain", headers=auth_headers, json=payload, timeout=30)
+        assert r.status_code == 200
+        r2 = requests.get(
+            f"{base_url}/api/v1/pain", headers=auth_headers, params={"date": "2027-06-15"}, timeout=30
+        )
+        assert r2.status_code == 200
+        assert len(r2.json()["entries"]) == 2
+
+    def test_pain_history(self, base_url, auth_headers):
+        r = requests.get(f"{base_url}/api/v1/pain", headers=auth_headers, params={"days": 365}, timeout=30)
+        assert r.status_code == 200
+        assert "history" in r.json()
+
+    def test_custom_habit_lifecycle(self, base_url, auth_headers):
+        r = requests.post(
+            f"{base_url}/api/v1/custom-habits",
+            headers=auth_headers,
+            json={"name": "Alongamento", "kind": "duration_min", "target": 15, "unit": "min"},
+            timeout=30,
+        )
+        assert r.status_code == 201
+        TestWellness._custom_habit_id = r.json()["id"]
+
+        r2 = requests.get(f"{base_url}/api/v1/custom-habits", headers=auth_headers, timeout=30)
+        assert any(h["name"] == "Alongamento" for h in r2.json()["habits"])
+
+        r3 = requests.put(
+            f"{base_url}/api/v1/custom-habits/{TestWellness._custom_habit_id}/log",
+            headers=auth_headers,
+            json={"date": "2027-06-15", "value": 20},
+            timeout=30,
+        )
+        assert r3.status_code == 200
+
+        r4 = requests.get(
+            f"{base_url}/api/v1/custom-habits/{TestWellness._custom_habit_id}/log",
+            headers=auth_headers,
+            timeout=30,
+        )
+        assert r4.json()["logs"][0]["value"] == 20
+
+    def test_delete_custom_habit(self, base_url, auth_headers):
+        r = requests.post(
+            f"{base_url}/api/v1/custom-habits",
+            headers=auth_headers,
+            json={"name": "Temp", "kind": "boolean"},
+            timeout=30,
+        )
+        hid = r.json()["id"]
+        r2 = requests.delete(f"{base_url}/api/v1/custom-habits/{hid}", headers=auth_headers, timeout=30)
+        assert r2.status_code == 200
+        r3 = requests.get(f"{base_url}/api/v1/custom-habits", headers=auth_headers, timeout=30)
+        assert hid not in [h["id"] for h in r3.json()["habits"]]
+
+    def test_discipline_endpoint(self, base_url, auth_headers):
+        r = requests.get(f"{base_url}/api/v1/discipline", headers=auth_headers, timeout=30)
+        assert r.status_code == 200
+        d = r.json()
+        assert "score" in d
+        assert "weights" in d
+        assert "factors" in d
+
+    def test_dashboard_includes_readiness(self, base_url, auth_headers):
+        r = requests.get(f"{base_url}/api/dashboard", headers=auth_headers, timeout=30)
+        assert r.status_code == 200
+        assert "readiness" in r.json()
