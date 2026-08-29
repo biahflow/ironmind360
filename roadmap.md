@@ -47,6 +47,8 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - Comunidade será opt-in e usará perfil esportivo separado. Dados sensíveis nunca serão publicados automaticamente.
 - Marketplace começará sem cobrança. Stripe Connect será preparado por uma interface de pagamento e ativado futuramente.
 - Planos pagos do aplicativo também ficam para uma fase posterior.
+- ML preditivo em serviço Python separado (`ml/`), FastAPI/Uvicorn, TensorFlow + scikit-learn/XGBoost + Pandas/NumPy. Container próprio no Compose, comunicação via HTTP/JSON interno.
+- Modelos começam simples (ACWR calculado, Isolation Forest, Gradient Boosting) e migram para redes neurais (LSTM, Autoencoder) quando houver dados suficientes e a complexidade justificar.
 
 ## Regras de segurança do produto
 
@@ -59,6 +61,9 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - Não usar dados de saúde, alimentação, peso ou saúde mental em ranking público.
 - Não recompensar volume extremo de treino em desafios ou pontuações.
 - Toda recomendação relevante deve guardar fonte, versão, dados utilizados e responsável pela aprovação.
+- Modelos preditivos nunca apresentam estimativa como certeza — sempre intervalo de confiança ou classificação de risco.
+- Detecção de anomalia sinaliza desvio para atenção, nunca diagnostica doença ou lesão.
+- Previsões de carga e performance registram versão do modelo e features utilizadas para auditoria.
 
 ## Stack e serviços
 
@@ -78,6 +83,17 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - Adaptadores para IA, e-mail, storage, intervals.icu, notificações e pagamento.
 - API versionada em `/api/v1`; manter aliases temporários das rotas `/api` existentes durante a migração.
 
+### ML (serviço separado)
+
+- Python 3.12, FastAPI e Uvicorn.
+- TensorFlow 2.x para modelos de séries temporais (LSTM, Autoencoder).
+- scikit-learn e XGBoost para modelos clássicos (ACWR, Isolation Forest, Gradient Boosting).
+- Pandas e NumPy para pipeline de features.
+- Container Docker próprio com GPU opcional (CPU suficiente para inferência inicial).
+- Comunicação via HTTP/JSON interno (rede `ironmind_internal`), sem exposição externa direta.
+- Cache de inferência em Redis com TTL.
+- Versionamento de modelos por diretório com metadata JSON.
+
 ### Docker Compose
 
 - `api`: aplicação FastAPI.
@@ -86,8 +102,9 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - `redis`: broker e backend de jobs.
 - `minio`: storage S3 local com bucket inicializado.
 - `mailpit`: captura de e-mail de desenvolvimento.
+- `ml`: serviço de ML preditivo (FastAPI, TensorFlow, scikit-learn).
 - `frontend-web`: perfil opcional para Expo Web.
-- Perfis previstos: `dev`, `test` e `web`.
+- Perfis previstos: `dev`, `test`, `web` e `ml`.
 
 ## Fase 0 — Fundação técnica e segurança
 
@@ -315,7 +332,56 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - [ ] Toda dose exibida aponta protocolo, versão e aprovador.
 - [ ] Feedback gera proposta, não alteração automática.
 
-## Fase 5 — Coach, analytics, provas e equipamentos
+## Fase 5 — ML preditivo: carga, anomalias e performance
+
+Serviço Python separado (`ml/`) com FastAPI/Uvicorn, isolado do backend principal. Comunica-se via HTTP/JSON interno. Modelos começam com scikit-learn/XGBoost e migram para TensorFlow quando a complexidade justificar.
+
+### Infraestrutura do serviço ML
+
+- [ ] Criar serviço `ml/` com FastAPI, Uvicorn e Dockerfile próprio (Python 3.12, TensorFlow, scikit-learn, XGBoost, Pandas, NumPy).
+- [ ] Adicionar container `ml` ao Docker Compose com healthcheck, rede interna e dependência do Mongo/Redis.
+- [ ] Criar pipeline de dados: extração de features do histórico de atividades, check-ins e intervals.icu (TSS, FC, sono, HRV, RPE).
+- [ ] Implementar versionamento de modelos e artefatos (MLflow ou diretório versionado com metadata JSON).
+- [ ] Criar endpoint de retreino sob demanda com proteção por role `administrator`.
+- [ ] Implementar cache de inferência em Redis com TTL configurável.
+
+### Previsão de carga e risco de overtraining
+
+- [ ] Calcular ACWR (Acute:Chronic Workload Ratio) a partir do TSS/carga dos últimos 7 e 28 dias.
+- [ ] Treinar modelo de séries temporais (LSTM ou XGBoost) com features: TSS diário, FC de repouso, HRV, sono, fadiga, RPE, ACWR.
+- [ ] Prever fadiga acumulada para os próximos 3–7 dias e classificar risco (baixo/moderado/alto/crítico).
+- [ ] Sugerir ajuste no plano (redução de volume, dia de descanso, semana de recuperação) sem alterar automaticamente.
+- [ ] Expor `POST /api/v1/ml/overtraining-risk` com entrada de `user_id` e janela temporal.
+- [ ] Integrar resultado com prontidão (readiness) e dashboard do atleta.
+
+### Detecção de anomalias em sessões
+
+- [ ] Construir perfil estatístico do atleta: distribuição de pace, FC, potência, RPE e duração por tipo de atividade.
+- [ ] Treinar modelo de detecção (Isolation Forest ou Autoencoder) para identificar sessões fora do padrão.
+- [ ] Classificar anomalia como positiva (PR, breakout), negativa (possível lesão, doença, overreaching) ou neutra.
+- [ ] Gerar alerta explicativo com as métricas que desviaram e magnitude do desvio.
+- [ ] Expor `POST /api/v1/ml/anomalies` com filtro por período e tipo de atividade.
+- [ ] Nunca diagnosticar doença ou lesão — apenas sinalizar desvio para atenção do atleta.
+
+### Previsão de performance em prova
+
+- [ ] Coletar histórico de zonas de FC, potência (FTP), pace, VO2max estimado e resultados de provas anteriores.
+- [ ] Treinar modelo de regressão (Gradient Boosting ou rede neural simples) para estimar tempo de prova por distância.
+- [ ] Considerar perfil de elevação, clima esperado e estratégia de fueling como features opcionais.
+- [ ] Apresentar estimativa como intervalo de confiança (otimista/realista/conservador), não como valor absoluto.
+- [ ] Expor `POST /api/v1/ml/race-prediction` com entrada de tipo de prova, data e condições.
+- [ ] Registrar previsão vs. resultado real para retroalimentação e melhoria contínua do modelo.
+
+### Critérios de aceite da Fase 6
+
+- [ ] Serviço ML inicia com healthcheck verde e responde em <2s para inferência.
+- [ ] ACWR e risco de overtraining refletem corretamente a carga dos últimos 28 dias.
+- [ ] Anomalias identificam corretamente sessões com desvio >2σ do perfil do atleta.
+- [ ] Previsão de prova apresenta intervalo de confiança, nunca valor absoluto como certeza.
+- [ ] Nenhum modelo diagnostica, prescreve ou altera automaticamente o plano do atleta.
+- [ ] Modelos são versionados e retreináveis sem downtime do serviço.
+
+## Fase 6 — Coach, analytics, provas e equipamentos (ex-Fase 5)
 
 ### Coach e bem-estar
 
@@ -341,14 +407,14 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - [ ] Checklists de logística, equipamento, documentos e transição.
 - [ ] Estratégia de fueling, ritmo importado e retrospectiva pós-prova.
 
-### Critérios de aceite da Fase 5
+### Critérios de aceite da Fase 6
 
 - [ ] Coach respeita tom escolhido e nunca rompe guardrails.
 - [ ] Insights apresentam dados de origem e linguagem não causal.
 - [ ] Equipamentos recebem uso das atividades corretas.
 - [ ] Checklist e estratégia podem ser duplicados para outra prova.
 
-## Fase 6 — Comunidade e marketplace profissional
+## Fase 7 — Comunidade e marketplace profissional (ex-Fase 6)
 
 ### Comunidade
 
@@ -371,14 +437,14 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - [ ] Chat privado auditável após vínculo.
 - [ ] Avaliação do profissional somente após relação verificada.
 
-### Critérios de aceite da Fase 6
+### Critérios de aceite da Fase 7
 
 - [ ] Nenhum dado sensível é compartilhado automaticamente.
 - [ ] Bloqueio remove interação e visibilidade entre as contas.
 - [ ] Denúncias chegam à fila e ações de moderação são auditadas.
 - [ ] Profissional só acessa categorias explicitamente concedidas.
 
-## Fase 7 — Integrações e monetização
+## Fase 8 — Integrações e monetização (ex-Fase 7)
 
 ### Saúde e wearables
 
@@ -396,7 +462,7 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - [ ] Implementar cancelamento, reembolso, disputa e trilha financeira.
 - [ ] Ativar planos premium somente após definição comercial posterior.
 
-### Critérios de aceite da Fase 7
+### Critérios de aceite da Fase 8
 
 - [ ] Permissões negadas não quebram o app nem inferem ausência de dados.
 - [ ] Dados de múltiplas fontes não duplicam métricas.
@@ -421,6 +487,7 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 - E2E: fluxos completos por papel em web, iOS e Android.
 - Segurança: IDOR, upload malicioso, prompt injection, rate limit, tokens, consentimento e deleção.
 - IA: saída estruturada, ausência de invenção, proveniência, incerteza e guardrails.
+- ML: pipeline de features, acurácia mínima em dados sintéticos, versionamento de modelos, latência de inferência, cache hit/miss e fallback quando modelo indisponível.
 - Operação: backup/restauração, retry de jobs, idempotência e indisponibilidade de provedores.
 
 ## Referências-base
@@ -446,6 +513,8 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 | 2026-08-29 | Nutrição individual exige revisão profissional | Segurança clínica e conformidade profissional |
 | 2026-08-29 | Marketplace sem pagamentos inicialmente | Validar vínculos e operação antes da complexidade financeira |
 | 2026-08-29 | Comunidade opt-in e compartilhamento manual | Evitar exposição acidental de dados sensíveis |
+| 2026-08-29 | ML preditivo em serviço separado com TensorFlow/scikit-learn | Isolamento de dependências pesadas, deploy independente e escalabilidade separada do backend principal |
+| 2026-08-29 | Começar com modelos clássicos antes de redes neurais | Dados iniciais insuficientes para deep learning; modelos simples são mais interpretáveis e rápidos de validar |
 
 ## Log de execução
 
