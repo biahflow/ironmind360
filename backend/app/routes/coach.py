@@ -183,6 +183,26 @@ async def gather_context(user: dict) -> dict:
         alert_strs = [f"{a.get('name')}: {a.get('value')}{a.get('unit', '')}" for a in health_alerts[:3]]
         context_parts.append(f"alertas de saude: {', '.join(alert_strs)}")
 
+    # Consistência de hábitos de estilo de vida nos últimos 7 dias.
+    habit_bits = []
+    for key, label in (("meditate", "meditação"), ("read", "leitura"),
+                       ("cold_shower", "banho gelado")):
+        done_days = sum(1 for h in habits if h.get(key))
+        if done_days:
+            habit_bits.append(f"{label} {done_days}/7d")
+    custom_habits = await db.custom_habits.find(
+        {"user_id": user_id, "deleted_at": None}
+    ).to_list(50)
+    for cst in custom_habits:
+        logs = await db.custom_habit_logs.find(
+            {"habit_id": str(cst["_id"]), "user_id": user_id, "date": {"$gte": week_ago}}
+        ).to_list(10)
+        done_days = sum(1 for log in logs if (log.get("value") or 0))
+        if done_days:
+            habit_bits.append(f"{cst.get('name')} {done_days}/7d")
+    if habit_bits:
+        context_parts.append("habitos: " + ", ".join(habit_bits))
+
     sources = []
     if activities:
         sources.append("atividades")
@@ -190,6 +210,8 @@ async def gather_context(user: dict) -> dict:
         sources.append("refeicoes")
     if habits:
         sources.append("check-ins")
+    if habit_bits:
+        sources.append("hábitos")
     if profile:
         sources.append("perfil")
     if upcoming_race:

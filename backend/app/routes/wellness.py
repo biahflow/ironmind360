@@ -101,6 +101,117 @@ async def put_habits(data: HabitIn, user: dict = Depends(current_user)):
     return document
 
 
+# --------------- Consistência semanal dos hábitos ---------------
+
+# Hábitos "fixos" que vivem no próprio documento de check-in (habits).
+BUILTIN_HABITS = [
+    {"key": "meditate", "name": "Meditar", "icon": "leaf-outline"},
+    {"key": "read", "name": "Ler", "icon": "book-outline"},
+    {"key": "cold_shower", "name": "Banho gelado", "icon": "snow-outline"},
+]
+
+
+async def _extras_progress(
+    user_id: str, date: str, habits: dict | None
+) -> tuple[int, int]:
+    """Concluídos/total de hábitos de estilo de vida no dia: 3 fixos + custom booleanos."""
+    done = sum(
+        bool((habits or {}).get(n)) for n in ("meditate", "read", "cold_shower")
+    )
+    total = 3
+    customs = await db.custom_habits.find(
+        {"user_id": user_id, "deleted_at": None, "kind": "boolean"}
+    ).to_list(50)
+    for c in customs:
+        total += 1
+        log = await db.custom_habit_logs.find_one(
+            {"habit_id": str(c["_id"]), "user_id": user_id, "date": date}
+        )
+        if log and log.get("value"):
+            done += 1
+    return done, total
+
+
+def _streak_from(done_by_date: dict, dates_desc: list[str]) -> int:
+    """Conta dias consecutivos concluídos a partir de hoje (dates_desc[0])."""
+    streak = 0
+    for d in dates_desc:
+        if done_by_date.get(d):
+            streak += 1
+        else:
+            break
+    return streak
+
+
+@router.get("/habits/week")
+async def habits_week(
+    days: int = Query(default=7, ge=1, le=30), user: dict = Depends(current_user)
+):
+    user_id = str(user["_id"])
+    now = now_utc()
+    dates_desc = [(now - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days)]
+    dates_asc = list(reversed(dates_desc))
+    today = dates_desc[0]
+
+    habit_docs = await db.habits.find(
+        {"user_id": user_id, "date": {"$in": dates_desc}}
+    ).to_list(days)
+    by_date = {d["date"]: d for d in habit_docs}
+
+    result: list[dict] = []
+
+    for h in BUILTIN_HABITS:
+        done_map = {d: bool((by_date.get(d) or {}).get(h["key"])) for d in dates_desc}
+        result.append({
+            "key": h["key"],
+            "name": h["name"],
+            "icon": h["icon"],
+            "kind": "boolean",
+            "builtin": True,
+            "done_today": done_map[today],
+            "streak": _streak_from(done_map, dates_desc),
+            "week": [done_map[d] for d in dates_asc],
+        })
+
+    customs = await db.custom_habits.find(
+        {"user_id": user_id, "deleted_at": None}
+    ).sort("created_at", 1).to_list(50)
+
+    for c in customs:
+        cid = str(c["_id"])
+        target = c.get("target")
+        kind = c.get("kind", "boolean")
+        logs = await db.custom_habit_logs.find(
+            {"habit_id": cid, "user_id": user_id, "date": {"$in": dates_desc}}
+        ).to_list(days)
+        value_map = {log["date"]: (log.get("value") or 0) for log in logs}
+
+        def _done(value: float) -> bool:
+            if kind == "boolean":
+                return bool(value)
+            if target:
+                return value >= target
+            return value > 0
+
+        done_map = {d: _done(value_map.get(d, 0)) for d in dates_desc}
+        result.append({
+            "id": cid,
+            "key": f"custom:{cid}",
+            "name": c.get("name"),
+            "icon": c.get("icon", "ellipse-outline"),
+            "kind": kind,
+            "unit": c.get("unit", ""),
+            "target": target,
+            "builtin": False,
+            "value_today": value_map.get(today, 0),
+            "done_today": done_map[today],
+            "streak": _streak_from(done_map, dates_desc),
+            "week": [done_map[d] for d in dates_asc],
+        })
+
+    return {"days": dates_asc, "habits": result}
+
+
 # --------------- Prontidão ---------------
 
 @router.get("/readiness")
@@ -295,7 +406,10 @@ async def get_discipline(date: str | None = Query(None), user: dict = Depends(cu
         {"user_id": user_id, "start_date_local": {"$regex": f"^{target_date}"}}
     ).to_list(20)
     workout_today = bool(activities_today)
-    score = compute_discipline(habits, len(meals), workout_today, goals)
+    extra_done, extra_total = await _extras_progress(user_id, target_date, habits)
+    score = compute_discipline(
+        habits, len(meals), workout_today, goals, extra_done, extra_total
+    )
 
     weights = {
         "workout": config.get("weight_workout", 30),
@@ -313,9 +427,8 @@ async def get_discipline(date: str | None = Query(None), user: dict = Depends(cu
             "water_ml": (habits or {}).get("water_ml", 0),
             "sleep_hours": (habits or {}).get("sleep_hours"),
             "meals_count": len(meals),
-            "extras": sum(
-                bool((habits or {}).get(n)) for n in ("meditate", "read", "cold_shower")
-            ),
+            "extras": extra_done,
+            "extras_total": extra_total,
         },
     }
 
@@ -359,13 +472,14 @@ async def dashboard(user: dict = Depends(current_user)):
     pain_doc = await db.pain_logs.find_one({"user_id": user_id, "date": current_date})
     load_risk, anomalies_data = await _safe_ml_risk(user_id), await _safe_ml_anomalies(user_id)
     readiness = compute_readiness(habits or {}, (pain_doc or {}).get("entries", []), load_risk)
+    extra_done, extra_total = await _extras_progress(user_id, current_date, habits)
 
     return {
         "date": current_date,
         "name": user.get("name"),
         "avatar_url": user.get("avatar_url"),
         "discipline_score": compute_discipline(
-            habits, len(meals), workout_today, goals
+            habits, len(meals), workout_today, goals, extra_done, extra_total
         ),
         "readiness": readiness,
         "overtraining": load_risk,
