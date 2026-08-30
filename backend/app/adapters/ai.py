@@ -18,11 +18,17 @@ except ImportError:  # pragma: no cover
 
 
 FOOD_SYSTEM = (
-    "Analise uma refeicao sem diagnosticar ou prescrever. Responda somente JSON: "
-    '{"title":"nome", "items":[], "calories":0, "protein_g":0, '
-    '"carbs_g":0, "fat_g":0, "health_score":0, "coach_note":"nota"}'
+    "Voce e um nutricionista analisando a foto de UMA refeicao ou bebida. "
+    "Identifique com cuidado o tipo de cada alimento (ex.: pao de forma vs pao "
+    "frances mudam as calorias) e estime a porcao em gramas/ml. Responda SOMENTE "
+    "JSON valido no formato: "
+    '{"title":"", "items":[{"name":"", "quantity":"", "calories":0, '
+    '"protein_g":0, "carbs_g":0, "fat_g":0}], "calories":0, "protein_g":0, '
+    '"carbs_g":0, "fat_g":0, "health_score":0, "coach_note":""}. '
+    "Os totais devem ser a soma dos itens. health_score de 0 a 10. "
+    "Nao diagnostique nem prescreva."
 )
-FOOD_PROMPT = "Estime os itens e valores nutricionais desta imagem."
+FOOD_PROMPT = "Analise esta refeicao/bebida e estime os itens e valores nutricionais."
 MAX_TOKENS = 1500
 
 
