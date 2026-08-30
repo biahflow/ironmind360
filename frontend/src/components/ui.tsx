@@ -539,6 +539,31 @@ export function EmptyState({
   );
 }
 
+// ── Error state (with retry) ─────────────────────────────────
+export function ErrorState({
+  title = "Algo deu errado", text = "Não foi possível carregar. Tente novamente.", onRetry,
+}: {
+  title?: string;
+  text?: string;
+  onRetry?: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={st.empty}>
+      <View style={[st.emptyIcon, { backgroundColor: colors.elevated }]}>
+        <Ionicons name="cloud-offline-outline" size={32} color={colors.textSecondary} />
+      </View>
+      <Text style={[st.emptyTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[st.emptyText, { color: colors.textSecondary }]}>{text}</Text>
+      {onRetry ? (
+        <View style={{ marginTop: spacing.xl }}>
+          <PrimaryButton label="Tentar de novo" icon="refresh" onPress={onRetry} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 // ── Shared layout constants ──────────────────────────────────
 export const layout = {
   screenPad: spacing.xl,

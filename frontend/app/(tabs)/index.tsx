@@ -16,7 +16,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ProgressRing from "@/src/components/ProgressRing";
-import { HeroCard, MetricCard, SectionHeader, StatTile } from "@/src/components/ui";
+import { HeroCard, MetricCard, SectionHeader, StatTile, ErrorState } from "@/src/components/ui";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import { fonts, radius, spacing, type } from "@/src/theme";
@@ -41,6 +41,7 @@ export default function Home() {
   const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
@@ -52,8 +53,10 @@ export default function Home() {
       setData(dashboard);
       setPlan(activePlan?.plan || null);
       setImageHeaders(await authHeaders());
+      setFailed(false);
     } catch {
-      // Keep the last successfully loaded state visible.
+      // Keep the last successfully loaded state visible; flag error if empty.
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -82,6 +85,17 @@ export default function Home() {
       await load();
     }
   };
+
+  if (!data && failed && !loading) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
+        <ErrorState
+          text="Não foi possível carregar seu painel. Verifique sua conexão."
+          onRetry={() => { setLoading(true); load(); }}
+        />
+      </View>
+    );
+  }
 
   if (loading || !data) {
     return (
