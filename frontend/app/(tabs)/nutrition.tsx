@@ -66,6 +66,7 @@ export default function Nutrition() {
   const [meals, setMeals] = useState<any[]>([]);
   const [totals, setTotals] = useState<any>({});
   const [goals, setGoals] = useState<any>({});
+  const [planTarget, setPlanTarget] = useState<any>(null);
   const [weekly, setWeekly] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
@@ -92,6 +93,10 @@ export default function Nutrition() {
       setTotals(d.totals || {});
       setGoals(d.goals || {});
       setImageHeaders(await authHeaders());
+    } catch {}
+    try {
+      const pd = await api.get("/nutrition/plan");
+      setPlanTarget(pd?.plan || null);
     } catch {}
     setLoading(false);
   }, []);
@@ -275,7 +280,7 @@ export default function Nutrition() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={false} onRefresh={loadAll} tintColor={colors.accent} />}
         >
-          {tab === "today" && <TodayView {...{ meals, totals, goals, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }} />}
+          {tab === "today" && <TodayView {...{ meals, totals, goals, planTarget, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }} />}
           {tab === "plan" && <PlanView colors={colors} />}
           {tab === "week" && <WeekView days={weekly} goals={goals} colors={colors} />}
           {tab === "favorites" && <FavoritesView favorites={favorites} colors={colors} applyFavorite={applyFavorite} deleteFavorite={deleteFavorite} setFavModal={setFavModal} />}
@@ -432,9 +437,46 @@ export default function Nutrition() {
 
 // ─── Today View ────────────────────────────────────────────────
 
-function TodayView({ meals, totals, goals, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }: any) {
+function RemainingBar({ label, consumed, target, colors }: any) {
+  const pct = target > 0 ? Math.min(consumed / target, 1) : 0;
+  const remaining = Math.max(Math.round(target - consumed), 0);
+  const over = consumed > target;
+  return (
+    <View style={s.remRow}>
+      <View style={s.remHead}>
+        <Text style={[s.remLabel, { color: colors.textSecondary }]}>{label}</Text>
+        <Text style={[s.remValue, { color: over ? colors.warning : colors.text }]}>
+          {over ? `+${Math.round(consumed - target)}` : remaining}{label === "Calorias" ? "" : "g"}
+          <Text style={[s.remTarget, { color: colors.textSecondary }]}>{over ? " acima" : " restante"}</Text>
+        </Text>
+      </View>
+      <View style={[s.remTrack, { backgroundColor: colors.border }]}>
+        <View style={{ width: `${Math.round(pct * 100)}%`, height: 4, borderRadius: 999, backgroundColor: over ? colors.warning : colors.accent }} />
+      </View>
+    </View>
+  );
+}
+
+function TodayView({ meals, totals, goals, planTarget, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }: any) {
+  const target = planTarget
+    ? { calories: planTarget.daily_calories, protein_g: planTarget.protein_g, carbs_g: planTarget.carbs_g, fat_g: planTarget.fat_g }
+    : { calories: goals.calories, protein_g: goals.protein };
+  const hasTarget = Number(target.calories) > 0;
   return (
     <>
+      {hasTarget && (
+        <View style={[s.remCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={s.remCardHead}>
+            <Text style={[s.remTitle, { color: colors.text }]}>Restante hoje</Text>
+            <Text style={[s.remSource, { color: colors.textSecondary }]}>{planTarget ? "meta do plano" : "sua meta"}</Text>
+          </View>
+          <RemainingBar label="Calorias" consumed={totals.calories || 0} target={target.calories} colors={colors} />
+          <RemainingBar label="Proteína" consumed={protG} target={target.protein_g || 0} colors={colors} />
+          {target.carbs_g ? <RemainingBar label="Carbo" consumed={carbG} target={target.carbs_g} colors={colors} /> : null}
+          {target.fat_g ? <RemainingBar label="Gordura" consumed={fatG} target={target.fat_g} colors={colors} /> : null}
+        </View>
+      )}
+
       <View style={[s.donutSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <DonutChart size={180} strokeWidth={16} segments={segments} centerValue={`${Math.round(totals.calories || 0)}`} centerLabel="kcal" />
         <View style={s.macroLegend}>
@@ -1354,6 +1396,17 @@ const s = StyleSheet.create({
   subTabText: { fontFamily: fonts.semibold, ...type.bodySmall },
 
   donutSection: { borderRadius: radius.cardLarge, padding: spacing.xl, alignItems: "center", borderWidth: 1 },
+
+  remCard: { borderRadius: radius.card, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.lg },
+  remCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  remTitle: { fontFamily: fonts.bold, ...type.body },
+  remSource: { fontFamily: fonts.text, ...type.caption },
+  remRow: { marginTop: spacing.md },
+  remHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.xs },
+  remLabel: { fontFamily: fonts.medium, ...type.bodySmall },
+  remValue: { fontFamily: fonts.bold, ...type.bodySmall, fontVariant: ["tabular-nums"] },
+  remTarget: { fontFamily: fonts.text, ...type.caption },
+  remTrack: { height: 4, borderRadius: 999, overflow: "hidden" },
 
   planDisclaimer: {
     flexDirection: "row", alignItems: "flex-start", gap: spacing.sm,
