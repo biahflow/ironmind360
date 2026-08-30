@@ -32,6 +32,13 @@ function clamp(value: number) {
   return Math.max(0, Math.min(1, value));
 }
 
+function fmtShortDate(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
 export default function Home() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -39,6 +46,7 @@ export default function Home() {
 
   const [data, setData] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
+  const [wearable, setWearable] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -46,12 +54,16 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const [dashboard, activePlan] = await Promise.all([
+      const [dashboard, activePlan, wearableSummary] = await Promise.all([
         api.get("/dashboard"),
         api.get("/training/active"),
+        // Best-effort: sem wearable conectado o endpoint pode falhar; não deve
+        // derrubar o carregamento do painel.
+        api.get("/wearable-summary").catch(() => null),
       ]);
       setData(dashboard);
       setPlan(activePlan?.plan || null);
+      setWearable(wearableSummary);
       setImageHeaders(await authHeaders());
       setFailed(false);
     } catch {
@@ -379,6 +391,34 @@ export default function Home() {
               trend="arrow-up-outline"
             />
           </View>
+
+          {(wearable?.resting_hr || wearable?.last_sleep) && (
+            <>
+              <SectionHeader title="Saúde" />
+              <View style={styles.insightGrid}>
+                {wearable?.resting_hr ? (
+                  <StatTile
+                    icon="heart-outline"
+                    label="FC repouso"
+                    value={`${wearable.resting_hr.value?.bpm ?? "—"} bpm`}
+                    supporting={
+                      `${fmtShortDate(wearable.resting_hr.date)} · via intervals.icu`
+                    }
+                  />
+                ) : null}
+                {wearable?.last_sleep ? (
+                  <StatTile
+                    icon="moon-outline"
+                    label="Sono"
+                    value={`${wearable.last_sleep.value?.hours ?? "—"}h`}
+                    supporting={
+                      `${fmtShortDate(wearable.last_sleep.date)} · via intervals.icu`
+                    }
+                  />
+                ) : null}
+              </View>
+            </>
+          )}
 
           <SectionHeader title="Pequenos hábitos" />
           <View style={styles.habitRow}>

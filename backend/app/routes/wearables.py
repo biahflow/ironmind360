@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -222,22 +222,11 @@ async def get_summary(user: dict = Depends(current_user)):
             "value": doc["value"],
         }
 
-    yesterday = (now_utc() - timedelta(days=1)).strftime("%Y-%m-%d")
-
-    sleep_doc = await db.wearable_data.find_one(
-        {**base_query, "data_type": "sleep", "date": {"$gte": yesterday}},
-        sort=[("date", -1)],
-    )
-
     return {
         "resting_hr": await _latest("resting_hr"),
         "hrv": await _latest("hrv"),
         "weight": await _latest("weight"),
-        "last_sleep": {
-            "source": sleep_doc["source"],
-            "date": sleep_doc["date"],
-            "value": sleep_doc["value"],
-        } if sleep_doc else None,
+        "last_sleep": await _latest("sleep"),
         "sources_connected": [
             d["source"]
             for d in await db.wearable_permissions.find({"user_id": user_id}).to_list(10)
