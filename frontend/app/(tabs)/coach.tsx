@@ -32,7 +32,7 @@ const TONE_ICONS: Record<string, string> = {
 const GREETING: Record<string, { role: string; content: string }> = {
   direct: {
     role: "assistant",
-    content: "Você abriu esse chat por um motivo. Me diz: o que você fez HOJE? Sem desculpas.",
+    content: "Sem enrolação. O que você fez HOJE pelo seu objetivo? E não me venha com \"quase\" — me dá o número, a distância, o treino. Se não fez, me diz por quê. Aí a gente conserta agora.",
   },
   balanced: {
     role: "assistant",
