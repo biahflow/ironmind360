@@ -107,6 +107,17 @@ async def gather_context(user: dict) -> dict:
          "flag": {"$in": ["baixo", "alto", "critico_baixo", "critico_alto"]}}
     ).sort("date", -1).to_list(5)
 
+    # Distingue atleta NOVO (nunca treinou pelo app) de atleta que parou de treinar.
+    # Sem isso, a IA presume "abandono" e cobra o atleta por um afastamento que
+    # nunca existiu. O que caracteriza historico de treino sao ATIVIDADES e
+    # REFEICOES; um check-in solto (humor/sono) nao conta. Basta um registro
+    # desses (mesmo fora da janela de 7 dias) para deixar de ser novo.
+    is_new_user = not (activities or meals)
+    if is_new_user:
+        is_new_user = not await db.activities.find_one({"user_id": user_id})
+    if is_new_user:
+        is_new_user = not await db.meals.find_one({"user_id": user_id, "deleted_at": None})
+
     context_parts = [
         f"Ultimos 7 dias: {len(activities)} treinos",
         f"{round(sum((a.get('distance') or 0) for a in activities) / 1000, 1)} km",
@@ -191,6 +202,15 @@ async def gather_context(user: dict) -> dict:
         sources.append("plano nutricional")
 
     text = "; ".join(context_parts) + "."
+    if is_new_user:
+        text = (
+            "ATENCAO — ATLETA NOVO: ainda nao registrou NENHUM treino, refeicao "
+            "ou check-in. Esta COMECANDO agora; NAO houve abandono nem recaida. "
+            "NUNCA cobre um afastamento nem pergunte 'o que te afastou dos treinos'. "
+            "Trate como onboarding: de as boas-vindas, explique de forma simples "
+            "como comecar (primeiro treino, primeiro check-in, primeira refeicao) "
+            "e proponha 1 primeiro passo leve. " + text
+        )
     return {"text": text, "sources": sources}
 
 

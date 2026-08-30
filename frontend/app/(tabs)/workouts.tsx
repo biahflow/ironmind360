@@ -111,6 +111,10 @@ export default function Workouts() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await api.post("/intervals/sync");
+      // Puxa também métricas de saúde (sono, FC repouso, HRV, peso) do intervals.
+      // Best-effort: se a conta não tiver dados de wellness, não deve derrubar o
+      // sync de treinos que acabou de dar certo.
+      try { await api.post("/intervals/sync-wellness?days=30"); } catch {}
       await load();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
