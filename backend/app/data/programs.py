@@ -322,7 +322,7 @@ WEEK_PARAMS = {
 _REPS = {
     "beginner":     {"normal": "10-12", "deload": "10"},
     "intermediate": {"normal": "8-10",  "deload": "8"},
-    "advanced":     {"normal": "6-8",   "deload": "8"},
+    "advanced":     {"normal": "6-8",   "deload": "6"},
 }
 
 _CALF_REPS = {

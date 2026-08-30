@@ -111,7 +111,10 @@ TrainingSessionStatus = Literal["planned", "in_progress", "completed", "skipped"
 
 class StartSessionIn(BaseModel):
     program_id: str
-    session_number: int = Field(ge=1, le=16)
+    session_number: int = Field(default=1, ge=1, le=24)
+    # Personalização por disponibilidade de tempo do atleta.
+    days_per_week: int = Field(default=2, ge=1, le=3)
+    session_length: str = Field(default="full")  # "full" | "essential"
 
 
 class CustomSessionItemIn(BaseModel):

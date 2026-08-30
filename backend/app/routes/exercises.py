@@ -10,6 +10,7 @@ from app.data.exercise_catalog import (
     EXERCISES,
     EXERCISES_BY_ID,
 )
+from app.adapters.ml import MLClient
 from app.data.programs import PROGRAMS, PROGRAMS_BY_ID, WEEK_PARAMS
 from app.database import db
 from app.dependencies import current_user
@@ -19,6 +20,15 @@ from app.services.readiness import compute_readiness
 from app.utils.time import now_utc
 
 router = APIRouter(tags=["exercises"])
+_ml = MLClient()
+
+
+async def _safe_ml_risk(user_id: str) -> Optional[dict]:
+    """Risco de overtraining (fail-open): None se o serviço ml indisponível."""
+    try:
+        return await _ml.overtraining_risk(user_id=user_id)
+    except Exception:
+        return None
 
 
 # ── Catálogo ──────────────────────────────────────
@@ -98,7 +108,9 @@ async def get_program(program_id: str, _user: dict = Depends(current_user)):
 async def get_program_session(
     program_id: str,
     session_number: int,
-    _user: dict = Depends(current_user),
+    length: str = Query(default="full"),
+    autoregulate: bool = Query(default=False),
+    user: dict = Depends(current_user),
 ):
     program = PROGRAMS_BY_ID.get(program_id)
     if not program:
@@ -109,6 +121,13 @@ async def get_program_session(
     )
     if not session:
         raise HTTPException(404, "Sessão não encontrada")
+
+    # Personalização por tempo (essential) + auto-regulação por carga (ML).
+    session = _trim_session(session, length)
+    if autoregulate:
+        risk = await _safe_ml_risk(str(user["_id"]))
+        session = _autoregulate(session, (risk or {}).get("risk_level"))
+
     exercises_enriched = []
     for ex in session["exercises"]:
         catalog_entry = EXERCISES_BY_ID.get(ex["exercise_id"])
@@ -117,6 +136,68 @@ async def get_program_session(
             "exercise": catalog_entry,
         })
     return {**session, "exercises": exercises_enriched}
+
+
+# ── Personalização por tempo disponível ───────────
+
+def _build_session_sequence(days_per_week: int) -> list[int]:
+    """Ordem dos session_numbers do programa (1..16, ímpar=A / par=B, semana =
+    (n+1)//2) conforme a frequência semanal escolhida pelo atleta.
+
+    - 1x/semana: alterna A/B por semana (8 sessões, ~metade do compromisso).
+    - 2x/semana: as 16 sessões nativas (desenho original).
+    - 3x/semana: adiciona uma 3ª sessão/semana repetindo o dia A (24 sessões).
+    """
+    if days_per_week == 1:
+        seq = []
+        for w in range(1, 9):
+            a, b = 2 * w - 1, 2 * w
+            seq.append(a if w % 2 == 1 else b)
+        return seq
+    if days_per_week == 3:
+        seq = []
+        for w in range(1, 9):
+            a, b = 2 * w - 1, 2 * w
+            seq += [a, b, a]
+        return seq
+    return list(range(1, 17))
+
+
+def _trim_session(session: dict, length: str) -> dict:
+    """Versão 'essential' (~20 min): mantém os principais compostos, apara
+    aquecimento a 2, remove panturrilha + estabilidade e reduz o desaquecimento
+    a 1. 'full' devolve a sessão intacta."""
+    if length != "essential":
+        return session
+    ex = session.get("exercises", [])
+    warm = [e for e in ex if e.get("phase") == "warmup"][:2]
+    main = [
+        e for e in ex
+        if e.get("phase") == "strength" and not str(e.get("exercise_id", "")).startswith("calf-")
+    ]
+    cool = [e for e in ex if e.get("phase") == "cooldown"][:1]
+    return {**session, "exercises": warm + main + cool}
+
+
+def _autoregulate(session: dict, risk_level: Optional[str]) -> dict:
+    """Interconexão treino×recuperação: quando o ML sinaliza carga alta/crítica
+    de endurance (ACWR/overtraining), reduz o volume de força (–1 série nos
+    exercícios de força/estabilidade) para proteger a recuperação. Nunca
+    aumenta; nunca diagnostica — só um ajuste de segurança sinalizado."""
+    if risk_level not in ("alto", "critico"):
+        return session
+    adjusted = []
+    for e in session.get("exercises", []):
+        if e.get("phase") in ("strength", "stability") and isinstance(e.get("sets"), int) and e["sets"] > 1:
+            adjusted.append({**e, "sets": e["sets"] - 1})
+        else:
+            adjusted.append(e)
+    note = (
+        "Volume reduzido automaticamente: sua carga de treino está "
+        + ("crítica" if risk_level == "critico" else "alta")
+        + ". Priorize a recuperação."
+    )
+    return {**session, "exercises": adjusted, "autoregulated": True, "autoregulation_note": note}
 
 
 # ── Plano ativo do atleta ─────────────────────────
@@ -149,13 +230,20 @@ async def start_program(body: StartSessionIn, user: dict = Depends(current_user)
             409, "Já existe um programa ativo. Finalize ou cancele antes de iniciar outro."
         )
 
+    session_length = body.session_length if body.session_length in ("full", "essential") else "full"
+    sequence = _build_session_sequence(body.days_per_week)
+
     plan = {
         "user_id": user_id,
         "program_id": body.program_id,
         "program_name": program["name"],
         "level": program["level"],
         "environment": program["environment"],
-        "total_sessions": len(program["sessions"]),
+        # Personalização por tempo disponível.
+        "days_per_week": body.days_per_week,
+        "session_length": session_length,
+        "session_sequence": sequence,
+        "total_sessions": len(sequence),
         "completed_sessions": 0,
         "current_session": body.session_number,
         "status": "active",
@@ -285,8 +373,19 @@ async def start_session(user: dict = Depends(current_user)):
     if not program:
         raise HTTPException(500, "Programa do plano não encontrado no catálogo")
 
+    # Mapeia current_session (índice na sequência personalizada) → session_number
+    # do programa. Planos antigos sem sequência usam o índice direto.
+    sequence = plan.get("session_sequence")
+    idx = plan.get("current_session", 1)
+    if sequence:
+        if idx < 1 or idx > len(sequence):
+            raise HTTPException(400, "Programa concluído — todas as sessões foram realizadas")
+        target_number = sequence[idx - 1]
+    else:
+        target_number = idx
+
     session_def = next(
-        (s for s in program["sessions"] if s["session_number"] == plan["current_session"]),
+        (s for s in program["sessions"] if s["session_number"] == target_number),
         None,
     )
     if not session_def:
@@ -296,7 +395,11 @@ async def start_session(user: dict = Depends(current_user)):
         "user_id": user_id,
         "plan_id": str(plan["_id"]),
         "program_id": plan["program_id"],
+        # session_number aponta para o conteúdo do programa (usado pelo app para
+        # buscar a prescrição); seq_index é a posição na jornada personalizada.
         "session_number": session_def["session_number"],
+        "seq_index": idx,
+        "session_length": plan.get("session_length", "full"),
         "week": session_def["week"],
         "day": session_def["day"],
         "title": session_def["title"],

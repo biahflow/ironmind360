@@ -79,6 +79,7 @@ export default function SessionScreen() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<SessionData | null>(null);
   const [programExercises, setProgramExercises] = useState<SessionExercise[]>([]);
+  const [autoNote, setAutoNote] = useState<string | null>(null);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [sets, setSets] = useState<SetEntry[]>([]);
   const [saving, setSaving] = useState(false);
@@ -97,10 +98,16 @@ export default function SessionScreen() {
       } else {
         const plan = await api.get("/training/active");
         if (plan?.plan) {
+          // Personalização por tempo (session_length) + auto-regulação por
+          // carga de endurance (ML) — tudo interligado.
+          const len = plan.plan.session_length || "full";
           const progData = await api.get(
-            `/programs/${plan.plan.program_id}/sessions/${sess.session_number}`
+            `/programs/${plan.plan.program_id}/sessions/${sess.session_number}?length=${len}&autoregulate=1`
           );
           exercises = progData.exercises || [];
+          if (progData.autoregulated && progData.autoregulation_note) {
+            setAutoNote(progData.autoregulation_note);
+          }
         }
       }
       setProgramExercises(exercises);
@@ -317,6 +324,14 @@ export default function SessionScreen() {
           </View>
         ) : null}
 
+        {/* Auto-regulação: aviso quando o volume foi reduzido pela carga */}
+        {autoNote && (
+          <View style={[s.autoBanner, { backgroundColor: colors.warningMuted, borderColor: colors.warning }]}>
+            <Ionicons name="pulse" size={16} color={colors.warning} />
+            <Text style={[s.autoBannerText, { color: colors.text }]}>{autoNote}</Text>
+          </View>
+        )}
+
         {/* Exercise name + info link */}
         <Pressable
           style={s.exHeader}
@@ -503,6 +518,13 @@ const s = StyleSheet.create({
     marginBottom: spacing.md,
   },
   exName: { fontFamily: fonts.bold, ...tp.h1, flex: 1 },
+  autoBanner: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    borderRadius: radius.md, borderWidth: 1,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  autoBannerText: { flex: 1, fontFamily: fonts.medium, ...tp.bodySmall, lineHeight: 18 },
 
   prescriptionRow: {
     flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md,
