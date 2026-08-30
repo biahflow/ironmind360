@@ -1,17 +1,21 @@
 import React, { useCallback, useState } from "react";
 import {
-  View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator,
-  RefreshControl, Alert,
+  View, Text, StyleSheet, FlatList, ActivityIndicator,
+  RefreshControl, Alert, Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { spacing, radius, fonts, type as tp, shadow } from "@/src/theme";
+import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import ProgressRing from "@/src/components/ProgressRing";
+import {
+  Screen, ScreenHeader, Card, PrimaryButton, SecondaryButton,
+  PillTabs, EmptyState, layout,
+} from "@/src/components/ui";
 
 type Tab = "plan" | "history";
 
@@ -72,7 +76,7 @@ type HistoryItem = {
 };
 
 export default function Workouts() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("plan");
@@ -82,7 +86,7 @@ export default function Workouts() {
   const [connected, setConnected] = useState(true);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const tabBarPad = 64 + insets.bottom + spacing.lg;
+  const tabBarPad = layout.tabBarPad(insets.bottom);
 
   const load = useCallback(async () => {
     try {
@@ -164,16 +168,17 @@ export default function Workouts() {
   const renderPlanContent = () => {
     if (!plan) {
       return (
-        <View style={s.empty}>
-          <Ionicons name="barbell-outline" size={64} color={colors.brandTertiary} />
-          <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Nenhum programa ativo</Text>
-          <Text style={[s.emptyText, { color: colors.onSurfaceSecondary }]}>
-            Escolha um programa de preparação física auxiliar para começar.
-          </Text>
-          <Pressable style={[s.emptyBtn, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }]} onPress={() => router.push("/program-select")}>
-            <Text style={[s.emptyBtnText, { color: colors.onBrandPrimary }]}>Escolher programa</Text>
-          </Pressable>
-        </View>
+        <EmptyState
+          icon="barbell-outline"
+          title="Nenhum programa ativo"
+          text="Escolha um programa de preparação física auxiliar para começar."
+          action={
+            <PrimaryButton
+              label="Escolher programa"
+              onPress={() => router.push("/program-select")}
+            />
+          }
+        />
       );
     }
 
@@ -181,68 +186,74 @@ export default function Workouts() {
     const remaining = plan.total_sessions - plan.completed_sessions;
 
     return (
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: tabBarPad }}>
+      <View style={{ paddingHorizontal: layout.screenPad, paddingTop: spacing.md, paddingBottom: tabBarPad }}>
         {/* Plan card */}
-        <View style={[s.planCard, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.md) }]}>
+        <Card large>
           <View style={s.planHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={[s.planName, { color: colors.onSurface }]}>{plan.program_name}</Text>
-              <Text style={[s.planMeta, { color: colors.onSurfaceSecondary }]}>
+              <Text style={[s.planName, { color: colors.text }]}>{plan.program_name}</Text>
+              <Text style={[s.planMeta, { color: colors.textSecondary }]}>
                 {LEVEL_LABEL[plan.level]} · {ENV_LABEL[plan.environment]}
               </Text>
             </View>
             <ProgressRing size={72} strokeWidth={6} progress={progress}>
-              <Text style={[s.ringNum, { color: colors.onSurface }]}>{Math.round(progress * 100)}</Text>
-              <Text style={[s.ringPct, { color: colors.onSurfaceSecondary }]}>%</Text>
+              <Text style={[s.ringNum, { color: colors.text }]}>{Math.round(progress * 100)}</Text>
+              <Text style={[s.ringPct, { color: colors.textSecondary }]}>%</Text>
             </ProgressRing>
           </View>
 
           <View style={s.planStats}>
-            <View style={[s.planStat, { backgroundColor: colors.surfaceTertiary }]}>
-              <Text style={[s.planStatValue, { color: colors.onSurface }]}>{plan.completed_sessions}</Text>
-              <Text style={[s.planStatLabel, { color: colors.onSurfaceSecondary }]}>Concluídas</Text>
+            <View style={[s.planStat, { backgroundColor: colors.elevated }]}>
+              <Text style={[s.planStatValue, { color: colors.text }]}>{plan.completed_sessions}</Text>
+              <Text style={[s.planStatLabel, { color: colors.textSecondary }]}>Concluídas</Text>
             </View>
-            <View style={[s.planStat, { backgroundColor: colors.surfaceTertiary }]}>
-              <Text style={[s.planStatValue, { color: colors.onSurface }]}>{remaining}</Text>
-              <Text style={[s.planStatLabel, { color: colors.onSurfaceSecondary }]}>Restantes</Text>
+            <View style={[s.planStat, { backgroundColor: colors.elevated }]}>
+              <Text style={[s.planStatValue, { color: colors.text }]}>{remaining}</Text>
+              <Text style={[s.planStatLabel, { color: colors.textSecondary }]}>Restantes</Text>
             </View>
-            <View style={[s.planStat, { backgroundColor: colors.surfaceTertiary }]}>
-              <Text style={[s.planStatValue, { color: colors.onSurface }]}>{plan.current_session}</Text>
-              <Text style={[s.planStatLabel, { color: colors.onSurfaceSecondary }]}>Próxima</Text>
+            <View style={[s.planStat, { backgroundColor: colors.elevated }]}>
+              <Text style={[s.planStatValue, { color: colors.text }]}>{plan.current_session}</Text>
+              <Text style={[s.planStatLabel, { color: colors.textSecondary }]}>Próxima</Text>
             </View>
           </View>
 
           {plan.status !== "completed" && (
-            <Pressable style={[s.startSessionBtn, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }]} onPress={startSession}>
-              <Ionicons name="play" size={20} color={colors.onBrandPrimary} />
-              <Text style={[s.startSessionText, { color: colors.onBrandPrimary }]}>
-                Iniciar sessão {plan.current_session}
-              </Text>
-            </Pressable>
+            <PrimaryButton
+              icon="play"
+              label={`Iniciar sessão ${plan.current_session}`}
+              onPress={startSession}
+            />
           )}
 
           {plan.status === "completed" && (
-            <View style={[s.completedBanner, { backgroundColor: colors.surfaceTertiary }]}>
+            <View style={[s.completedBanner, { backgroundColor: colors.elevated }]}>
               <Ionicons name="trophy" size={20} color={colors.success} />
               <Text style={[s.completedText, { color: colors.success }]}>Programa concluído</Text>
             </View>
           )}
-        </View>
+        </Card>
 
         {/* Actions */}
         <View style={s.actionsRow}>
-          <Pressable style={[s.actionBtn, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]} onPress={restartPlan}>
-            <Ionicons name="refresh" size={16} color={colors.onSurfaceSecondary} />
-            <Text style={[s.actionText, { color: colors.onSurfaceSecondary }]}>Recomeçar</Text>
-          </Pressable>
-          <Pressable style={[s.actionBtn, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]} onPress={cancelPlan}>
-            <Ionicons name="close-circle-outline" size={16} color={colors.error} />
-            <Text style={[s.actionText, { color: colors.error }]}>Cancelar</Text>
-          </Pressable>
-          <Pressable style={[s.actionBtn, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]} onPress={() => router.push("/program-select")}>
-            <Ionicons name="swap-horizontal" size={16} color={colors.onSurfaceSecondary} />
-            <Text style={[s.actionText, { color: colors.onSurfaceSecondary }]}>Trocar</Text>
-          </Pressable>
+          <SecondaryButton
+            style={{ flex: 1 }}
+            icon="refresh"
+            label="Recomeçar"
+            onPress={restartPlan}
+          />
+          <SecondaryButton
+            style={{ flex: 1 }}
+            icon="close-circle-outline"
+            label="Cancelar"
+            color={colors.error}
+            onPress={cancelPlan}
+          />
+          <SecondaryButton
+            style={{ flex: 1 }}
+            icon="swap-horizontal"
+            label="Trocar"
+            onPress={() => router.push("/program-select")}
+          />
         </View>
       </View>
     );
@@ -263,15 +274,15 @@ export default function Workouts() {
         (acc: number, ex: any) => acc + (ex.sets?.length || 0), 0
       );
       return (
-        <View style={[s.card, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-          <View style={[s.cardIcon, { backgroundColor: colors.brandTertiary }]}>
-            <Ionicons name="barbell" size={22} color={colors.brandPrimary} />
+        <Card style={s.card}>
+          <View style={[s.cardIcon, { backgroundColor: colors.accentMuted }]}>
+            <Ionicons name="barbell" size={22} color={colors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[s.cardTitle, { color: colors.onSurface }]} numberOfLines={1}>
+            <Text style={[s.cardTitle, { color: colors.text }]} numberOfLines={1}>
               {item.title || `Sessão ${item.session_number}`}
             </Text>
-            <Text style={[s.cardDate, { color: colors.onSurfaceSecondary }]}>
+            <Text style={[s.cardDate, { color: colors.textSecondary }]}>
               {fmtDate(item.completed_at || item.started_at || "")} · Semana {item.week} · Dia {item.day}
             </Text>
             <View style={s.metricsRow}>
@@ -279,24 +290,24 @@ export default function Workouts() {
               <Metric value={item.status === "completed" ? "Concluída" : "Pulada"} label="Status" colors={colors} />
             </View>
           </View>
-        </View>
+        </Card>
       );
     }
 
     return (
-      <View style={[s.card, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-        <View style={[s.cardIcon, { backgroundColor: colors.brandTertiary }]}>
+      <Card style={s.card}>
+        <View style={[s.cardIcon, { backgroundColor: colors.accentMuted }]}>
           <Ionicons
             name={TYPE_ICON[item.type || ""] || "fitness"}
             size={22}
-            color={colors.brandSecondary}
+            color={colors.accent}
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[s.cardTitle, { color: colors.onSurface }]} numberOfLines={1}>
+          <Text style={[s.cardTitle, { color: colors.text }]} numberOfLines={1}>
             {item.name || item.type || "Treino"}
           </Text>
-          <Text style={[s.cardDate, { color: colors.onSurfaceSecondary }]}>
+          <Text style={[s.cardDate, { color: colors.textSecondary }]}>
             {fmtDate(item.start_date_local || "")} · {item.type} · intervals.icu
           </Text>
           <View style={s.metricsRow}>
@@ -318,187 +329,143 @@ export default function Workouts() {
             />
           </View>
         </View>
-      </View>
+      </Card>
     );
   };
 
   return (
-    <View style={[s.root, { backgroundColor: colors.surface }]}>
-      <View style={[s.header, { paddingTop: insets.top + spacing.md, borderBottomColor: colors.divider }]}>
-        <View>
-          <Text style={[s.kicker, { color: colors.brandPrimary }]}>Treino</Text>
-          <Text style={[s.title, { color: colors.onSurface }]}>Treinos</Text>
-        </View>
-        {tab === "history" && connected && (
-          <Pressable onPress={sync} style={[s.syncBtn, { backgroundColor: colors.brandPrimary }]} disabled={syncing}>
-            {syncing ? (
-              <ActivityIndicator color={colors.onBrandPrimary} size="small" />
-            ) : (
-              <>
-                <Ionicons name="sync" size={16} color={colors.onBrandPrimary} />
-                <Text style={[s.syncText, { color: colors.onBrandPrimary }]}>Sync</Text>
-              </>
-            )}
-          </Pressable>
-        )}
-      </View>
+    <Screen>
+      <ScreenHeader
+        title="Treinos"
+        right={
+          tab === "history" && connected ? (
+            <Pressable
+              onPress={sync}
+              disabled={syncing}
+              style={[s.syncBtn, { backgroundColor: colors.accent }]}
+            >
+              {syncing ? (
+                <ActivityIndicator color={colors.onAccent} size="small" />
+              ) : (
+                <>
+                  <Ionicons name="sync" size={16} color={colors.onAccent} />
+                  <Text style={[s.syncText, { color: colors.onAccent }]}>Sync</Text>
+                </>
+              )}
+            </Pressable>
+          ) : undefined
+        }
+      />
 
       {/* Tab switcher */}
       <View style={s.tabRow}>
-        <Pressable
-          style={[s.tabBtn, { backgroundColor: tab === "plan" ? colors.brandPrimary : colors.surfaceTertiary }]}
-          onPress={() => setTab("plan")}
-        >
-          <Text style={[s.tabText, { color: tab === "plan" ? colors.onBrandPrimary : colors.onSurfaceSecondary }]}>Meu plano</Text>
-        </Pressable>
-        <Pressable
-          style={[s.tabBtn, { backgroundColor: tab === "history" ? colors.brandPrimary : colors.surfaceTertiary }]}
-          onPress={() => setTab("history")}
-        >
-          <Text style={[s.tabText, { color: tab === "history" ? colors.onBrandPrimary : colors.onSurfaceSecondary }]}>Histórico</Text>
-        </Pressable>
+        <PillTabs<Tab>
+          tabs={[
+            { key: "plan", label: "Meu plano" },
+            { key: "history", label: "Histórico" },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
       </View>
 
       {loading ? (
         <View style={s.center}>
-          <ActivityIndicator color={colors.brandPrimary} />
+          <ActivityIndicator color={colors.accent} />
         </View>
       ) : tab === "plan" ? (
         renderPlanContent()
       ) : allHistory.length === 0 ? (
-        <View style={s.empty}>
-          <Ionicons name="time-outline" size={64} color={colors.brandTertiary} />
-          <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Sem histórico</Text>
-          <Text style={[s.emptyText, { color: colors.onSurfaceSecondary }]}>
-            {connected
+        <EmptyState
+          icon="time-outline"
+          title="Sem histórico"
+          text={
+            connected
               ? "Sincronize com o intervals.icu ou complete uma sessão do seu programa."
-              : "Conecte o intervals.icu nas configurações ou inicie um programa."}
-          </Text>
-        </View>
+              : "Conecte o intervals.icu nas configurações ou inicie um programa."
+          }
+        />
       ) : (
         <FlatList
           data={allHistory}
           keyExtractor={(i) => i.id}
           renderItem={renderHistoryItem}
           contentContainerStyle={{
-            paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: tabBarPad,
+            paddingHorizontal: layout.screenPad, paddingTop: spacing.md, paddingBottom: tabBarPad,
           }}
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={false} onRefresh={load} tintColor={colors.brandPrimary} />
+            <RefreshControl refreshing={false} onRefresh={load} tintColor={colors.accent} />
           }
         />
       )}
-    </View>
+    </Screen>
   );
 }
 
 function Metric({ value, label, colors }: { value: any; label: string; colors: any }) {
   return (
     <View style={s.metric}>
-      <Text style={[s.metricValue, { color: colors.onSurface }]}>{value}</Text>
-      <Text style={[s.metricLabel, { color: colors.onSurfaceSecondary }]}>{label}</Text>
+      <Text style={[s.metricValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[s.metricLabel, { color: colors.textSecondary }]}>{label}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
-  header: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end",
-    paddingHorizontal: spacing.xl, paddingBottom: spacing.lg,
-  },
-  kicker: { fontFamily: fonts.medium, fontSize: tp.sm, letterSpacing: 2 },
-  title: { fontFamily: fonts.display, fontSize: tp["3xl"], letterSpacing: 1 },
   syncBtn: {
     flexDirection: "row", alignItems: "center", gap: spacing.xs,
     paddingHorizontal: spacing.lg,
     height: 40, borderRadius: radius.pill, minWidth: 80, justifyContent: "center",
   },
-  syncText: { fontFamily: fonts.bold, fontSize: tp.sm },
+  syncText: { fontFamily: fonts.bold, ...type.bodySmall },
 
   tabRow: {
-    flexDirection: "row", paddingHorizontal: spacing.xl, paddingVertical: spacing.md, gap: spacing.sm,
+    paddingHorizontal: layout.screenPad, paddingBottom: spacing.md,
   },
-  tabBtn: {
-    flex: 1, height: 44, borderRadius: radius.pill,
-    alignItems: "center", justifyContent: "center",
-  },
-  tabText: { fontFamily: fonts.bold, fontSize: tp.sm, letterSpacing: 1 },
 
   // Plan
-  planCard: {
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-  },
   planHeader: { flexDirection: "row", alignItems: "center", marginBottom: spacing.xl },
-  planName: { fontFamily: fonts.display, fontSize: tp["2xl"], letterSpacing: 1 },
-  planMeta: { fontFamily: fonts.mono, fontSize: tp.sm, marginTop: 2 },
-  ringNum: { fontFamily: fonts.display, fontSize: tp.xl },
-  ringPct: { fontFamily: fonts.medium, fontSize: tp.sm },
+  planName: { fontFamily: fonts.bold, ...type.h2 },
+  planMeta: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
+  ringNum: { fontFamily: fonts.bold, ...type.h2 },
+  ringPct: { fontFamily: fonts.medium, ...type.bodySmall },
 
   planStats: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.xl },
   planStat: {
     flex: 1, borderRadius: radius.lg,
     paddingVertical: spacing.lg, alignItems: "center",
   },
-  planStatValue: { fontFamily: fonts.display, fontSize: tp["2xl"] },
-  planStatLabel: { fontFamily: fonts.medium, fontSize: 9, letterSpacing: 1, marginTop: 2 },
-
-  startSessionBtn: {
-    flexDirection: "row", gap: spacing.sm, height: 56, borderRadius: radius.pill,
-    alignItems: "center", justifyContent: "center",
+  planStatValue: { fontFamily: fonts.bold, ...type.metric, fontVariant: ["tabular-nums"] },
+  planStatLabel: {
+    fontFamily: fonts.medium, ...type.caption, letterSpacing: 1, marginTop: 2,
   },
-  startSessionText: { fontFamily: fonts.bold, fontSize: tp.lg, letterSpacing: 1 },
 
   completedBanner: {
     flexDirection: "row", gap: spacing.sm, height: 56, borderRadius: radius.lg,
     alignItems: "center", justifyContent: "center",
   },
-  completedText: { fontFamily: fonts.bold, fontSize: tp.lg, letterSpacing: 1 },
+  completedText: { fontFamily: fonts.bold, ...type.body },
 
   actionsRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing["2xl"] },
-  actionBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs,
-    height: 44, borderRadius: radius.pill,
-  },
-  actionText: { fontFamily: fonts.medium, fontSize: tp.sm },
 
   // History cards
   card: {
     flexDirection: "row", gap: spacing.lg,
-    borderRadius: radius.lg, padding: spacing.xl,
   },
   cardIcon: {
     width: 48, height: 48, borderRadius: radius.lg,
     alignItems: "center", justifyContent: "center",
   },
-  cardTitle: { fontFamily: fonts.semibold, fontSize: tp.lg },
-  cardDate: { fontFamily: fonts.mono, fontSize: tp.sm, marginTop: 2 },
+  cardTitle: { fontFamily: fonts.semibold, ...type.body },
+  cardDate: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
   metricsRow: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.lg },
   metric: {},
-  metricValue: { fontFamily: fonts.display, fontSize: tp.xl, fontVariant: ["tabular-nums"] },
-  metricLabel: { fontFamily: fonts.medium, fontSize: 9, letterSpacing: 1 },
-
-  // Empty
-  empty: {
-    flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing["2xl"],
+  metricValue: { fontFamily: fonts.bold, ...type.h2, fontVariant: ["tabular-nums"] },
+  metricLabel: {
+    fontFamily: fonts.medium, ...type.caption, letterSpacing: 1,
   },
-  emptyTitle: {
-    fontFamily: fonts.display, fontSize: tp["2xl"],
-    letterSpacing: 1, textAlign: "center", marginTop: spacing.xl,
-  },
-  emptyText: {
-    fontFamily: fonts.text, fontSize: tp.base,
-    textAlign: "center", marginTop: spacing.md, lineHeight: 22,
-  },
-  emptyBtn: {
-    paddingHorizontal: spacing["2xl"],
-    height: 56, borderRadius: radius.pill, alignItems: "center", justifyContent: "center",
-    marginTop: spacing["2xl"],
-  },
-  emptyBtnText: { fontFamily: fonts.bold, fontSize: tp.base, letterSpacing: 1 },
 });

@@ -10,10 +10,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 
-import { spacing, radius, fonts, type, shadow } from "@/src/theme";
+import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import DonutChart from "@/src/components/DonutChart";
+import { EmptyState } from "@/src/components/ui";
 
 const MACRO_COLORS = { protein: "#4ECDC4", carbs: "#FFD93D", fat: "#FF6B6B" };
 
@@ -60,7 +61,7 @@ function sumItems(items: MealItem[]) {
 }
 
 export default function Nutrition() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<SubTab>("today");
   const [meals, setMeals] = useState<any[]>([]);
@@ -216,66 +217,75 @@ export default function Nutrition() {
   ];
 
   return (
-    <View style={[s.root, { backgroundColor: colors.surface }]}>
-      <View style={[s.header, { paddingTop: insets.top + spacing.md, backgroundColor: colors.surface, borderBottomColor: colors.divider }]}>
-        <Text style={[s.title, { color: colors.onSurface }]}>Nutrição</Text>
+    <View style={[s.root, { backgroundColor: colors.bg }]}>
+      <View style={[s.header, { paddingTop: insets.top + spacing.md, backgroundColor: colors.bg }]}>
+        <Text style={[s.title, { color: colors.text }]}>Nutrição</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
-          {SUB_TABS.map((t) => (
-            <Pressable
-              key={t.key}
-              onPress={() => setTab(t.key)}
-              style={[s.subTab, tab === t.key && { backgroundColor: colors.brandTertiary }]}
-            >
-              <Ionicons name={t.icon as any} size={16} color={tab === t.key ? colors.brandPrimary : colors.onSurfaceSecondary} />
-              <Text style={[s.subTabText, { color: tab === t.key ? colors.brandPrimary : colors.onSurfaceSecondary }]}>{t.label}</Text>
-            </Pressable>
-          ))}
+          {SUB_TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <Pressable
+                key={t.key}
+                onPress={() => setTab(t.key)}
+                style={[
+                  s.subTab,
+                  {
+                    backgroundColor: active ? colors.accent : colors.surface,
+                    borderColor: active ? colors.accent : colors.border,
+                  },
+                ]}
+              >
+                <Ionicons name={t.icon as any} size={16} color={active ? colors.onAccent : colors.textSecondary} />
+                <Text style={[s.subTabText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
       </View>
 
       {loading ? (
-        <View style={s.center}><ActivityIndicator color={colors.brandPrimary} /></View>
+        <View style={s.center}><ActivityIndicator color={colors.accent} /></View>
       ) : (
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: tabBarPad }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={false} onRefresh={loadAll} tintColor={colors.brandPrimary} />}
+          refreshControl={<RefreshControl refreshing={false} onRefresh={loadAll} tintColor={colors.accent} />}
         >
-          {tab === "today" && <TodayView {...{ meals, totals, goals, segments, protG, carbG, fatG, totalMacroG, colors, isDark, imageHeaders, permMsg, removeMeal, setEditModal }} />}
-          {tab === "week" && <WeekView days={weekly} goals={goals} colors={colors} isDark={isDark} />}
-          {tab === "favorites" && <FavoritesView favorites={favorites} colors={colors} isDark={isDark} applyFavorite={applyFavorite} deleteFavorite={deleteFavorite} setFavModal={setFavModal} />}
-          {tab === "recipes" && <RecipesView recipes={recipes} colors={colors} isDark={isDark} applyRecipe={applyRecipe} deleteRecipe={deleteRecipe} setRecipeModal={setRecipeModal} />}
+          {tab === "today" && <TodayView {...{ meals, totals, goals, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }} />}
+          {tab === "week" && <WeekView days={weekly} goals={goals} colors={colors} />}
+          {tab === "favorites" && <FavoritesView favorites={favorites} colors={colors} applyFavorite={applyFavorite} deleteFavorite={deleteFavorite} setFavModal={setFavModal} />}
+          {tab === "recipes" && <RecipesView recipes={recipes} colors={colors} applyRecipe={applyRecipe} deleteRecipe={deleteRecipe} setRecipeModal={setRecipeModal} />}
         </ScrollView>
       )}
 
       {tab === "today" && (
         <Pressable
           testID="camera-log-fab"
-          style={[s.fab, { bottom: insets.bottom + 64 + spacing.lg, backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }]}
+          style={[s.fab, { bottom: insets.bottom + 64 + spacing.lg, backgroundColor: colors.accent }]}
           onPress={() => setPicker(true)}
           disabled={analyzing}
         >
-          {analyzing ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="add" size={28} color={colors.onBrandPrimary} />}
+          {analyzing ? <ActivityIndicator color={colors.onAccent} /> : <Ionicons name="add" size={28} color={colors.onAccent} />}
         </Pressable>
       )}
 
       {/* Add meal picker */}
       <Modal visible={picker} transparent animationType="slide" onRequestClose={() => setPicker(false)}>
         <Pressable style={s.backdrop} onPress={() => setPicker(false)}>
-          <View style={[s.sheet, { paddingBottom: insets.bottom + spacing.lg, backgroundColor: colors.surfaceElevated, ...shadow.lg }]}>
-            <View style={[s.sheetHandle, { backgroundColor: colors.borderStrong }]} />
-            <Text style={[s.sheetTitle, { color: colors.onSurfaceSecondary }]}>REGISTRAR REFEIÇÃO</Text>
-            <Pressable testID="take-photo-button" style={[s.sheetBtn, { backgroundColor: colors.surfaceTertiary }]} onPress={openCamera}>
-              <Ionicons name="camera" size={22} color={colors.onSurface} />
-              <Text style={[s.sheetBtnText, { color: colors.onSurface }]}>Tirar foto do prato</Text>
+          <View style={[s.sheet, { paddingBottom: insets.bottom + spacing.lg, backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[s.sheetHandle, { backgroundColor: colors.border }]} />
+            <Text style={[s.sheetTitle, { color: colors.textSecondary }]}>REGISTRAR REFEIÇÃO</Text>
+            <Pressable testID="take-photo-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={openCamera}>
+              <Ionicons name="camera" size={22} color={colors.text} />
+              <Text style={[s.sheetBtnText, { color: colors.text }]}>Tirar foto do prato</Text>
             </Pressable>
-            <Pressable testID="pick-photo-button" style={[s.sheetBtn, { backgroundColor: colors.surfaceTertiary }]} onPress={openGallery}>
-              <Ionicons name="images" size={22} color={colors.onSurface} />
-              <Text style={[s.sheetBtnText, { color: colors.onSurface }]}>Escolher da galeria</Text>
+            <Pressable testID="pick-photo-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={openGallery}>
+              <Ionicons name="images" size={22} color={colors.text} />
+              <Text style={[s.sheetBtnText, { color: colors.text }]}>Escolher da galeria</Text>
             </Pressable>
-            <Pressable testID="manual-entry-button" style={[s.sheetBtn, { backgroundColor: colors.surfaceTertiary }]} onPress={() => { setPicker(false); setManualModal(true); }}>
-              <Ionicons name="create-outline" size={22} color={colors.onSurface} />
-              <Text style={[s.sheetBtnText, { color: colors.onSurface }]}>Entrada manual</Text>
+            <Pressable testID="manual-entry-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setManualModal(true); }}>
+              <Ionicons name="create-outline" size={22} color={colors.text} />
+              <Text style={[s.sheetBtnText, { color: colors.text }]}>Entrada manual</Text>
             </Pressable>
           </View>
         </Pressable>
@@ -292,7 +302,6 @@ export default function Nutrition() {
           await loadAll();
         }}
         colors={colors}
-        isDark={isDark}
         insets={insets}
       />
 
@@ -308,7 +317,6 @@ export default function Nutrition() {
             await loadAll();
           }}
           colors={colors}
-          isDark={isDark}
           insets={insets}
         />
       )}
@@ -324,7 +332,6 @@ export default function Nutrition() {
           await loadFavorites();
         }}
         colors={colors}
-        isDark={isDark}
         insets={insets}
       />
 
@@ -339,14 +346,13 @@ export default function Nutrition() {
           await loadRecipes();
         }}
         colors={colors}
-        isDark={isDark}
         insets={insets}
       />
 
       {analyzing && (
         <View style={[s.analyzeOverlay, { backgroundColor: colors.overlay }]} testID="analyzing-overlay">
-          <ActivityIndicator color={colors.brandPrimary} size="large" />
-          <Text style={[s.analyzeText, { color: colors.onSurface }]}>Analisando seu prato...</Text>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={[s.analyzeText, { color: colors.text }]}>Analisando seu prato...</Text>
         </View>
       )}
     </View>
@@ -355,70 +361,70 @@ export default function Nutrition() {
 
 // ─── Today View ────────────────────────────────────────────────
 
-function TodayView({ meals, totals, goals, segments, protG, carbG, fatG, totalMacroG, colors, isDark, imageHeaders, permMsg, removeMeal, setEditModal }: any) {
+function TodayView({ meals, totals, goals, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }: any) {
   return (
     <>
-      <View style={[s.donutSection, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.md) }]}>
+      <View style={[s.donutSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <DonutChart size={180} strokeWidth={16} segments={segments} centerValue={`${Math.round(totals.calories || 0)}`} centerLabel="kcal" />
         <View style={s.macroLegend}>
-          <MacroChip label="Proteína" value={`${protG}g`} pct={Math.round((protG / totalMacroG) * 100)} color={MACRO_COLORS.protein} textColor={colors.onSurface} subColor={colors.onSurfaceSecondary} />
-          <MacroChip label="Carbo" value={`${carbG}g`} pct={Math.round((carbG / totalMacroG) * 100)} color={MACRO_COLORS.carbs} textColor={colors.onSurface} subColor={colors.onSurfaceSecondary} />
-          <MacroChip label="Gordura" value={`${fatG}g`} pct={Math.round((fatG / totalMacroG) * 100)} color={MACRO_COLORS.fat} textColor={colors.onSurface} subColor={colors.onSurfaceSecondary} />
+          <MacroChip label="Proteína" value={`${protG}g`} pct={Math.round((protG / totalMacroG) * 100)} color={MACRO_COLORS.protein} textColor={colors.text} subColor={colors.textSecondary} />
+          <MacroChip label="Carbo" value={`${carbG}g`} pct={Math.round((carbG / totalMacroG) * 100)} color={MACRO_COLORS.carbs} textColor={colors.text} subColor={colors.textSecondary} />
+          <MacroChip label="Gordura" value={`${fatG}g`} pct={Math.round((fatG / totalMacroG) * 100)} color={MACRO_COLORS.fat} textColor={colors.text} subColor={colors.textSecondary} />
         </View>
         {(totals.fiber_g > 0 || totals.sodium_mg > 0) && (
-          <View style={[s.microRow, { borderTopColor: colors.divider }]}>
-            {totals.fiber_g > 0 && <Text style={[s.microText, { color: colors.onSurfaceSecondary }]}>Fibra {Math.round(totals.fiber_g)}g</Text>}
-            {totals.sugar_g > 0 && <Text style={[s.microText, { color: colors.onSurfaceSecondary }]}>Açúcar {Math.round(totals.sugar_g)}g</Text>}
-            {totals.sodium_mg > 0 && <Text style={[s.microText, { color: colors.onSurfaceSecondary }]}>Sódio {Math.round(totals.sodium_mg)}mg</Text>}
+          <View style={[s.microRow, { borderTopColor: colors.border }]}>
+            {totals.fiber_g > 0 && <Text style={[s.microText, { color: colors.textSecondary }]}>Fibra {Math.round(totals.fiber_g)}g</Text>}
+            {totals.sugar_g > 0 && <Text style={[s.microText, { color: colors.textSecondary }]}>Açúcar {Math.round(totals.sugar_g)}g</Text>}
+            {totals.sodium_mg > 0 && <Text style={[s.microText, { color: colors.textSecondary }]}>Sódio {Math.round(totals.sodium_mg)}mg</Text>}
           </View>
         )}
         {goals.calories && (
-          <Text style={[s.goalText, { color: colors.onSurfaceSecondary }]}>Meta: {goals.calories} kcal · P {goals.protein}g</Text>
+          <Text style={[s.goalText, { color: colors.textSecondary }]}>Meta: {goals.calories} kcal · P {goals.protein}g</Text>
         )}
       </View>
 
       {permMsg ? (
-        <View style={[s.permBox, { backgroundColor: colors.brandTertiary }]}>
-          <Text style={[s.permText, { color: colors.onSurface }]}>{permMsg}</Text>
+        <View style={[s.permBox, { backgroundColor: colors.accentMuted }]}>
+          <Text style={[s.permText, { color: colors.text }]}>{permMsg}</Text>
           {permMsg.includes("bloqueado") && (
-            <Pressable testID="open-settings-button" onPress={() => Linking.openSettings()} style={[s.permBtn, { backgroundColor: colors.brandPrimary }]}>
-              <Text style={[s.permBtnText, { color: colors.onBrandPrimary }]}>Abrir Configurações</Text>
+            <Pressable testID="open-settings-button" onPress={() => Linking.openSettings()} style={[s.permBtn, { backgroundColor: colors.accent }]}>
+              <Text style={[s.permBtnText, { color: colors.onAccent }]}>Abrir Configurações</Text>
             </Pressable>
           )}
         </View>
       ) : null}
 
-      <Text style={[s.sectionTitle, { color: colors.onSurfaceSecondary }]}>Refeições</Text>
+      <Text style={[s.sectionTitle, { color: colors.text }]}>Refeições</Text>
       {meals.length === 0 ? (
-        <View style={s.empty}>
-          <Ionicons name="restaurant-outline" size={48} color={colors.onSurfaceSecondary} />
-          <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Nenhuma refeição</Text>
-          <Text style={[s.emptyText, { color: colors.onSurfaceSecondary }]}>Fotografe seu prato, adicione manualmente ou use um favorito.</Text>
-        </View>
+        <EmptyState
+          icon="restaurant-outline"
+          title="Nenhuma refeição"
+          text="Fotografe seu prato, adicione manualmente ou use um favorito."
+        />
       ) : (
         meals.map((m: any) => (
-          <Pressable key={m.id} onPress={() => setEditModal(m)} style={[s.meal, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]} testID={`meal-${m.id}`}>
+          <Pressable key={m.id} onPress={() => setEditModal(m)} style={[s.meal, { backgroundColor: colors.surface, borderColor: colors.border }]} testID={`meal-${m.id}`}>
             {m.photo_url ? (
-              <Image source={{ uri: fileUrl(m.photo_url), headers: imageHeaders }} style={[s.mealImg, { backgroundColor: colors.surfaceTertiary }]} contentFit="cover" />
+              <Image source={{ uri: fileUrl(m.photo_url), headers: imageHeaders }} style={[s.mealImg, { backgroundColor: colors.elevated }]} contentFit="cover" />
             ) : (
-              <View style={[s.mealImg, { backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" }]}>
-                <Ionicons name={m.source === "favorite" ? "heart" : m.source === "recipe" ? "book" : "create"} size={24} color={colors.onSurfaceSecondary} />
+              <View style={[s.mealImg, { backgroundColor: colors.elevated, alignItems: "center", justifyContent: "center" }]}>
+                <Ionicons name={m.source === "favorite" ? "heart" : m.source === "recipe" ? "book" : "create"} size={24} color={colors.textSecondary} />
               </View>
             )}
             <View style={{ flex: 1 }}>
               <View style={s.mealHead}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[s.mealTitle, { color: colors.onSurface }]} numberOfLines={1}>{m.title}</Text>
-                  <Text style={[s.mealTypeLabel, { color: colors.onSurfaceTertiary }]}>{mealTypeLabel(m.meal_type)}</Text>
+                  <Text style={[s.mealTitle, { color: colors.text }]} numberOfLines={1}>{m.title}</Text>
+                  <Text style={[s.mealTypeLabel, { color: colors.textSecondary }]}>{mealTypeLabel(m.meal_type)}</Text>
                 </View>
                 <Pressable testID={`delete-meal-${m.id}`} onPress={(e) => { e.stopPropagation?.(); removeMeal(m.id); }} hitSlop={8}>
-                  <Ionicons name="trash-outline" size={16} color={colors.onSurfaceSecondary} />
+                  <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
                 </Pressable>
               </View>
-              <Text style={[s.mealCal, { color: colors.brandPrimary }]}>{Math.round(m.calories)} kcal</Text>
-              <Text style={[s.mealMacros, { color: colors.onSurfaceSecondary }]}>P {Math.round(m.protein_g)}g · C {Math.round(m.carbs_g)}g · G {Math.round(m.fat_g)}g</Text>
+              <Text style={[s.mealCal, { color: colors.accent }]}>{Math.round(m.calories)} kcal</Text>
+              <Text style={[s.mealMacros, { color: colors.textSecondary }]}>P {Math.round(m.protein_g)}g · C {Math.round(m.carbs_g)}g · G {Math.round(m.fat_g)}g</Text>
               {m.ai_failed && <Text style={[s.aiFailed, { color: colors.warning }]}>IA indisponível — edite manualmente</Text>}
-              {m.coach_note ? <Text style={[s.mealNote, { color: colors.onSurfaceTertiary }]}>&ldquo;{m.coach_note}&rdquo;</Text> : null}
+              {m.coach_note ? <Text style={[s.mealNote, { color: colors.textSecondary }]}>&ldquo;{m.coach_note}&rdquo;</Text> : null}
             </View>
           </Pressable>
         ))
@@ -429,25 +435,25 @@ function TodayView({ meals, totals, goals, segments, protG, carbG, fatG, totalMa
 
 // ─── Week View ─────────────────────────────────────────────────
 
-function WeekView({ days, goals, colors, isDark }: any) {
+function WeekView({ days, goals, colors }: any) {
   const maxCal = Math.max(...days.map((d: any) => d.calories || 0), goals.calories || 2000);
   return (
     <>
-      <Text style={[s.sectionTitle, { color: colors.onSurfaceSecondary }]}>Últimos 7 dias</Text>
+      <Text style={[s.sectionTitle, { color: colors.text }]}>Últimos 7 dias</Text>
       {days.map((d: any) => {
         const pct = maxCal > 0 ? Math.min((d.calories / maxCal) * 100, 100) : 0;
         const dayLabel = new Date(d.date + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit" });
         return (
-          <View key={d.date} style={[s.weekRow, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-            <Text style={[s.weekDay, { color: colors.onSurface }]}>{dayLabel}</Text>
-            <View style={s.weekBarBg}>
-              <View style={[s.weekBar, { width: `${pct}%`, backgroundColor: colors.brandPrimary }]} />
+          <View key={d.date} style={[s.weekRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[s.weekDay, { color: colors.text }]}>{dayLabel}</Text>
+            <View style={[s.weekBarBg, { backgroundColor: colors.accentMuted }]}>
+              <View style={[s.weekBar, { width: `${pct}%`, backgroundColor: colors.accent }]} />
             </View>
             <View style={s.weekNums}>
-              <Text style={[s.weekCal, { color: colors.onSurface }]}>{Math.round(d.calories)}</Text>
-              <Text style={[s.weekMacro, { color: colors.onSurfaceSecondary }]}>P{Math.round(d.protein_g)} C{Math.round(d.carbs_g)} G{Math.round(d.fat_g)}</Text>
+              <Text style={[s.weekCal, { color: colors.text }]}>{Math.round(d.calories)}</Text>
+              <Text style={[s.weekMacro, { color: colors.textSecondary }]}>P{Math.round(d.protein_g)} C{Math.round(d.carbs_g)} G{Math.round(d.fat_g)}</Text>
             </View>
-            {d.meal_count > 0 && <Text style={[s.weekCount, { color: colors.onSurfaceTertiary }]}>{d.meal_count}×</Text>}
+            {d.meal_count > 0 && <Text style={[s.weekCount, { color: colors.textSecondary }]}>{d.meal_count}×</Text>}
           </View>
         );
       })}
@@ -457,37 +463,37 @@ function WeekView({ days, goals, colors, isDark }: any) {
 
 // ─── Favorites View ────────────────────────────────────────────
 
-function FavoritesView({ favorites, colors, isDark, applyFavorite, deleteFavorite, setFavModal }: any) {
+function FavoritesView({ favorites, colors, applyFavorite, deleteFavorite, setFavModal }: any) {
   return (
     <>
       <View style={s.sectionHeader}>
-        <Text style={[s.sectionTitle, { color: colors.onSurfaceSecondary }]}>Favoritos</Text>
+        <Text style={[s.sectionTitle, s.sectionTitleInline, { color: colors.text }]}>Favoritos</Text>
         <Pressable onPress={() => setFavModal(true)} hitSlop={8}>
-          <Ionicons name="add-circle-outline" size={24} color={colors.brandPrimary} />
+          <Ionicons name="add-circle-outline" size={24} color={colors.accent} />
         </Pressable>
       </View>
       {favorites.length === 0 ? (
-        <View style={s.empty}>
-          <Ionicons name="heart-outline" size={48} color={colors.onSurfaceSecondary} />
-          <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Sem favoritos</Text>
-          <Text style={[s.emptyText, { color: colors.onSurfaceSecondary }]}>Salve refeições frequentes para registrar com um toque.</Text>
-        </View>
+        <EmptyState
+          icon="heart-outline"
+          title="Sem favoritos"
+          text="Salve refeições frequentes para registrar com um toque."
+        />
       ) : (
         favorites.map((f: any) => {
           const t = sumItems(f.items);
           return (
-            <View key={f.id} style={[s.favCard, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
+            <View key={f.id} style={[s.favCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={{ flex: 1 }}>
-                <Text style={[s.favName, { color: colors.onSurface }]}>{f.name}</Text>
-                <Text style={[s.favMacro, { color: colors.onSurfaceSecondary }]}>{Math.round(t.calories)} kcal · P{Math.round(t.protein_g)}g C{Math.round(t.carbs_g)}g G{Math.round(t.fat_g)}g</Text>
-                <Text style={[s.favItems, { color: colors.onSurfaceTertiary }]}>{f.items.map((i: any) => i.name).join(", ")}</Text>
+                <Text style={[s.favName, { color: colors.text }]}>{f.name}</Text>
+                <Text style={[s.favMacro, { color: colors.textSecondary }]}>{Math.round(t.calories)} kcal · P{Math.round(t.protein_g)}g C{Math.round(t.carbs_g)}g G{Math.round(t.fat_g)}g</Text>
+                <Text style={[s.favItems, { color: colors.textSecondary }]}>{f.items.map((i: any) => i.name).join(", ")}</Text>
               </View>
               <View style={s.favActions}>
-                <Pressable onPress={() => applyFavorite(f.id)} style={[s.favUseBtn, { backgroundColor: colors.brandPrimary }]}>
-                  <Ionicons name="add" size={18} color={colors.onBrandPrimary} />
+                <Pressable onPress={() => applyFavorite(f.id)} style={[s.favUseBtn, { backgroundColor: colors.accent }]}>
+                  <Ionicons name="add" size={18} color={colors.onAccent} />
                 </Pressable>
                 <Pressable onPress={() => deleteFavorite(f.id)} hitSlop={8}>
-                  <Ionicons name="trash-outline" size={16} color={colors.onSurfaceSecondary} />
+                  <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
                 </Pressable>
               </View>
             </View>
@@ -500,37 +506,37 @@ function FavoritesView({ favorites, colors, isDark, applyFavorite, deleteFavorit
 
 // ─── Recipes View ──────────────────────────────────────────────
 
-function RecipesView({ recipes, colors, isDark, applyRecipe, deleteRecipe, setRecipeModal }: any) {
+function RecipesView({ recipes, colors, applyRecipe, deleteRecipe, setRecipeModal }: any) {
   return (
     <>
       <View style={s.sectionHeader}>
-        <Text style={[s.sectionTitle, { color: colors.onSurfaceSecondary }]}>Receitas</Text>
+        <Text style={[s.sectionTitle, s.sectionTitleInline, { color: colors.text }]}>Receitas</Text>
         <Pressable onPress={() => setRecipeModal(true)} hitSlop={8}>
-          <Ionicons name="add-circle-outline" size={24} color={colors.brandPrimary} />
+          <Ionicons name="add-circle-outline" size={24} color={colors.accent} />
         </Pressable>
       </View>
       {recipes.length === 0 ? (
-        <View style={s.empty}>
-          <Ionicons name="book-outline" size={48} color={colors.onSurfaceSecondary} />
-          <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Sem receitas</Text>
-          <Text style={[s.emptyText, { color: colors.onSurfaceSecondary }]}>Crie receitas com ingredientes e porções para registrar facilmente.</Text>
-        </View>
+        <EmptyState
+          icon="book-outline"
+          title="Sem receitas"
+          text="Crie receitas com ingredientes e porções para registrar facilmente."
+        />
       ) : (
         recipes.map((r: any) => (
-          <View key={r.id} style={[s.favCard, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
+          <View key={r.id} style={[s.favCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={{ flex: 1 }}>
-              <Text style={[s.favName, { color: colors.onSurface }]}>{r.name}</Text>
-              <Text style={[s.favMacro, { color: colors.onSurfaceSecondary }]}>
+              <Text style={[s.favName, { color: colors.text }]}>{r.name}</Text>
+              <Text style={[s.favMacro, { color: colors.textSecondary }]}>
                 {Math.round(r.totals_per_serving?.calories || 0)} kcal/porção · {r.servings} porções
               </Text>
-              <Text style={[s.favItems, { color: colors.onSurfaceTertiary }]}>{r.items.map((i: any) => i.name).join(", ")}</Text>
+              <Text style={[s.favItems, { color: colors.textSecondary }]}>{r.items.map((i: any) => i.name).join(", ")}</Text>
             </View>
             <View style={s.favActions}>
-              <Pressable onPress={() => applyRecipe(r.id)} style={[s.favUseBtn, { backgroundColor: colors.brandPrimary }]}>
-                <Ionicons name="add" size={18} color={colors.onBrandPrimary} />
+              <Pressable onPress={() => applyRecipe(r.id)} style={[s.favUseBtn, { backgroundColor: colors.accent }]}>
+                <Ionicons name="add" size={18} color={colors.onAccent} />
               </Pressable>
               <Pressable onPress={() => deleteRecipe(r.id)} hitSlop={8}>
-                <Ionicons name="trash-outline" size={16} color={colors.onSurfaceSecondary} />
+                <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
               </Pressable>
             </View>
           </View>
@@ -556,14 +562,14 @@ function ItemEditor({ items, setItems, colors }: { items: MealItem[]; setItems: 
   return (
     <>
       {items.map((item, idx) => (
-        <View key={idx} style={[s.itemCard, { backgroundColor: colors.surfaceTertiary }]}>
+        <View key={idx} style={[s.itemCard, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
           <View style={s.itemRow}>
             <TextInput
-              style={[s.itemInput, s.itemName, { color: colors.onSurface, borderColor: colors.border }]}
+              style={[s.itemInput, s.itemName, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
               value={item.name}
               onChangeText={(v) => update(idx, "name", v)}
               placeholder="Nome do alimento"
-              placeholderTextColor={colors.onSurfaceTertiary}
+              placeholderTextColor={colors.textSecondary}
             />
             <Pressable onPress={() => setItems(items.filter((_, i) => i !== idx))} hitSlop={8}>
               <Ionicons name="close-circle" size={20} color={colors.error} />
@@ -572,11 +578,11 @@ function ItemEditor({ items, setItems, colors }: { items: MealItem[]; setItems: 
           <View style={s.itemRow}>
             <NumInput label="Qtd" value={item.quantity} onChange={(v) => update(idx, "quantity", v)} colors={colors} />
             <TextInput
-              style={[s.itemInput, s.itemUnit, { color: colors.onSurface, borderColor: colors.border }]}
+              style={[s.itemInput, s.itemUnit, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
               value={item.unit}
               onChangeText={(v) => update(idx, "unit", v)}
               placeholder="un"
-              placeholderTextColor={colors.onSurfaceTertiary}
+              placeholderTextColor={colors.textSecondary}
             />
             <NumInput label="kcal" value={item.calories} onChange={(v) => update(idx, "calories", v)} colors={colors} />
           </View>
@@ -592,9 +598,9 @@ function ItemEditor({ items, setItems, colors }: { items: MealItem[]; setItems: 
           </View>
         </View>
       ))}
-      <Pressable onPress={() => setItems([...items, emptyItem()])} style={[s.addItemBtn, { borderColor: colors.brandPrimary }]}>
-        <Ionicons name="add" size={18} color={colors.brandPrimary} />
-        <Text style={[s.addItemText, { color: colors.brandPrimary }]}>Adicionar item</Text>
+      <Pressable onPress={() => setItems([...items, emptyItem()])} style={[s.addItemBtn, { borderColor: colors.accent }]}>
+        <Ionicons name="add" size={18} color={colors.accent} />
+        <Text style={[s.addItemText, { color: colors.accent }]}>Adicionar item</Text>
       </Pressable>
     </>
   );
@@ -603,13 +609,13 @@ function ItemEditor({ items, setItems, colors }: { items: MealItem[]; setItems: 
 function NumInput({ label, value, onChange, colors }: { label: string; value: number; onChange: (v: string) => void; colors: any }) {
   return (
     <View style={s.numWrap}>
-      <Text style={[s.numLabel, { color: colors.onSurfaceSecondary }]}>{label}</Text>
+      <Text style={[s.numLabel, { color: colors.textSecondary }]}>{label}</Text>
       <TextInput
-        style={[s.itemInput, s.numInput, { color: colors.onSurface, borderColor: colors.border }]}
+        style={[s.itemInput, s.numInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
         value={value ? String(value) : ""}
         onChangeText={onChange}
         keyboardType="numeric"
-        placeholderTextColor={colors.onSurfaceTertiary}
+        placeholderTextColor={colors.textSecondary}
         placeholder="0"
       />
     </View>
@@ -618,7 +624,7 @@ function NumInput({ label, value, onChange, colors }: { label: string; value: nu
 
 // ─── Manual Entry Modal ────────────────────────────────────────
 
-function ManualEntryModal({ visible, onClose, onSave, colors, isDark, insets }: any) {
+function ManualEntryModal({ visible, onClose, onSave, colors, insets }: any) {
   const [title, setTitle] = useState("");
   const [mealType, setMealType] = useState("meal");
   const [items, setItems] = useState<MealItem[]>([emptyItem()]);
@@ -636,32 +642,35 @@ function ManualEntryModal({ visible, onClose, onSave, colors, isDark, insets }: 
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={[s.modalRoot, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+      <View style={[s.modalRoot, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
         <View style={s.modalHeader}>
-          <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.onSurface} /></Pressable>
-          <Text style={[s.modalTitle, { color: colors.onSurface }]}>Entrada manual</Text>
+          <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.text} /></Pressable>
+          <Text style={[s.modalTitle, { color: colors.text }]}>Entrada manual</Text>
           <Pressable onPress={save} disabled={saving || !title.trim()}>
-            {saving ? <ActivityIndicator color={colors.brandPrimary} size="small" /> : <Text style={[s.saveBtn, { color: title.trim() ? colors.brandPrimary : colors.onSurfaceTertiary }]}>Salvar</Text>}
+            {saving ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={[s.saveBtn, { color: title.trim() ? colors.accent : colors.textSecondary }]}>Salvar</Text>}
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Título</Text>
-          <TextInput style={[s.textInput, { color: colors.onSurface, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={title} onChangeText={setTitle} placeholder="Ex: Almoço" placeholderTextColor={colors.onSurfaceTertiary} />
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Título</Text>
+          <TextInput style={[s.textInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={title} onChangeText={setTitle} placeholder="Ex: Almoço" placeholderTextColor={colors.textSecondary} />
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Tipo</Text>
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Tipo</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.lg }}>
-            {MEAL_TYPES.map((t) => (
-              <Pressable key={t.value} onPress={() => setMealType(t.value)} style={[s.typeChip, { backgroundColor: mealType === t.value ? colors.brandPrimary : colors.surfaceTertiary }]}>
-                <Text style={[s.typeChipText, { color: mealType === t.value ? colors.onBrandPrimary : colors.onSurface }]}>{t.label}</Text>
-              </Pressable>
-            ))}
+            {MEAL_TYPES.map((t) => {
+              const active = mealType === t.value;
+              return (
+                <Pressable key={t.value} onPress={() => setMealType(t.value)} style={[s.typeChip, { backgroundColor: active ? colors.accent : colors.surface, borderColor: active ? colors.accent : colors.border }]}>
+                  <Text style={[s.typeChipText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Itens</Text>
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Itens</Text>
           <ItemEditor items={items} setItems={setItems} colors={colors} />
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary, marginTop: spacing.lg }]}>Notas</Text>
-          <TextInput style={[s.textInput, s.notesInput, { color: colors.onSurface, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={notes} onChangeText={setNotes} placeholder="Observações (opcional)" placeholderTextColor={colors.onSurfaceTertiary} multiline />
+          <Text style={[s.fieldLabel, { color: colors.textSecondary, marginTop: spacing.lg }]}>Notas</Text>
+          <TextInput style={[s.textInput, s.notesInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={notes} onChangeText={setNotes} placeholder="Observações (opcional)" placeholderTextColor={colors.textSecondary} multiline />
         </ScrollView>
       </View>
     </Modal>
@@ -670,7 +679,7 @@ function ManualEntryModal({ visible, onClose, onSave, colors, isDark, insets }: 
 
 // ─── Edit Meal Modal ───────────────────────────────────────────
 
-function EditMealModal({ meal, onClose, onSave, colors, isDark, insets }: any) {
+function EditMealModal({ meal, onClose, onSave, colors, insets }: any) {
   const [title, setTitle] = useState(meal.title || "");
   const [mealType, setMealType] = useState(meal.meal_type || "meal");
   const [items, setItems] = useState<MealItem[]>(
@@ -692,28 +701,31 @@ function EditMealModal({ meal, onClose, onSave, colors, isDark, insets }: any) {
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={[s.modalRoot, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+      <View style={[s.modalRoot, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
         <View style={s.modalHeader}>
-          <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.onSurface} /></Pressable>
-          <Text style={[s.modalTitle, { color: colors.onSurface }]}>Editar refeição</Text>
+          <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.text} /></Pressable>
+          <Text style={[s.modalTitle, { color: colors.text }]}>Editar refeição</Text>
           <Pressable onPress={save} disabled={saving}>
-            {saving ? <ActivityIndicator color={colors.brandPrimary} size="small" /> : <Text style={[s.saveBtn, { color: colors.brandPrimary }]}>Salvar</Text>}
+            {saving ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={[s.saveBtn, { color: colors.accent }]}>Salvar</Text>}
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Título</Text>
-          <TextInput style={[s.textInput, { color: colors.onSurface, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={title} onChangeText={setTitle} />
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Título</Text>
+          <TextInput style={[s.textInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={title} onChangeText={setTitle} />
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Tipo</Text>
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Tipo</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.lg }}>
-            {MEAL_TYPES.map((t) => (
-              <Pressable key={t.value} onPress={() => setMealType(t.value)} style={[s.typeChip, { backgroundColor: mealType === t.value ? colors.brandPrimary : colors.surfaceTertiary }]}>
-                <Text style={[s.typeChipText, { color: mealType === t.value ? colors.onBrandPrimary : colors.onSurface }]}>{t.label}</Text>
-              </Pressable>
-            ))}
+            {MEAL_TYPES.map((t) => {
+              const active = mealType === t.value;
+              return (
+                <Pressable key={t.value} onPress={() => setMealType(t.value)} style={[s.typeChip, { backgroundColor: active ? colors.accent : colors.surface, borderColor: active ? colors.accent : colors.border }]}>
+                  <Text style={[s.typeChipText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Itens</Text>
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Itens</Text>
           <ItemEditor items={items} setItems={setItems} colors={colors} />
 
           {meal.ai_failed && (
@@ -723,8 +735,8 @@ function EditMealModal({ meal, onClose, onSave, colors, isDark, insets }: any) {
             </View>
           )}
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary, marginTop: spacing.lg }]}>Notas</Text>
-          <TextInput style={[s.textInput, s.notesInput, { color: colors.onSurface, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={notes} onChangeText={setNotes} multiline />
+          <Text style={[s.fieldLabel, { color: colors.textSecondary, marginTop: spacing.lg }]}>Notas</Text>
+          <TextInput style={[s.textInput, s.notesInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={notes} onChangeText={setNotes} multiline />
         </ScrollView>
       </View>
     </Modal>
@@ -733,7 +745,7 @@ function EditMealModal({ meal, onClose, onSave, colors, isDark, insets }: any) {
 
 // ─── Favorite Modal ────────────────────────────────────────────
 
-function FavoriteModal({ visible, onClose, onSave, colors, isDark, insets }: any) {
+function FavoriteModal({ visible, onClose, onSave, colors, insets }: any) {
   const [name, setName] = useState("");
   const [mealType, setMealType] = useState("meal");
   const [items, setItems] = useState<MealItem[]>([emptyItem()]);
@@ -750,28 +762,31 @@ function FavoriteModal({ visible, onClose, onSave, colors, isDark, insets }: any
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={[s.modalRoot, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+      <View style={[s.modalRoot, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
         <View style={s.modalHeader}>
-          <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.onSurface} /></Pressable>
-          <Text style={[s.modalTitle, { color: colors.onSurface }]}>Novo favorito</Text>
+          <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.text} /></Pressable>
+          <Text style={[s.modalTitle, { color: colors.text }]}>Novo favorito</Text>
           <Pressable onPress={save} disabled={saving || !name.trim()}>
-            {saving ? <ActivityIndicator color={colors.brandPrimary} size="small" /> : <Text style={[s.saveBtn, { color: name.trim() ? colors.brandPrimary : colors.onSurfaceTertiary }]}>Salvar</Text>}
+            {saving ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={[s.saveBtn, { color: name.trim() ? colors.accent : colors.textSecondary }]}>Salvar</Text>}
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Nome</Text>
-          <TextInput style={[s.textInput, { color: colors.onSurface, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={name} onChangeText={setName} placeholder="Ex: Café da manhã padrão" placeholderTextColor={colors.onSurfaceTertiary} />
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Nome</Text>
+          <TextInput style={[s.textInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={name} onChangeText={setName} placeholder="Ex: Café da manhã padrão" placeholderTextColor={colors.textSecondary} />
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Tipo</Text>
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Tipo</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.lg }}>
-            {MEAL_TYPES.map((t) => (
-              <Pressable key={t.value} onPress={() => setMealType(t.value)} style={[s.typeChip, { backgroundColor: mealType === t.value ? colors.brandPrimary : colors.surfaceTertiary }]}>
-                <Text style={[s.typeChipText, { color: mealType === t.value ? colors.onBrandPrimary : colors.onSurface }]}>{t.label}</Text>
-              </Pressable>
-            ))}
+            {MEAL_TYPES.map((t) => {
+              const active = mealType === t.value;
+              return (
+                <Pressable key={t.value} onPress={() => setMealType(t.value)} style={[s.typeChip, { backgroundColor: active ? colors.accent : colors.surface, borderColor: active ? colors.accent : colors.border }]}>
+                  <Text style={[s.typeChipText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Itens</Text>
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Itens</Text>
           <ItemEditor items={items} setItems={setItems} colors={colors} />
         </ScrollView>
       </View>
@@ -781,7 +796,7 @@ function FavoriteModal({ visible, onClose, onSave, colors, isDark, insets }: any
 
 // ─── Recipe Modal ──────────────────────────────────────────────
 
-function RecipeModal({ visible, onClose, onSave, colors, isDark, insets }: any) {
+function RecipeModal({ visible, onClose, onSave, colors, insets }: any) {
   const [name, setName] = useState("");
   const [servings, setServings] = useState("1");
   const [items, setItems] = useState<MealItem[]>([emptyItem()]);
@@ -799,26 +814,26 @@ function RecipeModal({ visible, onClose, onSave, colors, isDark, insets }: any) 
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={[s.modalRoot, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+      <View style={[s.modalRoot, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
         <View style={s.modalHeader}>
-          <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.onSurface} /></Pressable>
-          <Text style={[s.modalTitle, { color: colors.onSurface }]}>Nova receita</Text>
+          <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.text} /></Pressable>
+          <Text style={[s.modalTitle, { color: colors.text }]}>Nova receita</Text>
           <Pressable onPress={save} disabled={saving || !name.trim()}>
-            {saving ? <ActivityIndicator color={colors.brandPrimary} size="small" /> : <Text style={[s.saveBtn, { color: name.trim() ? colors.brandPrimary : colors.onSurfaceTertiary }]}>Salvar</Text>}
+            {saving ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={[s.saveBtn, { color: name.trim() ? colors.accent : colors.textSecondary }]}>Salvar</Text>}
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Nome</Text>
-          <TextInput style={[s.textInput, { color: colors.onSurface, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={name} onChangeText={setName} placeholder="Ex: Vitamina proteica" placeholderTextColor={colors.onSurfaceTertiary} />
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Nome</Text>
+          <TextInput style={[s.textInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={name} onChangeText={setName} placeholder="Ex: Vitamina proteica" placeholderTextColor={colors.textSecondary} />
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Porções</Text>
-          <TextInput style={[s.textInput, { color: colors.onSurface, backgroundColor: colors.inputBackground, borderColor: colors.border, width: 80 }]} value={servings} onChangeText={setServings} keyboardType="numeric" />
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Porções</Text>
+          <TextInput style={[s.textInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border, width: 80 }]} value={servings} onChangeText={setServings} keyboardType="numeric" />
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary }]}>Ingredientes</Text>
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Ingredientes</Text>
           <ItemEditor items={items} setItems={setItems} colors={colors} />
 
-          <Text style={[s.fieldLabel, { color: colors.onSurfaceSecondary, marginTop: spacing.lg }]}>Modo de preparo</Text>
-          <TextInput style={[s.textInput, s.notesInput, { color: colors.onSurface, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={instructions} onChangeText={setInstructions} placeholder="(opcional)" placeholderTextColor={colors.onSurfaceTertiary} multiline />
+          <Text style={[s.fieldLabel, { color: colors.textSecondary, marginTop: spacing.lg }]}>Modo de preparo</Text>
+          <TextInput style={[s.textInput, s.notesInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={instructions} onChangeText={setInstructions} placeholder="(opcional)" placeholderTextColor={colors.textSecondary} multiline />
         </ScrollView>
       </View>
     </Modal>
@@ -846,55 +861,52 @@ const s = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: {
     paddingHorizontal: spacing.lg, paddingBottom: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  title: { fontFamily: fonts.display, fontSize: type["3xl"], letterSpacing: 1 },
-  tabRow: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.sm },
+  title: { fontFamily: fonts.bold, ...type.h1 },
+  tabRow: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.md },
   subTab: {
     flexDirection: "row", alignItems: "center", gap: spacing.xs,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.pill,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.pill, borderWidth: 1,
   },
-  subTabText: { fontFamily: fonts.semibold, fontSize: type.sm },
+  subTabText: { fontFamily: fonts.semibold, ...type.bodySmall },
 
-  donutSection: { borderRadius: radius.xl, padding: spacing.xl, alignItems: "center" },
+  donutSection: { borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1 },
   macroLegend: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.lg },
   macroChip: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   macroDot: { width: 10, height: 10, borderRadius: 5 },
-  macroValue: { fontFamily: fonts.bold, fontSize: type.base },
-  macroLabel: { fontFamily: fonts.text, fontSize: type.xs },
-  goalText: { fontFamily: fonts.text, fontSize: type.sm, marginTop: spacing.md },
+  macroValue: { fontFamily: fonts.bold, ...type.bodySmall, fontVariant: ["tabular-nums"] },
+  macroLabel: { fontFamily: fonts.text, ...type.caption },
+  goalText: { fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.md },
 
   microRow: {
     flexDirection: "row", gap: spacing.xl, marginTop: spacing.md,
-    paddingTop: spacing.md, borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.md, borderTopWidth: 1,
   },
-  microText: { fontFamily: fonts.mono, fontSize: type.xs },
+  microText: { fontFamily: fonts.text, ...type.caption },
 
   sectionTitle: {
-    fontFamily: fonts.semibold, fontSize: type.sm, letterSpacing: 1,
-    textTransform: "uppercase", marginTop: spacing.xl, marginBottom: spacing.md,
+    fontFamily: fonts.bold, ...type.h2,
+    marginTop: spacing.xl, marginBottom: spacing.md,
   },
+  sectionTitleInline: { marginTop: 0, marginBottom: 0 },
   sectionHeader: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     marginTop: spacing.xl, marginBottom: spacing.md,
   },
 
-  empty: { alignItems: "center", paddingTop: 60, gap: spacing.md },
-  emptyTitle: { fontFamily: fonts.display, fontSize: type["2xl"], letterSpacing: 1, marginTop: spacing.sm },
-  emptyText: { fontFamily: fonts.text, fontSize: type.base, textAlign: "center", paddingHorizontal: spacing.xl, lineHeight: 22 },
-
   meal: {
     flexDirection: "row", gap: spacing.lg, borderRadius: radius.lg,
-    padding: spacing.xl, marginBottom: spacing.lg,
+    padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 1,
   },
   mealImg: { width: 80, height: 80, borderRadius: radius.md },
   mealHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  mealTitle: { fontFamily: fonts.semibold, fontSize: type.lg, marginRight: spacing.sm },
-  mealTypeLabel: { fontFamily: fonts.text, fontSize: type.xs, marginTop: 2 },
-  mealCal: { fontFamily: fonts.display, fontSize: type.xl, marginTop: 2 },
-  mealMacros: { fontFamily: fonts.mono, fontSize: type.sm, marginTop: 2 },
-  mealNote: { fontFamily: fonts.text, fontSize: type.sm, fontStyle: "italic", marginTop: spacing.xs },
-  aiFailed: { fontFamily: fonts.medium, fontSize: type.xs, marginTop: spacing.xs },
+  mealTitle: { fontFamily: fonts.semibold, ...type.body, marginRight: spacing.sm },
+  mealTypeLabel: { fontFamily: fonts.text, ...type.caption, marginTop: 2 },
+  mealCal: { fontFamily: fonts.bold, ...type.h2, marginTop: 2, fontVariant: ["tabular-nums"] },
+  mealMacros: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
+  mealNote: { fontFamily: fonts.text, ...type.bodySmall, fontStyle: "italic", marginTop: spacing.xs },
+  aiFailed: { fontFamily: fonts.medium, ...type.caption, marginTop: spacing.xs },
 
   fab: {
     position: "absolute", right: spacing.xl, width: 64, height: 64, borderRadius: radius.pill,
@@ -903,45 +915,45 @@ const s = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   sheet: {
     borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
-    padding: spacing.xl, gap: spacing.md,
+    padding: spacing.xl, gap: spacing.md, borderWidth: 1,
   },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: spacing.sm },
-  sheetTitle: { fontFamily: fonts.bold, fontSize: type.sm, letterSpacing: 2, marginBottom: spacing.xs },
+  sheetTitle: { fontFamily: fonts.bold, ...type.caption, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: spacing.xs },
   sheetBtn: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
-    padding: spacing.xl, borderRadius: radius.lg,
+    padding: spacing.xl, borderRadius: radius.lg, borderWidth: 1,
   },
-  sheetBtnText: { fontFamily: fonts.semibold, fontSize: type.lg },
+  sheetBtnText: { fontFamily: fonts.semibold, ...type.body },
 
   permBox: { borderRadius: radius.lg, padding: spacing.xl, marginBottom: spacing.lg },
-  permText: { fontFamily: fonts.medium, fontSize: type.base },
+  permText: { fontFamily: fonts.medium, ...type.body },
   permBtn: { marginTop: spacing.md, height: 48, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
-  permBtnText: { fontFamily: fonts.bold, fontSize: type.base },
+  permBtnText: { fontFamily: fonts.bold, ...type.bodySmall },
 
   analyzeOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: spacing.lg },
-  analyzeText: { fontFamily: fonts.bold, fontSize: type.lg, letterSpacing: 1 },
+  analyzeText: { fontFamily: fonts.bold, ...type.body },
 
   // Week
   weekRow: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
-    padding: spacing.lg, borderRadius: radius.lg, marginBottom: spacing.sm,
+    padding: spacing.lg, borderRadius: radius.lg, marginBottom: spacing.sm, borderWidth: 1,
   },
-  weekDay: { fontFamily: fonts.semibold, fontSize: type.sm, width: 50 },
-  weekBarBg: { flex: 1, height: 8, borderRadius: 4, backgroundColor: "rgba(160,217,50,0.12)", overflow: "hidden" },
+  weekDay: { fontFamily: fonts.semibold, ...type.bodySmall, width: 50 },
+  weekBarBg: { flex: 1, height: 8, borderRadius: 4, overflow: "hidden" },
   weekBar: { height: 8, borderRadius: 4 },
   weekNums: { alignItems: "flex-end", minWidth: 70 },
-  weekCal: { fontFamily: fonts.bold, fontSize: type.base },
-  weekMacro: { fontFamily: fonts.mono, fontSize: type.xs },
-  weekCount: { fontFamily: fonts.mono, fontSize: type.xs, minWidth: 24, textAlign: "right" },
+  weekCal: { fontFamily: fonts.bold, ...type.bodySmall, fontVariant: ["tabular-nums"] },
+  weekMacro: { fontFamily: fonts.text, ...type.caption },
+  weekCount: { fontFamily: fonts.text, ...type.caption, minWidth: 24, textAlign: "right" },
 
   // Favorites/Recipes
   favCard: {
     flexDirection: "row", gap: spacing.lg, padding: spacing.xl,
-    borderRadius: radius.lg, marginBottom: spacing.md,
+    borderRadius: radius.lg, marginBottom: spacing.md, borderWidth: 1,
   },
-  favName: { fontFamily: fonts.semibold, fontSize: type.lg },
-  favMacro: { fontFamily: fonts.mono, fontSize: type.sm, marginTop: 2 },
-  favItems: { fontFamily: fonts.text, fontSize: type.xs, marginTop: spacing.xs },
+  favName: { fontFamily: fonts.semibold, ...type.body },
+  favMacro: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
+  favItems: { fontFamily: fonts.text, ...type.caption, marginTop: spacing.xs },
   favActions: { alignItems: "center", gap: spacing.md, justifyContent: "center" },
   favUseBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
 
@@ -951,45 +963,45 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
   },
-  modalTitle: { fontFamily: fonts.display, fontSize: type["2xl"], letterSpacing: 1 },
-  saveBtn: { fontFamily: fonts.bold, fontSize: type.lg },
+  modalTitle: { fontFamily: fonts.bold, ...type.h2 },
+  saveBtn: { fontFamily: fonts.bold, ...type.body },
   modalBody: { padding: spacing.lg, paddingBottom: 120 },
 
-  fieldLabel: { fontFamily: fonts.semibold, fontSize: type.sm, letterSpacing: 0.5, marginBottom: spacing.sm, marginTop: spacing.md },
+  fieldLabel: { fontFamily: fonts.semibold, ...type.bodySmall, marginBottom: spacing.sm, marginTop: spacing.md },
   textInput: {
-    fontFamily: fonts.text, fontSize: type.base, borderWidth: 1,
+    fontFamily: fonts.text, ...type.body, borderWidth: 1,
     borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm,
   },
   notesInput: { height: 80, textAlignVertical: "top" },
 
   typeChip: {
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
-    borderRadius: radius.pill, marginRight: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.pill, marginRight: spacing.sm, borderWidth: 1,
   },
-  typeChipText: { fontFamily: fonts.semibold, fontSize: type.xs },
+  typeChipText: { fontFamily: fonts.semibold, ...type.caption },
 
   // Item editor
-  itemCard: { borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  itemCard: { borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md, borderWidth: 1 },
   itemRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xs, alignItems: "center" },
   itemInput: {
-    fontFamily: fonts.text, fontSize: type.sm, borderWidth: 1,
+    fontFamily: fonts.text, ...type.bodySmall, borderWidth: 1,
     borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
   },
   itemName: { flex: 1 },
   itemUnit: { width: 50, textAlign: "center" },
   numWrap: { flex: 1 },
-  numLabel: { fontFamily: fonts.mono, fontSize: 9, marginBottom: 2 },
+  numLabel: { fontFamily: fonts.medium, ...type.caption, marginBottom: 2 },
   numInput: { textAlign: "center" },
   addItemBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: spacing.sm, padding: spacing.md, borderWidth: 1,
     borderStyle: "dashed", borderRadius: radius.md, marginTop: spacing.sm,
   },
-  addItemText: { fontFamily: fonts.semibold, fontSize: type.sm },
+  addItemText: { fontFamily: fonts.semibold, ...type.bodySmall },
 
   aiWarning: {
     flexDirection: "row", gap: spacing.sm, alignItems: "center",
     padding: spacing.md, borderRadius: radius.md, marginTop: spacing.md,
   },
-  aiWarningText: { fontFamily: fonts.text, fontSize: type.sm, flex: 1 },
+  aiWarningText: { fontFamily: fonts.text, ...type.bodySmall, flex: 1 },
 });

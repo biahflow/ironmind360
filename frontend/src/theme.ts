@@ -1,24 +1,21 @@
-// IronMind 360 — Eva-inspired design tokens with light/dark theming
-
 export const palette = {
-  primary: "#A0D932",
-  primaryDark: "#8BC42A",
-  primaryLight: "#B8E85A",
-  onPrimary: "#1A1A1A",
+  accent: "#A8E51C",
+  accentMuted: "rgba(168,229,28,0.12)",
+  onAccent: "#151515",
 
-  black: "#0A0A0A",
-  grey950: "#111113",
-  grey900: "#1A1B1F",
-  grey800: "#252630",
-  grey700: "#35374A",
-  grey600: "#52556E",
-  grey500: "#71748F",
-  grey400: "#9496AD",
-  grey300: "#B8BACE",
-  grey200: "#D5D7E3",
-  grey100: "#E9EAF0",
-  grey50: "#F4F5F8",
-  white: "#FFFFFF",
+  black: "#101011",
+  surface: "#18181A",
+  elevated: "#202023",
+
+  textPrimary: "#F5F5F3",
+  textSecondary: "#A4A4A0",
+  borderDark: "rgba(255,255,255,0.08)",
+
+  lightBg: "#F7F7F4",
+  lightSurface: "#FFFFFF",
+  lightText: "#151515",
+  lightTextSecondary: "#72726E",
+  lightBorder: "rgba(0,0,0,0.06)",
 
   success: "#2ECC71",
   warning: "#F5A623",
@@ -29,7 +26,23 @@ export const palette = {
 export type ThemeMode = "dark" | "light";
 
 type ColorScheme = {
+  bg: string;
   surface: string;
+  elevated: string;
+  text: string;
+  textSecondary: string;
+  border: string;
+  accent: string;
+  accentMuted: string;
+  onAccent: string;
+  success: string;
+  warning: string;
+  error: string;
+  info: string;
+  overlay: string;
+  tabBar: string;
+  tabBarBorder: string;
+  // compat aliases used by other screens
   surfaceSecondary: string;
   surfaceTertiary: string;
   surfaceElevated: string;
@@ -44,96 +57,102 @@ type ColorScheme = {
   brandSecondary: string;
   brandTertiary: string;
   onBrandTertiary: string;
-  success: string;
   onSuccess: string;
-  warning: string;
   onWarning: string;
-  error: string;
   onError: string;
-  info: string;
-  border: string;
   borderStrong: string;
   divider: string;
   skeleton: string;
-  overlay: string;
-  tabBar: string;
-  tabBarBorder: string;
   inputBackground: string;
   cardBackground: string;
 };
 
 const darkColors: ColorScheme = {
-  surface: palette.black,
-  surfaceSecondary: palette.grey950,
-  surfaceTertiary: palette.grey900,
-  surfaceElevated: palette.grey800,
-  onSurface: palette.white,
-  onSurfaceSecondary: palette.grey400,
-  onSurfaceTertiary: palette.grey300,
-  surfaceInverse: palette.white,
-  onSurfaceInverse: palette.black,
-  brand: palette.primary,
-  brandPrimary: palette.primary,
-  onBrandPrimary: palette.black,
-  brandSecondary: palette.primaryLight,
-  brandTertiary: "rgba(160,217,50,0.12)",
-  onBrandTertiary: palette.primary,
+  bg: palette.black,
+  surface: palette.surface,
+  elevated: palette.elevated,
+  text: palette.textPrimary,
+  textSecondary: palette.textSecondary,
+  border: palette.borderDark,
+  accent: palette.accent,
+  accentMuted: palette.accentMuted,
+  onAccent: palette.onAccent,
   success: palette.success,
-  onSuccess: palette.white,
   warning: palette.warning,
-  onWarning: palette.black,
   error: palette.error,
-  onError: palette.white,
   info: palette.info,
-  border: palette.grey800,
-  borderStrong: palette.grey700,
-  divider: palette.grey900,
-  skeleton: palette.grey800,
   overlay: "rgba(0,0,0,0.6)",
-  tabBar: palette.grey950,
-  tabBarBorder: palette.grey800,
-  inputBackground: palette.grey900,
-  cardBackground: palette.grey950,
+  tabBar: palette.surface,
+  tabBarBorder: palette.borderDark,
+  // compat
+  surfaceSecondary: palette.surface,
+  surfaceTertiary: palette.elevated,
+  surfaceElevated: palette.elevated,
+  onSurface: palette.textPrimary,
+  onSurfaceSecondary: palette.textSecondary,
+  onSurfaceTertiary: palette.textSecondary,
+  surfaceInverse: palette.lightSurface,
+  onSurfaceInverse: palette.black,
+  brand: palette.accent,
+  brandPrimary: palette.accent,
+  onBrandPrimary: palette.onAccent,
+  brandSecondary: palette.accent,
+  brandTertiary: palette.accentMuted,
+  onBrandTertiary: palette.accent,
+  onSuccess: "#FFFFFF",
+  onWarning: palette.onAccent,
+  onError: "#FFFFFF",
+  borderStrong: palette.elevated,
+  divider: palette.borderDark,
+  skeleton: palette.elevated,
+  inputBackground: palette.surface,
+  cardBackground: palette.surface,
 };
 
 const lightColors: ColorScheme = {
-  surface: palette.white,
-  surfaceSecondary: palette.grey50,
-  surfaceTertiary: palette.grey100,
-  surfaceElevated: palette.white,
-  onSurface: palette.grey950,
-  onSurfaceSecondary: palette.grey600,
-  onSurfaceTertiary: palette.grey500,
-  surfaceInverse: palette.black,
-  onSurfaceInverse: palette.white,
-  brand: palette.primary,
-  brandPrimary: palette.primary,
-  onBrandPrimary: palette.black,
-  brandSecondary: palette.primaryDark,
-  brandTertiary: "rgba(160,217,50,0.10)",
-  onBrandTertiary: palette.primaryDark,
+  bg: palette.lightBg,
+  surface: palette.lightSurface,
+  elevated: palette.lightSurface,
+  text: palette.lightText,
+  textSecondary: palette.lightTextSecondary,
+  border: palette.lightBorder,
+  accent: palette.accent,
+  accentMuted: "rgba(168,229,28,0.10)",
+  onAccent: palette.onAccent,
   success: palette.success,
-  onSuccess: palette.white,
   warning: palette.warning,
-  onWarning: palette.black,
   error: palette.error,
-  onError: palette.white,
   info: palette.info,
-  border: palette.grey200,
-  borderStrong: palette.grey300,
-  divider: palette.grey100,
-  skeleton: palette.grey200,
   overlay: "rgba(0,0,0,0.4)",
-  tabBar: palette.white,
-  tabBarBorder: palette.grey200,
-  inputBackground: palette.grey100,
-  cardBackground: palette.white,
+  tabBar: palette.lightSurface,
+  tabBarBorder: palette.lightBorder,
+  // compat
+  surfaceSecondary: palette.lightBg,
+  surfaceTertiary: "#EDEDEA",
+  surfaceElevated: palette.lightSurface,
+  onSurface: palette.lightText,
+  onSurfaceSecondary: palette.lightTextSecondary,
+  onSurfaceTertiary: palette.lightTextSecondary,
+  surfaceInverse: palette.black,
+  onSurfaceInverse: palette.lightSurface,
+  brand: palette.accent,
+  brandPrimary: palette.accent,
+  onBrandPrimary: palette.onAccent,
+  brandSecondary: "#8BC42A",
+  brandTertiary: "rgba(168,229,28,0.10)",
+  onBrandTertiary: "#8BC42A",
+  onSuccess: "#FFFFFF",
+  onWarning: palette.onAccent,
+  onError: "#FFFFFF",
+  borderStrong: "#D5D5D0",
+  divider: palette.lightBorder,
+  skeleton: "#E5E5E2",
+  inputBackground: palette.lightBg,
+  cardBackground: palette.lightSurface,
 };
 
 export const themes = { dark: darkColors, light: lightColors } as const;
 
-// Default export for backwards compatibility — screens that haven't migrated
-// to useTheme() yet import { colors } directly and get the dark palette.
 export const colors = darkColors;
 
 export const spacing = {
@@ -141,16 +160,18 @@ export const spacing = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 24,
-  "2xl": 32,
-  "3xl": 48,
+  xl: 20,
+  "2xl": 24,
+  "3xl": 32,
+  "4xl": 40,
+  "5xl": 48,
 };
 
 export const radius = {
   sm: 8,
-  md: 16,
-  lg: 20,
-  xl: 28,
+  md: 12,
+  lg: 16,
+  xl: 22,
   pill: 999,
 };
 
@@ -195,6 +216,14 @@ export const fonts = {
 };
 
 export const type = {
+  caption: { fontSize: 11, lineHeight: 14 },
+  bodySmall: { fontSize: 13, lineHeight: 18 },
+  body: { fontSize: 15, lineHeight: 22 },
+  h2: { fontSize: 20, lineHeight: 26 },
+  metric: { fontSize: 24, lineHeight: 28 },
+  h1: { fontSize: 28, lineHeight: 32 },
+  display: { fontSize: 32, lineHeight: 36 },
+  // raw sizes for backward compat
   xs: 11,
   sm: 12,
   base: 14,

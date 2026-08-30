@@ -3,7 +3,7 @@ import { Platform, StyleSheet, View } from "react-native";
 import { Tabs } from "expo-router";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import { fonts, shadow, spacing } from "@/src/theme";
+import { fonts, spacing } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 
 export default function TabsLayout() {
@@ -13,33 +13,29 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.brandPrimary,
-        tabBarInactiveTintColor: colors.onSurfaceSecondary,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarLabelStyle: {
-          fontFamily: fonts.semibold,
+          fontFamily: fonts.medium,
           fontSize: 10,
-          letterSpacing: 0.5,
+          letterSpacing: 0.3,
           marginTop: 2,
         },
         tabBarIconStyle: { marginTop: 6 },
         tabBarItemStyle: { alignSelf: "center", paddingVertical: 4 },
         tabBarStyle: {
           position: "absolute",
-          borderTopWidth: isDark ? StyleSheet.hairlineWidth : 0,
-          borderTopColor: colors.tabBarBorder,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.border,
           backgroundColor: Platform.OS === "android" ? colors.tabBar : "transparent",
           elevation: 0,
           height: Platform.OS === "web" ? 72 : 88,
           paddingBottom: Platform.OS === "web" ? spacing.sm : undefined,
-          ...(isDark ? {} : {
-            ...shadow.md,
-            shadowOffset: { width: 0, height: -4 },
-          }),
         },
         tabBarBackground: () =>
           Platform.OS === "ios" ? (
             <BlurView
-              intensity={isDark ? 60 : 80}
+              intensity={isDark ? 40 : 70}
               tint={isDark ? "dark" : "light"}
               style={StyleSheet.absoluteFill}
             />
@@ -53,7 +49,7 @@ export default function TabsLayout() {
         options={{
           title: "Início",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "home" : "home-outline"} size={focused ? 26 : 22} color={color} />
+            <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
           ),
         }}
       />
@@ -62,7 +58,7 @@ export default function TabsLayout() {
         options={{
           title: "Treino",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "barbell" : "barbell-outline"} size={focused ? 26 : 22} color={color} />
+            <Ionicons name={focused ? "barbell" : "barbell-outline"} size={22} color={color} />
           ),
         }}
       />
@@ -71,7 +67,7 @@ export default function TabsLayout() {
         options={{
           title: "Saúde",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "heart" : "heart-outline"} size={focused ? 26 : 22} color={color} />
+            <Ionicons name={focused ? "heart" : "heart-outline"} size={22} color={color} />
           ),
         }}
       />
@@ -80,7 +76,7 @@ export default function TabsLayout() {
         options={{
           title: "Nutrição",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "restaurant" : "restaurant-outline"} size={focused ? 26 : 22} color={color} />
+            <Ionicons name={focused ? "restaurant" : "restaurant-outline"} size={22} color={color} />
           ),
         }}
       />
@@ -89,7 +85,7 @@ export default function TabsLayout() {
         options={{
           title: "Coach",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} size={focused ? 26 : 22} color={color} />
+            <Ionicons name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} size={22} color={color} />
           ),
         }}
       />

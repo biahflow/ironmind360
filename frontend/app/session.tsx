@@ -8,10 +8,11 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { spacing, radius, fonts, type as tp, shadow } from "@/src/theme";
+import { spacing, radius, fonts, type as tp } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import MuscleMap from "@/src/components/MuscleMap";
+import { PrimaryButton } from "@/src/components/ui";
 
 const PHASE_LABEL: Record<string, string> = {
   warmup: "Aquecimento",
@@ -70,7 +71,7 @@ type SessionData = {
 };
 
 export default function SessionScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -210,10 +211,10 @@ export default function SessionScreen() {
 
   if (loading) {
     return (
-      <View style={[s.root, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+      <View style={[s.root, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
         <View style={s.center}>
-          <ActivityIndicator color={colors.brandPrimary} size="large" />
-          <Text style={[s.loadingText, { color: colors.onSurfaceSecondary }]}>Preparando sessão...</Text>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={[s.loadingText, { color: colors.textSecondary }]}>Preparando sessão...</Text>
         </View>
       </View>
     );
@@ -221,13 +222,11 @@ export default function SessionScreen() {
 
   if (!session || !currentEx) {
     return (
-      <View style={[s.root, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+      <View style={[s.root, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
         <View style={s.center}>
-          <Ionicons name="alert-circle" size={48} color={colors.onSurfaceSecondary} />
-          <Text style={[s.loadingText, { color: colors.onSurfaceSecondary }]}>Nenhuma sessão disponível</Text>
-          <Pressable style={[s.backBtnLarge, { backgroundColor: colors.brandPrimary }]} onPress={() => router.back()}>
-            <Text style={[s.backBtnLargeText, { color: colors.onBrandPrimary }]}>VOLTAR</Text>
-          </Pressable>
+          <Ionicons name="alert-circle" size={48} color={colors.textSecondary} />
+          <Text style={[s.loadingText, { color: colors.textSecondary }]}>Nenhuma sessão disponível</Text>
+          <PrimaryButton label="Voltar" onPress={() => router.back()} style={{ marginTop: spacing.lg, paddingHorizontal: spacing["2xl"] }} />
         </View>
       </View>
     );
@@ -236,31 +235,31 @@ export default function SessionScreen() {
   const exName = currentEx.exercise?.name || currentEx.exercise_id;
 
   return (
-    <View style={[s.root, { backgroundColor: colors.surface }]}>
+    <View style={[s.root, { backgroundColor: colors.bg }]}>
       {/* Top bar */}
       <View style={[s.topBar, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable onPress={() => router.back()} style={[s.closeBtn, { backgroundColor: colors.surfaceTertiary }]}>
-          <Ionicons name="close" size={22} color={colors.onSurface} />
+        <Pressable onPress={() => router.back()} style={[s.closeBtn, { borderColor: colors.border }]}>
+          <Ionicons name="close" size={22} color={colors.text} />
         </Pressable>
         <View style={s.topCenter}>
-          <Text style={[s.topTitle, { color: colors.onSurface }]}>{session.title}</Text>
-          <Text style={[s.topSub, { color: colors.onSurfaceSecondary }]}>
+          <Text style={[s.topTitle, { color: colors.text }]}>{session.title}</Text>
+          <Text style={[s.topSub, { color: colors.textSecondary }]}>
             Semana {session.week} · Dia {session.day}
             {session.is_deload ? " · Deload" : ""}
           </Text>
         </View>
-        <View style={[s.timerBadge, { backgroundColor: colors.surfaceTertiary }]}>
-          <Ionicons name="time-outline" size={14} color={colors.brandPrimary} />
-          <Text style={[s.timerText, { color: colors.brandPrimary }]}>{fmtTimer()}</Text>
+        <View style={[s.timerBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="time-outline" size={14} color={colors.accent} />
+          <Text style={[s.timerText, { color: colors.accent }]}>{fmtTimer()}</Text>
         </View>
       </View>
 
       {/* Progress bar */}
-      <View style={[s.progressTrack, { backgroundColor: colors.surfaceTertiary }]}>
+      <View style={[s.progressTrack, { backgroundColor: colors.border }]}>
         <View
           style={[
             s.progressFill,
-            { width: `${((currentExIdx + 1) / programExercises.length) * 100}%`, backgroundColor: colors.brandPrimary },
+            { width: `${((currentExIdx + 1) / programExercises.length) * 100}%`, backgroundColor: colors.accent },
           ]}
         />
       </View>
@@ -274,29 +273,29 @@ export default function SessionScreen() {
           <Pressable
             onPress={prevExercise}
             disabled={currentExIdx === 0}
-            style={[s.navBtn, { backgroundColor: colors.surfaceTertiary }, currentExIdx === 0 && s.navBtnDisabled]}
+            style={[s.navBtn, { backgroundColor: colors.surface, borderColor: colors.border }, currentExIdx === 0 && s.navBtnDisabled]}
           >
-            <Ionicons name="chevron-back" size={20} color={currentExIdx === 0 ? colors.border : colors.onSurface} />
+            <Ionicons name="chevron-back" size={20} color={currentExIdx === 0 ? colors.border : colors.text} />
           </Pressable>
           <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={[s.exCounter, { color: colors.onSurface }]}>
+            <Text style={[s.exCounter, { color: colors.text }]}>
               {currentExIdx + 1} / {programExercises.length}
             </Text>
             <View style={s.phaseBadge}>
               <Ionicons
                 name={(PHASE_ICON[currentEx.phase] || "ellipse") as any}
                 size={12}
-                color={colors.brandPrimary}
+                color={colors.accent}
               />
-              <Text style={[s.phaseText, { color: colors.brandPrimary }]}>{PHASE_LABEL[currentEx.phase] || currentEx.phase}</Text>
+              <Text style={[s.phaseText, { color: colors.accent }]}>{PHASE_LABEL[currentEx.phase] || currentEx.phase}</Text>
             </View>
           </View>
           <Pressable
             onPress={nextExercise}
             disabled={isLastExercise}
-            style={[s.navBtn, { backgroundColor: colors.surfaceTertiary }, isLastExercise && s.navBtnDisabled]}
+            style={[s.navBtn, { backgroundColor: colors.surface, borderColor: colors.border }, isLastExercise && s.navBtnDisabled]}
           >
-            <Ionicons name="chevron-forward" size={20} color={isLastExercise ? colors.border : colors.onSurface} />
+            <Ionicons name="chevron-forward" size={20} color={isLastExercise ? colors.border : colors.text} />
           </Pressable>
         </View>
 
@@ -316,61 +315,61 @@ export default function SessionScreen() {
           style={s.exHeader}
           onPress={() => router.push({ pathname: "/exercise-detail", params: { id: currentEx.exercise_id } })}
         >
-          <Text style={[s.exName, { color: colors.onSurface }]}>{exName}</Text>
-          <Ionicons name="information-circle-outline" size={22} color={colors.brandPrimary} />
+          <Text style={[s.exName, { color: colors.text }]}>{exName}</Text>
+          <Ionicons name="information-circle-outline" size={22} color={colors.accent} />
         </Pressable>
 
         {/* Prescription */}
         <View style={s.prescriptionRow}>
           {currentEx.reps && (
-            <View style={[s.prescriptionItem, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-              <Text style={[s.prescriptionValue, { color: colors.onSurface }]}>{currentEx.reps}</Text>
-              <Text style={[s.prescriptionLabel, { color: colors.onSurfaceSecondary }]}>REPS</Text>
+            <View style={[s.prescriptionItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[s.prescriptionValue, { color: colors.text }]}>{currentEx.reps}</Text>
+              <Text style={[s.prescriptionLabel, { color: colors.textSecondary }]}>REPS</Text>
             </View>
           )}
           {currentEx.duration_seconds && (
-            <View style={[s.prescriptionItem, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-              <Text style={[s.prescriptionValue, { color: colors.onSurface }]}>{currentEx.duration_seconds}s</Text>
-              <Text style={[s.prescriptionLabel, { color: colors.onSurfaceSecondary }]}>DURAÇÃO</Text>
+            <View style={[s.prescriptionItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[s.prescriptionValue, { color: colors.text }]}>{currentEx.duration_seconds}s</Text>
+              <Text style={[s.prescriptionLabel, { color: colors.textSecondary }]}>DURAÇÃO</Text>
             </View>
           )}
-          <View style={[s.prescriptionItem, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-            <Text style={[s.prescriptionValue, { color: colors.onSurface }]}>{currentEx.sets}</Text>
-            <Text style={[s.prescriptionLabel, { color: colors.onSurfaceSecondary }]}>SÉRIES</Text>
+          <View style={[s.prescriptionItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[s.prescriptionValue, { color: colors.text }]}>{currentEx.sets}</Text>
+            <Text style={[s.prescriptionLabel, { color: colors.textSecondary }]}>SÉRIES</Text>
           </View>
-          <View style={[s.prescriptionItem, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-            <Text style={[s.prescriptionValue, { color: colors.onSurface }]}>{currentEx.rest_seconds}s</Text>
-            <Text style={[s.prescriptionLabel, { color: colors.onSurfaceSecondary }]}>DESCANSO</Text>
+          <View style={[s.prescriptionItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[s.prescriptionValue, { color: colors.text }]}>{currentEx.rest_seconds}s</Text>
+            <Text style={[s.prescriptionLabel, { color: colors.textSecondary }]}>DESCANSO</Text>
           </View>
           {currentEx.rpe_target && (
-            <View style={[s.prescriptionItem, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-              <Text style={[s.prescriptionValue, { color: colors.onSurface }]}>{currentEx.rpe_target}</Text>
-              <Text style={[s.prescriptionLabel, { color: colors.onSurfaceSecondary }]}>RPE</Text>
+            <View style={[s.prescriptionItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[s.prescriptionValue, { color: colors.text }]}>{currentEx.rpe_target}</Text>
+              <Text style={[s.prescriptionLabel, { color: colors.textSecondary }]}>RPE</Text>
             </View>
           )}
         </View>
 
         {currentEx.tempo && (
-          <Text style={[s.tempoHint, { color: colors.brandPrimary }]}>Tempo: {currentEx.tempo}</Text>
+          <Text style={[s.tempoHint, { color: colors.accent }]}>Tempo: {currentEx.tempo}</Text>
         )}
         {currentEx.notes && (
-          <Text style={[s.notesHint, { color: colors.onSurfaceSecondary }]}>{currentEx.notes}</Text>
+          <Text style={[s.notesHint, { color: colors.textSecondary }]}>{currentEx.notes}</Text>
         )}
 
         {/* Sets */}
-        <View style={[s.setsHeader, { borderBottomColor: colors.divider }]}>
-          <Text style={[s.setCol, { flex: 0.5, color: colors.onSurfaceSecondary }]}>Série</Text>
-          <Text style={[s.setCol, { color: colors.onSurfaceSecondary }]}>Reps</Text>
-          <Text style={[s.setCol, { color: colors.onSurfaceSecondary }]}>Kg</Text>
-          <Text style={[s.setCol, { color: colors.onSurfaceSecondary }]}>RPE</Text>
+        <View style={[s.setsHeader, { borderBottomColor: colors.border }]}>
+          <Text style={[s.setCol, { flex: 0.5, color: colors.textSecondary }]}>Série</Text>
+          <Text style={[s.setCol, { color: colors.textSecondary }]}>Reps</Text>
+          <Text style={[s.setCol, { color: colors.textSecondary }]}>Kg</Text>
+          <Text style={[s.setCol, { color: colors.textSecondary }]}>RPE</Text>
           <View style={{ width: 48 }} />
         </View>
 
         {sets.map((entry, idx) => (
-          <View key={entry.set_number} style={[s.setRow, entry.completed && { backgroundColor: colors.surfaceTertiary, opacity: 0.7 }]}>
-            <Text style={[s.setNum, { flex: 0.5, color: colors.onSurfaceSecondary }]}>{entry.set_number}</Text>
+          <View key={entry.set_number} style={[s.setRow, entry.completed && { backgroundColor: colors.elevated, opacity: 0.7 }]}>
+            <Text style={[s.setNum, { flex: 0.5, color: colors.textSecondary }]}>{entry.set_number}</Text>
             <TextInput
-              style={[s.setInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.onSurface }]}
+              style={[s.setInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
               value={entry.reps}
               onChangeText={(v) =>
                 setSets((prev) => prev.map((ss, i) => (i === idx ? { ...ss, reps: v } : ss)))
@@ -381,7 +380,7 @@ export default function SessionScreen() {
               editable={!entry.completed}
             />
             <TextInput
-              style={[s.setInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.onSurface }]}
+              style={[s.setInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
               value={entry.weight_kg}
               onChangeText={(v) =>
                 setSets((prev) => prev.map((ss, i) => (i === idx ? { ...ss, weight_kg: v } : ss)))
@@ -392,7 +391,7 @@ export default function SessionScreen() {
               editable={!entry.completed}
             />
             <TextInput
-              style={[s.setInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.onSurface }]}
+              style={[s.setInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
               value={entry.rpe}
               onChangeText={(v) =>
                 setSets((prev) => prev.map((ss, i) => (i === idx ? { ...ss, rpe: v } : ss)))
@@ -403,19 +402,19 @@ export default function SessionScreen() {
               editable={!entry.completed}
             />
             {entry.completed ? (
-              <View style={[s.checkDone, { backgroundColor: colors.surfaceTertiary }]}>
+              <View style={[s.checkDone, { backgroundColor: colors.elevated }]}>
                 <Ionicons name="checkmark" size={18} color={colors.success} />
               </View>
             ) : (
               <Pressable
-                style={[s.checkBtn, { backgroundColor: colors.brandPrimary }]}
+                style={[s.checkBtn, { backgroundColor: colors.accent }]}
                 onPress={() => saveSet(idx)}
                 disabled={saving}
               >
                 {saving ? (
-                  <ActivityIndicator color={colors.onBrandPrimary} size="small" />
+                  <ActivityIndicator color={colors.onAccent} size="small" />
                 ) : (
-                  <Ionicons name="checkmark" size={18} color={colors.onBrandPrimary} />
+                  <Ionicons name="checkmark" size={18} color={colors.onAccent} />
                 )}
               </Pressable>
             )}
@@ -424,30 +423,24 @@ export default function SessionScreen() {
       </ScrollView>
 
       {/* Bottom action */}
-      <View style={[s.bottomBar, { paddingBottom: insets.bottom + spacing.md, backgroundColor: colors.surface, borderTopColor: colors.divider }]}>
+      <View style={[s.bottomBar, { paddingBottom: insets.bottom + spacing.md, backgroundColor: colors.bg, borderTopColor: colors.border }]}>
         {allSetsComplete && isLastExercise ? (
-          <Pressable
-            style={[s.completeBtn, { backgroundColor: colors.success, ...shadow.glow(colors.success) }]}
+          <PrimaryButton
+            label="Concluir sessão"
+            icon="trophy"
             onPress={confirmComplete}
-            disabled={completing}
-          >
-            {completing ? (
-              <ActivityIndicator color={colors.onBrandPrimary} size="small" />
-            ) : (
-              <>
-                <Ionicons name="trophy" size={20} color={colors.onBrandPrimary} />
-                <Text style={[s.completeBtnText, { color: colors.onBrandPrimary }]}>CONCLUIR SESSÃO</Text>
-              </>
-            )}
-          </Pressable>
+            loading={completing}
+            style={{ backgroundColor: colors.success }}
+          />
         ) : allSetsComplete && !isLastExercise ? (
-          <Pressable style={[s.nextBtn, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }]} onPress={nextExercise}>
-            <Text style={[s.nextBtnText, { color: colors.onBrandPrimary }]}>PRÓXIMO EXERCÍCIO</Text>
-            <Ionicons name="arrow-forward" size={20} color={colors.onBrandPrimary} />
-          </Pressable>
+          <PrimaryButton
+            label="Próximo exercício"
+            icon="arrow-forward"
+            onPress={nextExercise}
+          />
         ) : (
-          <View style={[s.hintBar, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-            <Text style={[s.hintText, { color: colors.onSurfaceSecondary }]}>
+          <View style={[s.hintBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[s.hintText, { color: colors.textSecondary }]}>
               Complete todas as séries para avançar
             </Text>
           </View>
@@ -460,31 +453,25 @@ export default function SessionScreen() {
 const s = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
-  loadingText: { fontFamily: fonts.text, fontSize: tp.base },
-  backBtnLarge: {
-    paddingHorizontal: spacing["2xl"],
-    height: 52, borderRadius: radius.pill, alignItems: "center", justifyContent: "center",
-    marginTop: spacing.lg,
-  },
-  backBtnLargeText: { fontFamily: fonts.bold, fontSize: tp.base },
+  loadingText: { fontFamily: fonts.text, ...tp.bodySmall },
 
   topBar: {
     flexDirection: "row", alignItems: "center", gap: spacing.sm,
     paddingHorizontal: spacing.lg, paddingBottom: spacing.sm,
   },
   closeBtn: {
-    width: 40, height: 40, borderRadius: radius.pill,
+    width: 40, height: 40, borderRadius: radius.pill, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
   topCenter: { flex: 1, alignItems: "center" },
-  topTitle: { fontFamily: fonts.display, fontSize: tp.xl, letterSpacing: 1 },
-  topSub: { fontFamily: fonts.mono, fontSize: tp.sm },
+  topTitle: { fontFamily: fonts.bold, ...tp.h2 },
+  topSub: { fontFamily: fonts.text, ...tp.bodySmall },
   timerBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: spacing.md,
-    height: 36, borderRadius: radius.pill,
+    height: 36, borderRadius: radius.pill, borderWidth: 1,
   },
-  timerText: { fontFamily: fonts.mono, fontSize: tp.sm },
+  timerText: { fontFamily: fonts.medium, ...tp.bodySmall },
 
   progressTrack: { height: 3 },
   progressFill: { height: 3 },
@@ -493,13 +480,13 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", marginBottom: spacing.lg,
   },
   navBtn: {
-    width: 44, height: 44, borderRadius: radius.pill,
+    width: 44, height: 44, borderRadius: radius.pill, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
   navBtnDisabled: { opacity: 0.3 },
-  exCounter: { fontFamily: fonts.display, fontSize: tp.xl },
+  exCounter: { fontFamily: fonts.bold, ...tp.h2 },
   phaseBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  phaseText: { fontFamily: fonts.medium, fontSize: tp.sm },
+  phaseText: { fontFamily: fonts.medium, ...tp.bodySmall },
 
   animationArea: {
     alignItems: "center", marginBottom: spacing.md,
@@ -508,24 +495,24 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     marginBottom: spacing.md,
   },
-  exName: { fontFamily: fonts.display, fontSize: tp["3xl"], letterSpacing: 1, flex: 1 },
+  exName: { fontFamily: fonts.bold, ...tp.h1, flex: 1 },
 
   prescriptionRow: {
     flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md,
   },
   prescriptionItem: {
-    flex: 1, borderRadius: radius.lg,
+    flex: 1, borderRadius: radius.lg, borderWidth: 1,
     paddingVertical: spacing.lg, alignItems: "center",
   },
-  prescriptionValue: { fontFamily: fonts.display, fontSize: tp.xl },
-  prescriptionLabel: { fontFamily: fonts.medium, fontSize: 9, letterSpacing: 1, marginTop: 2 },
+  prescriptionValue: { fontFamily: fonts.bold, ...tp.metric },
+  prescriptionLabel: { fontFamily: fonts.medium, ...tp.caption, letterSpacing: 1, marginTop: 2 },
 
   tempoHint: {
-    fontFamily: fonts.mono, fontSize: tp.sm,
+    fontFamily: fonts.text, ...tp.bodySmall,
     marginBottom: spacing.xs,
   },
   notesHint: {
-    fontFamily: fonts.text, fontSize: tp.sm,
+    fontFamily: fonts.text, ...tp.bodySmall,
     marginBottom: spacing.md, fontStyle: "italic",
   },
 
@@ -536,7 +523,7 @@ const s = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   setCol: {
-    flex: 1, fontFamily: fonts.bold, fontSize: 10,
+    flex: 1, fontFamily: fonts.bold, ...tp.caption,
     letterSpacing: 1, textAlign: "center",
   },
 
@@ -546,13 +533,13 @@ const s = StyleSheet.create({
     borderRadius: radius.md, marginBottom: spacing.xs,
   },
   setNum: {
-    fontFamily: fonts.display, fontSize: tp.xl,
+    fontFamily: fonts.bold, ...tp.h2,
     textAlign: "center",
   },
   setInput: {
     flex: 1, height: 44, borderRadius: radius.md,
     borderWidth: 1,
-    fontFamily: fonts.mono, fontSize: tp.base,
+    fontFamily: fonts.text, ...tp.body,
     textAlign: "center",
   },
   checkBtn: {
@@ -569,19 +556,9 @@ const s = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  completeBtn: {
-    flexDirection: "row", gap: spacing.sm, height: 56, borderRadius: radius.pill,
-    alignItems: "center", justifyContent: "center",
-  },
-  completeBtnText: { fontFamily: fonts.bold, fontSize: tp.lg, letterSpacing: 1 },
-  nextBtn: {
-    flexDirection: "row", gap: spacing.sm, height: 56, borderRadius: radius.pill,
-    alignItems: "center", justifyContent: "center",
-  },
-  nextBtnText: { fontFamily: fonts.bold, fontSize: tp.lg, letterSpacing: 1 },
   hintBar: {
-    height: 56, borderRadius: radius.pill,
+    height: 56, borderRadius: radius.pill, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
-  hintText: { fontFamily: fonts.medium, fontSize: tp.base },
+  hintText: { fontFamily: fonts.medium, ...tp.body },
 });

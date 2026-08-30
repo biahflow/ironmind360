@@ -7,9 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { spacing, radius, fonts, type as tp, shadow } from "@/src/theme";
+import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
+import { Screen, ScreenHeader, IconButton, layout } from "@/src/components/ui";
 
 type HealthDoc = {
   id: string;
@@ -68,7 +69,7 @@ function fmtDate(iso: string) {
 }
 
 export default function HealthDetail() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -165,271 +166,253 @@ export default function HealthDetail() {
 
   if (loading) {
     return (
-      <View style={[s.container, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.brandPrimary} style={{ marginTop: 80 }} />
-      </View>
+      <Screen>
+        <ScreenHeader title="Documento" onBack={() => router.back()} />
+        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 80 }} />
+      </Screen>
     );
   }
 
   if (!doc) {
     return (
-      <View style={[s.container, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-        <Pressable style={s.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.onSurface} />
-        </Pressable>
-        <Text style={[s.errorText, { color: colors.onSurfaceSecondary }]}>Documento não encontrado.</Text>
-      </View>
+      <Screen>
+        <ScreenHeader title="Documento" onBack={() => router.back()} />
+        <Text style={[s.errorText, { color: colors.textSecondary }]}>Documento não encontrado.</Text>
+      </Screen>
     );
   }
 
   return (
-    <ScrollView
-      style={[s.container, { backgroundColor: colors.surface, paddingTop: insets.top }]}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.brandPrimary} />
-      }
-    >
-      <View style={s.header}>
-        <Pressable style={s.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.onSurface} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.title, { color: colors.onSurface }]} numberOfLines={2}>{doc.title || doc.original_name || "Documento"}</Text>
+    <Screen>
+      <ScreenHeader
+        title={doc.title || doc.original_name || "Documento"}
+        onBack={() => router.back()}
+        right={<IconButton icon="trash-outline" color={colors.error} onPress={confirmDelete} />}
+      />
+      <ScrollView
+        style={s.container}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />
+        }
+      >
+        <View style={[s.metaCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {doc.doc_type && <MetaRow label="Tipo" value={doc.doc_type} colors={colors} />}
+          {doc.doc_issuer && <MetaRow label="Emissor" value={doc.doc_issuer} colors={colors} />}
+          {doc.doc_date && <MetaRow label="Data do exame" value={fmtDate(doc.doc_date)} colors={colors} />}
+          <MetaRow label="Enviado em" value={fmtDate(doc.created_at)} colors={colors} />
+          <MetaRow label="Status" value={STATUS_LABEL[doc.status as keyof typeof STATUS_LABEL] || doc.status} colors={colors} />
+          {doc.error && <MetaRow label="Erro" value={doc.error} colors={colors} />}
         </View>
-        <Pressable onPress={confirmDelete} style={s.deleteBtn}>
-          <Ionicons name="trash-outline" size={20} color={colors.error} />
-        </Pressable>
-      </View>
 
-      <View style={[s.metaCard, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
-        {doc.doc_type && <MetaRow label="Tipo" value={doc.doc_type} colors={colors} />}
-        {doc.doc_issuer && <MetaRow label="Emissor" value={doc.doc_issuer} colors={colors} />}
-        {doc.doc_date && <MetaRow label="Data do exame" value={fmtDate(doc.doc_date)} colors={colors} />}
-        <MetaRow label="Enviado em" value={fmtDate(doc.created_at)} colors={colors} />
-        <MetaRow label="Status" value={STATUS_LABEL[doc.status as keyof typeof STATUS_LABEL] || doc.status} colors={colors} />
-        {doc.error && <MetaRow label="Erro" value={doc.error} colors={colors} />}
-      </View>
+        {doc.alerts?.length > 0 && (
+          <View style={s.section}>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>Alertas</Text>
+            {doc.alerts.map((alert, i) => (
+              <View
+                key={i}
+                style={[s.alertCard, {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  borderLeftColor: alert.level === "prioritario" ? colors.error
+                    : alert.level === "atencao" ? colors.warning : colors.textSecondary
+                }]}
+              >
+                <Ionicons
+                  name={alert.level === "prioritario" ? "warning" : "alert-circle"}
+                  size={16}
+                  color={alert.level === "prioritario" ? colors.error : colors.warning}
+                />
+                <Text style={[s.alertTextDetail, { color: colors.text }]}>{alert.text}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
-      {doc.alerts?.length > 0 && (
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: colors.onSurface }]}>Alertas</Text>
-          {doc.alerts.map((alert, i) => (
-            <View
-              key={i}
-              style={[s.alertCard, {
-                backgroundColor: colors.surfaceSecondary,
-                borderLeftColor: alert.level === "prioritario" ? colors.error
-                  : alert.level === "atencao" ? colors.warning : colors.onSurfaceSecondary
-              }]}
-            >
-              <Ionicons
-                name={alert.level === "prioritario" ? "warning" : "alert-circle"}
-                size={16}
-                color={alert.level === "prioritario" ? colors.error : colors.warning}
-              />
-              <Text style={[s.alertTextDetail, { color: colors.onSurface }]}>{alert.text}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {Object.keys(groupedMarkers).length > 0 && (
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: colors.onSurface }]}>Marcadores</Text>
-          {Object.entries(groupedMarkers).map(([category, catMarkers]) => (
-            <View key={category}>
-              <Text style={[s.categoryTitle, { color: colors.brandSecondary }]}>{category}</Text>
-              {catMarkers.map(marker => (
-                <View key={marker.id} style={[s.markerCard, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }, !marker.context_enabled && s.markerDisabled]}>
-                  <View style={s.markerHeader}>
-                    <Text style={[s.markerName, { color: colors.onSurface }]}>{marker.name}</Text>
-                    <View style={[s.flagBadge, { backgroundColor: flagColor(marker.flag) + "22" }]}>
-                      <Text style={[s.flagText, { color: flagColor(marker.flag) }]}>
-                        {FLAG_LABEL[marker.flag]}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={s.markerBody}>
-                    {editingId === marker.id ? (
-                      <View style={s.editRow}>
-                        <TextInput
-                          style={[s.editInput, { color: colors.onSurface, borderBottomColor: colors.brandPrimary }]}
-                          value={editValue}
-                          onChangeText={setEditValue}
-                          keyboardType="numeric"
-                          autoFocus
-                          placeholder="Novo valor"
-                          placeholderTextColor={colors.onSurfaceSecondary}
-                        />
-                        <Pressable onPress={() => submitCorrection(marker)} style={s.editSave}>
-                          <Ionicons name="checkmark" size={18} color={colors.success} />
-                        </Pressable>
-                        <Pressable onPress={() => setEditingId(null)} style={s.editCancel}>
-                          <Ionicons name="close" size={18} color={colors.error} />
-                        </Pressable>
+        {Object.keys(groupedMarkers).length > 0 && (
+          <View style={s.section}>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>Marcadores</Text>
+            {Object.entries(groupedMarkers).map(([category, catMarkers]) => (
+              <View key={category}>
+                <Text style={[s.categoryTitle, { color: colors.accent }]}>{category}</Text>
+                {catMarkers.map(marker => (
+                  <View key={marker.id} style={[s.markerCard, { backgroundColor: colors.surface, borderColor: colors.border }, !marker.context_enabled && s.markerDisabled]}>
+                    <View style={s.markerHeader}>
+                      <Text style={[s.markerName, { color: colors.text }]}>{marker.name}</Text>
+                      <View style={[s.flagBadge, { backgroundColor: flagColor(marker.flag) + "22" }]}>
+                        <Text style={[s.flagText, { color: flagColor(marker.flag) }]}>
+                          {FLAG_LABEL[marker.flag]}
+                        </Text>
                       </View>
-                    ) : (
-                      <Pressable onPress={() => { setEditingId(marker.id); setEditValue(String(marker.value ?? "")); }}>
-                        <Text style={[s.markerValue, { color: colors.onSurface }]}>
-                          {marker.value != null ? `${marker.value} ${marker.unit || ""}` : marker.value_text || "—"}
+                    </View>
+
+                    <View style={s.markerBody}>
+                      {editingId === marker.id ? (
+                        <View style={s.editRow}>
+                          <TextInput
+                            style={[s.editInput, { color: colors.text, borderBottomColor: colors.accent }]}
+                            value={editValue}
+                            onChangeText={setEditValue}
+                            keyboardType="numeric"
+                            autoFocus
+                            placeholder="Novo valor"
+                            placeholderTextColor={colors.textSecondary}
+                          />
+                          <Pressable onPress={() => submitCorrection(marker)} style={s.editSave}>
+                            <Ionicons name="checkmark" size={18} color={colors.success} />
+                          </Pressable>
+                          <Pressable onPress={() => setEditingId(null)} style={s.editCancel}>
+                            <Ionicons name="close" size={18} color={colors.error} />
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <Pressable onPress={() => { setEditingId(marker.id); setEditValue(String(marker.value ?? "")); }}>
+                          <Text style={[s.markerValue, { color: colors.text }]}>
+                            {marker.value != null ? `${marker.value} ${marker.unit || ""}` : marker.value_text || "—"}
+                          </Text>
+                        </Pressable>
+                      )}
+                      {marker.reference_text && (
+                        <Text style={[s.refText, { color: colors.textSecondary }]}>Ref: {marker.reference_text}</Text>
+                      )}
+                      {!marker.reference_text && (marker.reference_low != null || marker.reference_high != null) && (
+                        <Text style={[s.refText, { color: colors.textSecondary }]}>
+                          Ref: {marker.reference_low ?? "—"} – {marker.reference_high ?? "—"} {marker.unit || ""}
+                        </Text>
+                      )}
+                    </View>
+
+                    {marker.alert_text && (
+                      <Text style={[s.markerAlert, {
+                        color: marker.alert_level === "prioritario" ? colors.error : colors.warning
+                      }]}>
+                        {marker.alert_text}
+                      </Text>
+                    )}
+
+                    <View style={s.markerFooter}>
+                      {marker.page && <Text style={[s.pageText, { color: colors.textSecondary }]}>Pág. {marker.page}</Text>}
+                      <Text style={[s.statusChip, {
+                        color: marker.status === "needs_review" ? colors.warning : colors.textSecondary
+                      }]}>
+                        {STATUS_LABEL[marker.status as keyof typeof STATUS_LABEL] || marker.status}
+                      </Text>
+                      <Pressable onPress={() => toggleContext(marker)} style={s.contextBtn}>
+                        <Ionicons
+                          name={marker.context_enabled ? "eye" : "eye-off"}
+                          size={16}
+                          color={marker.context_enabled ? colors.success : colors.textSecondary}
+                        />
+                        <Text style={[s.contextText, {
+                          color: marker.context_enabled ? colors.success : colors.textSecondary
+                        }]}>
+                          {marker.context_enabled ? "No contexto" : "Fora do contexto"}
                         </Text>
                       </Pressable>
-                    )}
-                    {marker.reference_text && (
-                      <Text style={[s.refText, { color: colors.onSurfaceSecondary }]}>Ref: {marker.reference_text}</Text>
-                    )}
-                    {!marker.reference_text && (marker.reference_low != null || marker.reference_high != null) && (
-                      <Text style={[s.refText, { color: colors.onSurfaceSecondary }]}>
-                        Ref: {marker.reference_low ?? "—"} – {marker.reference_high ?? "—"} {marker.unit || ""}
-                      </Text>
-                    )}
+                    </View>
                   </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        )}
 
-                  {marker.alert_text && (
-                    <Text style={[s.markerAlert, {
-                      color: marker.alert_level === "prioritario" ? colors.error : colors.warning
-                    }]}>
-                      {marker.alert_text}
-                    </Text>
-                  )}
+        {doc.status === "failed" && (
+          <View style={[s.failedCard, { backgroundColor: colors.surface, borderColor: colors.error }]}>
+            <Ionicons name="alert-circle" size={24} color={colors.error} />
+            <Text style={[s.failedText, { color: colors.error }]}>
+              Não foi possível processar este documento.{doc.error ? ` ${doc.error}` : ""}
+            </Text>
+          </View>
+        )}
 
-                  <View style={s.markerFooter}>
-                    {marker.page && <Text style={[s.pageText, { color: colors.onSurfaceSecondary }]}>Pág. {marker.page}</Text>}
-                    <Text style={[s.statusChip, {
-                      color: marker.status === "needs_review" ? colors.warning : colors.onSurfaceSecondary
-                    }]}>
-                      {STATUS_LABEL[marker.status as keyof typeof STATUS_LABEL] || marker.status}
-                    </Text>
-                    <Pressable onPress={() => toggleContext(marker)} style={s.contextBtn}>
-                      <Ionicons
-                        name={marker.context_enabled ? "eye" : "eye-off"}
-                        size={16}
-                        color={marker.context_enabled ? colors.success : colors.onSurfaceSecondary}
-                      />
-                      <Text style={[s.contextText, {
-                        color: marker.context_enabled ? colors.success : colors.onSurfaceSecondary
-                      }]}>
-                        {marker.context_enabled ? "No contexto" : "Fora do contexto"}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))}
-            </View>
-          ))}
-        </View>
-      )}
-
-      {doc.status === "failed" && (
-        <View style={[s.failedCard, { backgroundColor: colors.cardBackground, borderColor: colors.error }]}>
-          <Ionicons name="alert-circle" size={24} color={colors.error} />
-          <Text style={[s.failedText, { color: colors.error }]}>
-            Não foi possível processar este documento.{doc.error ? ` ${doc.error}` : ""}
-          </Text>
-        </View>
-      )}
-
-      {(doc.status === "extracting" || doc.status === "validating") && (
-        <View style={s.processingCard}>
-          <ActivityIndicator size="small" color={colors.brandPrimary} />
-          <Text style={[s.processingText, { color: colors.onSurfaceSecondary }]}>Processando documento...</Text>
-        </View>
-      )}
-    </ScrollView>
+        {(doc.status === "extracting" || doc.status === "validating") && (
+          <View style={s.processingCard}>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <Text style={[s.processingText, { color: colors.textSecondary }]}>Processando documento...</Text>
+          </View>
+        )}
+      </ScrollView>
+    </Screen>
   );
 }
 
 function MetaRow({ label, value, colors }: { label: string; value: string; colors: any }) {
   return (
     <View style={s.metaRow}>
-      <Text style={[s.metaLabel, { color: colors.onSurfaceSecondary }]}>{label}</Text>
-      <Text style={[s.metaValue, { color: colors.onSurface }]}>{value}</Text>
+      <Text style={[s.metaLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[s.metaValue, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: "row", alignItems: "center", gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-  },
-  backBtn: {
-    width: 44, height: 44, borderRadius: radius.pill,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "transparent",
-  },
-  deleteBtn: {
-    width: 44, height: 44, borderRadius: radius.pill,
-    alignItems: "center", justifyContent: "center",
-  },
-  title: { fontFamily: fonts.display, fontSize: tp["2xl"] },
   errorText: {
-    fontFamily: fonts.text, fontSize: tp.base,
+    fontFamily: fonts.text, ...type.body,
     textAlign: "center", marginTop: 40,
   },
   metaCard: {
-    marginHorizontal: spacing.lg,
+    marginHorizontal: layout.screenPad,
     borderRadius: radius.xl, padding: spacing.xl,
+    borderWidth: 1,
   },
   metaRow: {
     flexDirection: "row", justifyContent: "space-between",
     paddingVertical: spacing.xs,
   },
-  metaLabel: { fontFamily: fonts.medium, fontSize: tp.sm },
-  metaValue: { fontFamily: fonts.text, fontSize: tp.sm, maxWidth: "60%", textAlign: "right" },
-  section: { marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-  sectionTitle: { fontFamily: fonts.semibold, fontSize: tp.lg, marginBottom: spacing.md },
+  metaLabel: { fontFamily: fonts.medium, ...type.bodySmall },
+  metaValue: { fontFamily: fonts.text, ...type.bodySmall, maxWidth: "60%", textAlign: "right" },
+  section: { marginTop: spacing.xl, paddingHorizontal: layout.screenPad },
+  sectionTitle: { fontFamily: fonts.bold, ...type.h2, marginBottom: spacing.md },
   categoryTitle: {
-    fontFamily: fonts.medium, fontSize: tp.sm,
+    fontFamily: fonts.medium, ...type.bodySmall,
     textTransform: "uppercase", letterSpacing: 1, marginTop: spacing.md, marginBottom: spacing.sm,
   },
   alertCard: {
     flexDirection: "row", alignItems: "flex-start", gap: spacing.md,
-    borderRadius: radius.lg,
+    borderRadius: radius.lg, borderWidth: 1,
     padding: spacing.xl, borderLeftWidth: 3, marginBottom: spacing.md,
   },
-  alertTextDetail: { fontFamily: fonts.text, fontSize: tp.sm, flex: 1 },
+  alertTextDetail: { fontFamily: fonts.text, ...type.bodySmall, flex: 1 },
   markerCard: {
-    borderRadius: radius.lg,
+    borderRadius: radius.lg, borderWidth: 1,
     padding: spacing.xl, marginBottom: spacing.md,
   },
   markerDisabled: { opacity: 0.5 },
   markerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  markerName: { fontFamily: fonts.semibold, fontSize: tp.base, flex: 1 },
+  markerName: { fontFamily: fonts.bold, ...type.body, flex: 1 },
   flagBadge: { paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill },
-  flagText: { fontFamily: fonts.semibold, fontSize: tp.sm },
+  flagText: { fontFamily: fonts.semibold, ...type.bodySmall },
   markerBody: { marginTop: spacing.xs },
-  markerValue: { fontFamily: fonts.bold, fontSize: tp.xl },
-  refText: { fontFamily: fonts.text, fontSize: tp.sm, marginTop: 2 },
-  markerAlert: { fontFamily: fonts.text, fontSize: tp.sm, marginTop: spacing.xs },
+  markerValue: { fontFamily: fonts.bold, ...type.metric },
+  refText: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
+  markerAlert: { fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.xs },
   markerFooter: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
     marginTop: spacing.sm, flexWrap: "wrap",
   },
-  pageText: { fontFamily: fonts.text, fontSize: tp.sm },
-  statusChip: { fontFamily: fonts.medium, fontSize: tp.sm },
+  pageText: { fontFamily: fonts.text, ...type.bodySmall },
+  statusChip: { fontFamily: fonts.medium, ...type.bodySmall },
   contextBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: "auto" },
-  contextText: { fontFamily: fonts.medium, fontSize: tp.sm },
+  contextText: { fontFamily: fonts.medium, ...type.bodySmall },
   editRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   editInput: {
-    flex: 1, fontFamily: fonts.text, fontSize: tp.lg,
+    flex: 1, fontFamily: fonts.text, ...type.body,
     borderBottomWidth: 1, paddingVertical: spacing.xs,
   },
   editSave: { padding: spacing.xs },
   editCancel: { padding: spacing.xs },
   failedCard: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
-    marginHorizontal: spacing.lg, marginTop: spacing.xl,
+    marginHorizontal: layout.screenPad, marginTop: spacing.xl,
     borderRadius: radius.lg,
     padding: spacing.lg, borderWidth: 1,
   },
-  failedText: { fontFamily: fonts.text, fontSize: tp.base, flex: 1 },
+  failedText: { fontFamily: fonts.text, ...type.body, flex: 1 },
   processingCard: {
     flexDirection: "row", alignItems: "center", gap: spacing.md, justifyContent: "center",
-    marginHorizontal: spacing.lg, marginTop: spacing.xl, padding: spacing.lg,
+    marginHorizontal: layout.screenPad, marginTop: spacing.xl, padding: spacing.lg,
   },
-  processingText: { fontFamily: fonts.text, fontSize: tp.base },
+  processingText: { fontFamily: fonts.text, ...type.body },
 });

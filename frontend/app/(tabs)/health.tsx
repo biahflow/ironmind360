@@ -9,9 +9,10 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as DocumentPicker from "expo-document-picker";
 
-import { spacing, radius, fonts, type as tp, shadow } from "@/src/theme";
+import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
+import { Screen, ScreenHeader, PrimaryButton, EmptyState, layout } from "@/src/components/ui";
 
 type HealthDoc = {
   id: string;
@@ -39,7 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 function useStatusColor(colors: ReturnType<typeof useTheme>["colors"]) {
   return {
-    uploaded: colors.onSurfaceSecondary,
+    uploaded: colors.textSecondary,
     extracting: colors.warning,
     validating: colors.warning,
     needs_review: colors.warning,
@@ -50,7 +51,7 @@ function useStatusColor(colors: ReturnType<typeof useTheme>["colors"]) {
 
 function useAlertColor(colors: ReturnType<typeof useTheme>["colors"]) {
   return {
-    informativo: colors.onSurfaceSecondary,
+    informativo: colors.textSecondary,
     atencao: colors.warning,
     prioritario: colors.error,
   } as Record<string, string>;
@@ -63,7 +64,7 @@ function fmtDate(iso: string) {
 }
 
 export default function Health() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const statusColor = useStatusColor(colors);
   const alertColor = useAlertColor(colors);
   const insets = useSafeAreaInsets();
@@ -142,44 +143,44 @@ export default function Health() {
 
     return (
       <Pressable
-        style={[s.card, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}
+        style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
         onPress={() => router.push(`/health-detail?id=${item.id}` as any)}
         onLongPress={() => confirmDelete(item)}
       >
         <View style={s.cardHeader}>
-          <View style={[s.cardIcon, { backgroundColor: colors.brandTertiary }]}>
+          <View style={[s.cardIcon, { backgroundColor: colors.accentMuted }]}>
             <Ionicons
               name={item.content_type === "application/pdf" ? "document-text" : "image"}
               size={24}
-              color={colors.brandPrimary}
+              color={colors.accent}
             />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[s.cardTitle, { color: colors.onSurface }]} numberOfLines={1}>
+            <Text style={[s.cardTitle, { color: colors.text }]} numberOfLines={1}>
               {item.title || item.original_name || "Documento"}
             </Text>
             <View style={s.cardMeta}>
               {item.doc_type && (
-                <Text style={[s.metaChip, { color: colors.brandSecondary, backgroundColor: colors.brandTertiary }]}>{item.doc_type}</Text>
+                <Text style={[s.metaChip, { color: colors.accent, backgroundColor: colors.accentMuted }]}>{item.doc_type}</Text>
               )}
               {item.doc_date && (
-                <Text style={[s.metaText, { color: colors.onSurfaceSecondary }]}>{fmtDate(item.doc_date)}</Text>
+                <Text style={[s.metaText, { color: colors.textSecondary }]}>{fmtDate(item.doc_date)}</Text>
               )}
               {item.doc_issuer && (
-                <Text style={[s.metaText, { color: colors.onSurfaceSecondary }]} numberOfLines={1}>{item.doc_issuer}</Text>
+                <Text style={[s.metaText, { color: colors.textSecondary }]} numberOfLines={1}>{item.doc_issuer}</Text>
               )}
             </View>
           </View>
           <View style={s.statusBadge}>
-            <View style={[s.statusDot, { backgroundColor: statusColor[item.status] || colors.onSurfaceSecondary }]} />
-            <Text style={[s.statusText, { color: statusColor[item.status] || colors.onSurfaceSecondary }]}>
+            <View style={[s.statusDot, { backgroundColor: statusColor[item.status] || colors.textSecondary }]} />
+            <Text style={[s.statusText, { color: statusColor[item.status] || colors.textSecondary }]}>
               {STATUS_LABEL[item.status] || item.status}
             </Text>
           </View>
         </View>
 
         {item.status === "ready" && item.marker_count > 0 && (
-          <Text style={[s.markerCount, { color: colors.onSurfaceSecondary }]}>
+          <Text style={[s.markerCount, { color: colors.textSecondary }]}>
             {item.marker_count} marcador{item.marker_count > 1 ? "es" : ""}
           </Text>
         )}
@@ -197,71 +198,50 @@ export default function Health() {
           </View>
         )}
 
-        <Text style={[s.dateText, { color: colors.onSurfaceSecondary }]}>{fmtDate(item.created_at)}</Text>
+        <Text style={[s.dateText, { color: colors.textSecondary }]}>{fmtDate(item.created_at)}</Text>
       </Pressable>
     );
   };
 
   return (
-    <View style={[s.container, { paddingTop: insets.top, backgroundColor: colors.surface }]}>
-      <View style={s.header}>
-        <Text style={[s.title, { color: colors.onSurface }]}>Saúde</Text>
-        <Pressable style={[s.uploadBtn, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }]} onPress={pickAndUpload} disabled={uploading}>
-          {uploading ? (
-            <ActivityIndicator size="small" color={colors.onBrandPrimary} />
-          ) : (
-            <>
-              <Ionicons name="cloud-upload" size={18} color={colors.onBrandPrimary} />
-              <Text style={[s.uploadText, { color: colors.onBrandPrimary }]}>Enviar exame</Text>
-            </>
-          )}
-        </Pressable>
-      </View>
+    <Screen>
+      <ScreenHeader
+        title="Saúde"
+        right={<PrimaryButton label="Enviar exame" icon="cloud-upload" loading={uploading} onPress={pickAndUpload} />}
+      />
 
       {loading ? (
-        <ActivityIndicator size="large" color={colors.brandPrimary} style={{ marginTop: 40 }} />
+        <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
       ) : docs.length === 0 ? (
-        <View style={s.empty}>
-          <Ionicons name="medkit-outline" size={48} color={colors.onSurfaceSecondary} />
-          <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Nenhum exame cadastrado</Text>
-          <Text style={[s.emptySubtitle, { color: colors.onSurfaceSecondary }]}>
-            Envie seus exames (PDF, JPG ou PNG) para acompanhar seus marcadores de saúde.
-          </Text>
-        </View>
+        <EmptyState
+          icon="medkit-outline"
+          title="Nenhum exame cadastrado"
+          text="Envie seus exames (PDF, JPG ou PNG) para acompanhar seus marcadores de saúde."
+        />
       ) : (
         <FlatList
           data={docs}
           renderItem={renderDoc}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 90, paddingHorizontal: spacing.lg }}
+          contentContainerStyle={{ paddingBottom: layout.tabBarPad(insets.bottom), paddingHorizontal: layout.screenPad }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); loadDocs(); }}
-              tintColor={colors.brandPrimary}
+              tintColor={colors.accent}
             />
           }
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         />
       )}
-    </View>
+    </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingHorizontal: spacing.xl, paddingVertical: spacing.xl,
-  },
-  title: { fontFamily: fonts.display, fontSize: tp["3xl"] },
-  uploadBtn: {
-    flexDirection: "row", alignItems: "center", gap: spacing.sm,
-    paddingHorizontal: spacing.xl, height: 44, borderRadius: radius.pill,
-  },
-  uploadText: { fontFamily: fonts.semibold, fontSize: tp.sm },
   card: {
     borderRadius: radius.xl, padding: spacing.xl,
+    borderWidth: 1,
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
   cardIcon: {
@@ -269,33 +249,28 @@ const s = StyleSheet.create({
     justifyContent: "center", alignItems: "center",
   },
   cardTitle: {
-    fontFamily: fonts.semibold, fontSize: tp.lg,
+    fontFamily: fonts.bold, ...type.body,
   },
   cardMeta: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs, flexWrap: "wrap" },
   metaChip: {
-    fontFamily: fonts.medium, fontSize: tp.sm,
+    fontFamily: fonts.medium, ...type.caption,
     paddingHorizontal: spacing.md, paddingVertical: 2,
     borderRadius: radius.pill, overflow: "hidden",
   },
-  metaText: { fontFamily: fonts.text, fontSize: tp.sm },
+  metaText: { fontFamily: fonts.text, ...type.bodySmall },
   statusBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontFamily: fonts.medium, fontSize: tp.sm },
+  statusText: { fontFamily: fonts.medium, ...type.bodySmall },
   markerCount: {
-    fontFamily: fonts.text, fontSize: tp.sm, marginTop: spacing.md,
+    fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.md,
   },
   alertBanner: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
     marginTop: spacing.lg, paddingLeft: spacing.md,
     borderLeftWidth: 3, paddingVertical: spacing.xs,
   },
-  alertText: { fontFamily: fonts.text, fontSize: tp.sm, flex: 1 },
+  alertText: { fontFamily: fonts.text, ...type.bodySmall, flex: 1 },
   dateText: {
-    fontFamily: fonts.text, fontSize: tp.sm, marginTop: spacing.md, textAlign: "right",
-  },
-  empty: { alignItems: "center", paddingTop: 80, paddingHorizontal: spacing["2xl"], gap: spacing.lg },
-  emptyTitle: { fontFamily: fonts.semibold, fontSize: tp.xl },
-  emptySubtitle: {
-    fontFamily: fonts.text, fontSize: tp.base, textAlign: "center", lineHeight: 22,
+    fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.md, textAlign: "right",
   },
 });
