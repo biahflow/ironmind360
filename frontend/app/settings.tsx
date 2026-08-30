@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, TextInput, Pressable, Platform, Linking, ActivityIndicator,
+  View, Text, StyleSheet, TextInput, Pressable, Platform, Linking, ActivityIndicator, Switch,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,6 +46,7 @@ export default function Settings() {
   const [wearableSummary, setWearableSummary] = useState<WearableSummary | null>(null);
   const [wearableLoading, setWearableLoading] = useState(false);
 
+  const [prefs, setPrefs] = useState<any>(null);
   const [isProfessional, setIsProfessional] = useState(false);
   const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; charges_enabled: boolean } | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
@@ -64,8 +65,22 @@ export default function Settings() {
       } catch {}
     })();
     (async () => setImageHeaders(await authHeaders()))();
+    (async () => { try { setPrefs(await api.get("/notification-preferences")); } catch {} })();
     loadWearables();
   }, []);
+
+  const togglePref = async (key: string) => {
+    if (!prefs) return;
+    const previous = prefs;
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await api.put("/notification-preferences", next);
+    } catch {
+      setPrefs(previous);
+    }
+  };
 
   const pickAvatar = async () => {
     setErr("");
@@ -429,6 +444,39 @@ export default function Settings() {
           </>
         )}
 
+        {prefs && (
+          <>
+            <Overline style={s.section}>NOTIFICAÇÕES</Overline>
+            <View style={cardStyle}>
+              {[
+                ["checkin_reminder", "Lembrete de check-in"],
+                ["workout_reminder", "Lembrete de treino"],
+                ["hydration_reminder", "Lembrete de hidratação"],
+                ["meal_reminders", "Lembretes de refeição"],
+                ["readiness_alerts", "Alertas de prontidão"],
+                ["race_countdown", "Contagem regressiva de provas"],
+                ["weekly_summary", "Resumo semanal"],
+              ].map(([key, label], i) => (
+                <View
+                  key={key}
+                  style={[
+                    s.prefRow,
+                    i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+                  ]}
+                >
+                  <Text style={[s.themeLabel, { color: colors.text, flex: 1 }]}>{label}</Text>
+                  <Switch
+                    value={!!prefs[key]}
+                    onValueChange={() => togglePref(key)}
+                    trackColor={{ false: colors.border, true: colors.accentMuted }}
+                    thumbColor={prefs[key] ? colors.accent : colors.textSecondary}
+                  />
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
         {err ? <Text style={[s.err, { color: colors.error }]}>{err}</Text> : null}
 
         <PrimaryButton
@@ -579,6 +627,10 @@ const s = StyleSheet.create({
   help: { fontFamily: fonts.text, ...type.bodySmall, lineHeight: 20, marginBottom: spacing.lg },
   goalGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.lg },
   goalField: { width: "47%", flexGrow: 1 },
+  prefRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: spacing.md, gap: spacing.md,
+  },
   err: { fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.md },
   saveBtn: { marginTop: spacing["2xl"] },
   logoutBtn: { marginTop: spacing.lg },
