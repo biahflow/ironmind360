@@ -742,7 +742,12 @@ const st = StyleSheet.create({
   },
   secondaryBtnText: { fontFamily: fonts.semibold, ...type.bodySmall },
 
-  pillRow: { flexDirection: "row", gap: spacing.sm },
+  pillRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+  },
   pillTab: {
     flexDirection: "row",
     alignItems: "center",

@@ -1,14 +1,16 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Modal, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 
-import { spacing, fonts, type } from "@/src/theme";
+import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import {
-  Screen, ScreenHeader, Card, PillTabs, Overline, EmptyState, LoadingState, layout,
+  Screen, ScreenHeader, Card, PillTabs, Overline, EmptyState, LoadingState,
+  Input, PrimaryButton, SecondaryButton, layout,
 } from "@/src/components/ui";
 
 type Tab = "overview" | "records" | "races";
@@ -181,11 +183,25 @@ function RecordsTab() {
   );
 }
 
+const RACE_TYPES = [
+  { key: "sprint", label: "Sprint" },
+  { key: "olympic", label: "Olímpico" },
+  { key: "half_ironman", label: "70.3" },
+  { key: "ironman", label: "Ironman" },
+  { key: "custom", label: "Outra" },
+];
+const PRIORITIES = [
+  { key: "A", label: "A · Principal" },
+  { key: "B", label: "B · Secundária" },
+  { key: "C", label: "C · Treino" },
+];
+
 function RacesTab() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [races, setRaces] = useState<any[]>([]);
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -210,8 +226,20 @@ function RacesTab() {
 
   return (
     <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
+      <PrimaryButton label="Adicionar prova" icon="add" onPress={() => setAdding(true)} />
+
+      <RaceModal
+        visible={adding}
+        onClose={() => setAdding(false)}
+        onSaved={() => { setAdding(false); load(); }}
+      />
+
       {races.length === 0 ? (
-        <EmptyState icon="flag-outline" title="Nenhuma prova registrada" text="Adicione provas na aba de Calendário." />
+        <EmptyState
+          icon="flag-outline"
+          title="Nenhuma prova registrada"
+          text="Cadastre suas provas para acompanhar objetivos, estratégia e retrospectiva."
+        />
       ) : (
         races.map((r) => (
           <Card key={r.id}>
@@ -250,8 +278,132 @@ function RacesTab() {
   );
 }
 
+function RaceModal({ visible, onClose, onSaved }: { visible: boolean; onClose: () => void; onSaved: () => void }) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [name, setName] = useState("");
+  const [raceType, setRaceType] = useState("olympic");
+  const [priority, setPriority] = useState("B");
+  const [date, setDate] = useState("");
+  const [location, setLocation] = useState("");
+  const [goal, setGoal] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const reset = () => {
+    setName(""); setRaceType("olympic"); setPriority("B");
+    setDate(""); setLocation(""); setGoal(""); setError("");
+  };
+
+  const save = async () => {
+    if (!name.trim()) { setError("Informe o nome da prova."); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) { setError("Data no formato AAAA-MM-DD."); return; }
+    setSaving(true);
+    setError("");
+    try {
+      await api.post("/races", {
+        name: name.trim(),
+        race_type: raceType,
+        priority,
+        date: date.trim(),
+        location: location.trim(),
+        goal: goal.trim(),
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      reset();
+      onSaved();
+    } catch (e: any) {
+      setError(e.message || "Falha ao cadastrar prova.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Screen>
+        <View style={[s.modalHeader, { paddingTop: insets.top + spacing.md }]}>
+          <Text style={[s.modalTitle, { color: colors.text }]}>Nova prova</Text>
+          <Pressable onPress={onClose} hitSlop={8}>
+            <Ionicons name="close" size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.xl, paddingBottom: insets.bottom + spacing["3xl"], gap: spacing.lg }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Input label="Nome" placeholder="Ex: Ironman 70.3 Florianópolis" value={name} onChangeText={setName} />
+
+          <View>
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>MODALIDADE</Text>
+            <View style={s.pickRow}>
+              {RACE_TYPES.map((t) => {
+                const active = raceType === t.key;
+                return (
+                  <Pressable
+                    key={t.key}
+                    onPress={() => setRaceType(t.key)}
+                    style={[s.pick, { backgroundColor: active ? colors.accent : colors.surface, borderColor: active ? colors.accent : colors.border }]}
+                  >
+                    <Text style={[s.pickText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View>
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>PRIORIDADE</Text>
+            <View style={s.pickRow}>
+              {PRIORITIES.map((p) => {
+                const active = priority === p.key;
+                return (
+                  <Pressable
+                    key={p.key}
+                    onPress={() => setPriority(p.key)}
+                    style={[s.pick, { backgroundColor: active ? colors.accent : colors.surface, borderColor: active ? colors.accent : colors.border }]}
+                  >
+                    <Text style={[s.pickText, { color: active ? colors.onAccent : colors.textSecondary }]}>{p.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <Input label="Data" placeholder="AAAA-MM-DD" value={date} onChangeText={setDate} autoCapitalize="none" />
+          <Input label="Local (opcional)" placeholder="Cidade / país" value={location} onChangeText={setLocation} />
+          <Input label="Objetivo (opcional)" placeholder="Ex: sub 5h30" value={goal} onChangeText={setGoal} />
+
+          {error ? <Text style={[s.raceError, { color: colors.error }]}>{error}</Text> : null}
+
+          <PrimaryButton label="Salvar prova" onPress={save} loading={saving} style={{ marginTop: spacing.sm }} />
+          <SecondaryButton label="Cancelar" onPress={onClose} />
+        </ScrollView>
+      </Screen>
+    </Modal>
+  );
+}
+
 const s = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.md },
+
+  modalHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: spacing.xl, paddingBottom: spacing.lg,
+  },
+  modalTitle: { fontFamily: fonts.bold, ...type.h1 },
+  fieldLabel: {
+    fontFamily: fonts.semibold, ...type.caption, letterSpacing: 1,
+    textTransform: "uppercase", marginBottom: spacing.sm,
+  },
+  pickRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  pick: {
+    paddingHorizontal: spacing.lg, height: 40, borderRadius: radius.pill, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+  },
+  pickText: { fontFamily: fonts.semibold, ...type.bodySmall },
+  raceError: { fontFamily: fonts.text, ...type.bodySmall },
 
   statsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
   statItem: { alignItems: "center", flex: 1 },

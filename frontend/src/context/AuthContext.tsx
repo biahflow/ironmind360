@@ -62,11 +62,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await api.post("/auth/logout");
-    } finally {
-      await storage.secureRemove(TOKEN_KEY);
-      await storage.secureRemove(REFRESH_TOKEN_KEY);
-      setUser(null);
+    } catch {
+      // Best-effort server logout; always clear local session below.
     }
+    await storage.secureRemove(TOKEN_KEY);
+    await storage.secureRemove(REFRESH_TOKEN_KEY);
+    setUser(null);
   };
 
   const refreshUser = async () => {

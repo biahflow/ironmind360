@@ -156,8 +156,11 @@ export default function Settings() {
   };
 
   const doLogout = async () => {
-    await logout();
-    router.replace("/login");
+    try {
+      await logout();
+    } finally {
+      router.replace("/login");
+    }
   };
 
   const setGoal = (k: string, v: string) => {

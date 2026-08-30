@@ -360,16 +360,14 @@ export default function Workouts() {
       />
 
       {/* Tab switcher */}
-      <View style={s.tabRow}>
-        <PillTabs<Tab>
-          tabs={[
-            { key: "plan", label: "Meu plano" },
-            { key: "history", label: "Histórico" },
-          ]}
-          value={tab}
-          onChange={setTab}
-        />
-      </View>
+      <PillTabs<Tab>
+        tabs={[
+          { key: "plan", label: "Meu plano" },
+          { key: "history", label: "Histórico" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
 
       {loading ? (
         <View style={s.center}>
@@ -424,10 +422,6 @@ const s = StyleSheet.create({
     height: 40, borderRadius: radius.pill, minWidth: 80, justifyContent: "center",
   },
   syncText: { fontFamily: fonts.bold, ...type.bodySmall },
-
-  tabRow: {
-    paddingHorizontal: layout.screenPad, paddingBottom: spacing.md,
-  },
 
   // Plan
   planHeader: { flexDirection: "row", alignItems: "center", marginBottom: spacing.xl },
