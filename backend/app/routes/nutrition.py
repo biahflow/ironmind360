@@ -16,6 +16,7 @@ from app.models.nutrition import (
     FavoriteIn,
     ManualMealIn,
     MealEditIn,
+    RecipeIdeasIn,
     RecipeIn,
 )
 from app.rate_limit import rate_limit
@@ -350,6 +351,57 @@ async def generate_nutrition_plan(user: dict = Depends(current_user)):
         upsert=True,
     )
     return {"plan": plan, "modality": ctx["modality"], "generated_at": now, "disclaimer": PLAN_DISCLAIMER}
+
+
+# ── Receitas fit com o que tem em casa (IA) ────────────────────
+
+def _json_from_ai(raw: str) -> dict:
+    raw = (raw or "").strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1].removeprefix("json").strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end <= start:
+            raise HTTPException(502, "Resposta invalida da IA")
+        return json.loads(raw[start:end + 1])
+
+
+@router.post("/recipe-ideas", dependencies=[Depends(rate_limit("recipe_ideas", 10, 3600))])
+async def recipe_ideas(data: RecipeIdeasIn, user: dict = Depends(current_user)):
+    ingredients = [i.strip() for i in data.ingredients if i.strip()][:30]
+    if not ingredients:
+        raise HTTPException(400, "Informe ao menos um ingrediente")
+
+    system = (
+        "Voce e um chef de nutricao esportiva. Crie 1 a 2 receitas FIT usando "
+        "PRINCIPALMENTE os ingredientes que o usuario tem em casa (pode assumir "
+        "basicos: sal, agua, azeite, temperos). Sugestoes praticas e saudaveis. "
+        "NAO faca prescricao medica. Responda SOMENTE JSON valido, sem markdown e "
+        "sem texto fora do JSON, no formato: "
+        '{"recipes":[{"name":"", "ingredients":[""], "steps":[""], "calories":0, '
+        '"protein_g":0, "carbs_g":0, "fat_g":0, "prep_minutes":0}]}'
+    )
+    prompt = "Ingredientes disponiveis: " + ", ".join(ingredients)
+    if data.meal_type:
+        prompt += f"\nTipo de refeicao desejado: {data.meal_type}"
+
+    try:
+        raw = await complete_text(
+            session_id=f"recipe-{user['_id']}",
+            system=system,
+            prompt=prompt,
+            provider=settings.coach_provider,
+            model=settings.coach_model,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, "Falha ao gerar receitas") from exc
+
+    parsed = _json_from_ai(raw)
+    return {"recipes": parsed.get("recipes", [])}
 
 
 # ── Manual entry ────────────────────────────────────────────────

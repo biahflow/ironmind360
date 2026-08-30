@@ -82,6 +82,7 @@ export default function Nutrition() {
   const [editModal, setEditModal] = useState<any>(null);
   const [favModal, setFavModal] = useState(false);
   const [recipeModal, setRecipeModal] = useState(false);
+  const [recipeIdeas, setRecipeIdeas] = useState(false);
   const tabBarPad = layout.tabBarPad(insets.bottom) + 72;
 
   const loadToday = useCallback(async () => {
@@ -278,7 +279,7 @@ export default function Nutrition() {
           {tab === "plan" && <PlanView colors={colors} />}
           {tab === "week" && <WeekView days={weekly} goals={goals} colors={colors} />}
           {tab === "favorites" && <FavoritesView favorites={favorites} colors={colors} applyFavorite={applyFavorite} deleteFavorite={deleteFavorite} setFavModal={setFavModal} />}
-          {tab === "recipes" && <RecipesView recipes={recipes} colors={colors} applyRecipe={applyRecipe} deleteRecipe={deleteRecipe} setRecipeModal={setRecipeModal} />}
+          {tab === "recipes" && <RecipesView recipes={recipes} colors={colors} applyRecipe={applyRecipe} deleteRecipe={deleteRecipe} setRecipeModal={setRecipeModal} onOpenIdeas={() => setRecipeIdeas(true)} />}
         </ScrollView>
       )}
 
@@ -356,6 +357,14 @@ export default function Nutrition() {
           setManualInitial({ title: item.name, items: [item] });
           setManualModal(true);
         }}
+        insets={insets}
+        colors={colors}
+      />
+
+      <RecipeIdeasModal
+        visible={recipeIdeas}
+        onClose={() => setRecipeIdeas(false)}
+        onLogged={loadAll}
         insets={insets}
         colors={colors}
       />
@@ -681,11 +690,22 @@ function FavoritesView({ favorites, colors, applyFavorite, deleteFavorite, setFa
 
 // ─── Recipes View ──────────────────────────────────────────────
 
-function RecipesView({ recipes, colors, applyRecipe, deleteRecipe, setRecipeModal }: any) {
+function RecipesView({ recipes, colors, applyRecipe, deleteRecipe, setRecipeModal, onOpenIdeas }: any) {
   return (
     <>
+      <Pressable onPress={onOpenIdeas} style={({ pressed }) => [s.ideasCard, { backgroundColor: colors.accentMuted }, pressed && { opacity: 0.85 }]}>
+        <View style={[s.ideasIcon, { backgroundColor: colors.accent }]}>
+          <Ionicons name="sparkles" size={18} color={colors.onAccent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.ideasTitle, { color: colors.text }]}>Receita com o que tenho</Text>
+          <Text style={[s.ideasSub, { color: colors.textSecondary }]}>A IA monta receitas fit com seus ingredientes</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+      </Pressable>
+
       <View style={s.sectionHeader}>
-        <Text style={[s.sectionTitle, s.sectionTitleInline, { color: colors.text }]}>Receitas</Text>
+        <Text style={[s.sectionTitle, s.sectionTitleInline, { color: colors.text }]}>Minhas receitas</Text>
         <Pressable onPress={() => setRecipeModal(true)} hitSlop={8}>
           <Ionicons name="add-circle-outline" size={24} color={colors.accent} />
         </Pressable>
@@ -1034,6 +1054,138 @@ function RecipeModal({ visible, onClose, onSave, colors, insets }: any) {
   );
 }
 
+// ─── Recipe Ideas (IA) ─────────────────────────────────────────
+
+function RecipeIdeasModal({ visible, onClose, onLogged, insets, colors }: any) {
+  const [items, setItems] = useState<string[]>([]);
+  const [text, setText] = useState("");
+  const [recipes, setRecipes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [logged, setLogged] = useState<Record<number, boolean>>({});
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    if (!visible) { setItems([]); setText(""); setRecipes([]); setLogged({}); setErr(""); }
+  }, [visible]);
+
+  const add = () => {
+    const t = text.trim();
+    if (t && !items.includes(t)) setItems([...items, t]);
+    setText("");
+  };
+
+  const generate = async () => {
+    if (items.length === 0) { setErr("Adicione ao menos um ingrediente."); return; }
+    setLoading(true); setErr("");
+    try {
+      const d = await api.post("/nutrition/recipe-ideas", { ingredients: items });
+      setRecipes(d.recipes || []);
+      setLogged({});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setErr(e?.message || "Não foi possível gerar receitas agora.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logMeal = async (r: any, i: number) => {
+    try {
+      await api.post("/nutrition/manual", {
+        title: r.name,
+        meal_type: "meal",
+        items: [{
+          name: r.name, quantity: 1, unit: "porção",
+          calories: r.calories || 0, protein_g: r.protein_g || 0,
+          carbs_g: r.carbs_g || 0, fat_g: r.fat_g || 0,
+        }],
+        notes: "Receita sugerida por IA",
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setLogged((p) => ({ ...p, [i]: true }));
+      onLogged?.();
+    } catch {}
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Screen>
+        <ScreenHeader title="Receita com o que tenho" onBack={onClose} />
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.xl, paddingBottom: insets.bottom + spacing["3xl"], gap: spacing.md }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>INGREDIENTES QUE VOCÊ TEM</Text>
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <TextInput
+              style={[s.tagInput, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border, flex: 1 }]}
+              value={text}
+              onChangeText={setText}
+              placeholder="Ex: frango, batata doce, ovo..."
+              placeholderTextColor={colors.textSecondary}
+              onSubmitEditing={add}
+              returnKeyType="done"
+              blurOnSubmit={false}
+            />
+            <Pressable onPress={add} style={[s.addBtn, { backgroundColor: colors.accentMuted }]}>
+              <Ionicons name="add" size={20} color={colors.accent} />
+            </Pressable>
+          </View>
+          {items.length > 0 && (
+            <View style={s.tagList}>
+              {items.map((it, i) => (
+                <View key={i} style={[s.tag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={{ color: colors.text, fontFamily: fonts.text, ...type.bodySmall }}>{it}</Text>
+                  <Pressable onPress={() => setItems(items.filter((_, j) => j !== i))}>
+                    <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {err ? <Text style={[s.aiFailed, { color: colors.error }]}>{err}</Text> : null}
+          <PrimaryButton label={loading ? "Gerando..." : "Gerar receitas"} icon="sparkles-outline" onPress={generate} loading={loading} />
+
+          {recipes.map((r, i) => (
+            <View key={i} style={[s.ideaRecipe, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[s.ideaName, { color: colors.text }]}>{r.name}</Text>
+              <Text style={[s.ideaMeta, { color: colors.textSecondary }]}>
+                {r.calories} kcal · P{r.protein_g} C{r.carbs_g} G{r.fat_g}{r.prep_minutes ? ` · ${r.prep_minutes} min` : ""}
+              </Text>
+              {(r.ingredients || []).length > 0 && (
+                <>
+                  <Text style={[s.ideaSubhead, { color: colors.accent }]}>INGREDIENTES</Text>
+                  {r.ingredients.map((ing: string, k: number) => (
+                    <Text key={k} style={[s.ideaLine, { color: colors.textSecondary }]}>• {ing}</Text>
+                  ))}
+                </>
+              )}
+              {(r.steps || []).length > 0 && (
+                <>
+                  <Text style={[s.ideaSubhead, { color: colors.accent }]}>MODO DE PREPARO</Text>
+                  {r.steps.map((st: string, k: number) => (
+                    <Text key={k} style={[s.ideaLine, { color: colors.text }]}>{k + 1}. {st}</Text>
+                  ))}
+                </>
+              )}
+              {logged[i] ? (
+                <View style={s.ideaLogged}>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                  <Text style={[s.ideaLoggedText, { color: colors.success }]}>Registrada em Hoje</Text>
+                </View>
+              ) : (
+                <SecondaryButton label="Registrar como refeição" icon="add" color={colors.accent} onPress={() => logMeal(r, i)} style={{ marginTop: spacing.md }} />
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      </Screen>
+    </Modal>
+  );
+}
+
 // ─── Food Search ───────────────────────────────────────────────
 
 function FoodSearchModal({ visible, onClose, onPick, insets, colors }: any) {
@@ -1281,6 +1433,34 @@ const s = StyleSheet.create({
 
   analyzeOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   analyzeText: { fontFamily: fonts.bold, ...type.body },
+
+  ideasCard: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.md,
+  },
+  ideasIcon: { width: 36, height: 36, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  ideasTitle: { fontFamily: fonts.semibold, ...type.body },
+  ideasSub: { fontFamily: fonts.text, ...type.caption, marginTop: 2 },
+  ideaRecipe: { borderRadius: radius.card, borderWidth: 1, padding: spacing.lg },
+  ideaName: { fontFamily: fonts.bold, ...type.body },
+  ideaMeta: { fontFamily: fonts.medium, ...type.bodySmall, marginTop: 2 },
+  ideaSubhead: { fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1, marginTop: spacing.md, marginBottom: spacing.xs },
+  ideaLine: { fontFamily: fonts.text, ...type.bodySmall, lineHeight: 20 },
+  ideaLogged: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
+  ideaLoggedText: { fontFamily: fonts.semibold, ...type.bodySmall },
+  tagInput: {
+    height: controlHeight, borderRadius: radius.lg, borderWidth: 1,
+    paddingHorizontal: spacing.lg, fontFamily: fonts.text, ...type.body,
+  },
+  addBtn: {
+    width: controlHeight, height: controlHeight, borderRadius: radius.lg,
+    alignItems: "center", justifyContent: "center",
+  },
+  tagList: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  tag: {
+    flexDirection: "row", alignItems: "center", gap: spacing.xs,
+    paddingHorizontal: spacing.md, height: 32, borderRadius: radius.pill, borderWidth: 1,
+  },
 
   searchBar: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
