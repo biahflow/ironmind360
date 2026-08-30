@@ -53,6 +53,15 @@ from app.models.payments import (
     ProfessionalOnboardIn,
     RefundRequestIn,
 )
+from app.models.notifications import (
+    NotificationPrefsIn,
+    PushTokenDeleteIn,
+    PushTokenIn,
+)
+from app.models.gi_training import (
+    GISessionLogIn,
+    GITrainingPlanIn,
+)
 
 __all__ = [
     "ActionTokenIn",
@@ -95,4 +104,9 @@ __all__ = [
     "CheckoutIn",
     "ProfessionalOnboardIn",
     "RefundRequestIn",
+    "GISessionLogIn",
+    "GITrainingPlanIn",
+    "NotificationPrefsIn",
+    "PushTokenDeleteIn",
+    "PushTokenIn",
 ]

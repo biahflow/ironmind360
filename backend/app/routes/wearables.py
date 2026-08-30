@@ -10,7 +10,7 @@ from app.utils.time import now_utc
 
 router = APIRouter(tags=["wearables"])
 
-VALID_SOURCES = {"apple_health", "health_connect"}
+VALID_SOURCES = {"apple_health", "health_connect", "intervals_icu"}
 
 
 # --------------- Permissoes ---------------

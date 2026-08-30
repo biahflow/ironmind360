@@ -36,3 +36,12 @@ class IntervalsClient:
             path=f"/athlete/{athlete_id}/events",
             params={"oldest": oldest, "newest": newest},
         )
+
+    def wellness(
+        self, *, api_key: str, athlete_id: str, oldest: str, newest: str
+    ) -> list[dict]:
+        return self._get(
+            api_key=api_key,
+            path=f"/athlete/{athlete_id}/wellness",
+            params={"oldest": oldest, "newest": newest},
+        )

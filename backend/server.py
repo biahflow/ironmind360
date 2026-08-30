@@ -25,6 +25,8 @@ from app.routes.equipment import router as equipment_router
 from app.routes.analytics import router as analytics_router
 from app.routes.payments import router as payments_router
 from app.routes.wearables import router as wearables_router
+from app.routes.intervals_sync import router as intervals_sync_router
+from app.routes.notifications import router as notifications_router
 
 
 api = APIRouter()
@@ -51,6 +53,8 @@ for router in (
     analytics_router,
     wearables_router,
     payments_router,
+    intervals_sync_router,
+    notifications_router,
 ):
     api.include_router(router)
 

@@ -3,7 +3,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
-WearableSource = Literal["apple_health", "health_connect"]
+WearableSource = Literal["apple_health", "health_connect", "intervals_icu"]
 WearableDataType = Literal["sleep", "resting_hr", "hrv", "weight", "activity"]
 
 

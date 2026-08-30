@@ -210,6 +210,16 @@ async def ensure_indexes() -> None:
     await db.wearable_permissions.create_index(
         [("user_id", ASCENDING), ("source", ASCENDING)], unique=True
     )
+    await db.gi_training_plans.create_index(
+        [("user_id", ASCENDING), ("status", ASCENDING)]
+    )
+    await db.gi_session_logs.create_indexes(
+        [
+            IndexModel(
+                [("user_id", ASCENDING), ("plan_id", ASCENDING), ("week", ASCENDING)],
+            ),
+        ]
+    )
     await db.wearable_data.create_indexes(
         [
             IndexModel(
@@ -224,6 +234,18 @@ async def ensure_indexes() -> None:
                 name="wearable_query",
             ),
         ]
+    )
+    await db.push_tokens.create_index(
+        [("user_id", ASCENDING), ("token", ASCENDING)], unique=True
+    )
+    await db.notification_preferences.create_index(
+        [("user_id", ASCENDING)], unique=True
+    )
+    await db.notifications.create_index(
+        [("user_id", ASCENDING), ("read", ASCENDING), ("created_at", DESCENDING)]
+    )
+    await db.wellness_syncs.create_index(
+        [("user_id", ASCENDING)], unique=True
     )
 
 
