@@ -14,7 +14,7 @@ PID_FILE="$ROOT/.gym-tunnel.pid"
 LOG_FILE="$ROOT/.gym-tunnel.log"
 
 echo "→ [1/3] Subindo o stack Docker..."
-docker compose -f "$ROOT/docker-compose.yml" up -d
+(cd "$ROOT" && docker compose up -d)
 
 echo "→ Aguardando a API responder em localhost:8000..."
 for _ in $(seq 1 60); do

@@ -21,7 +21,7 @@ pkill -f "expo start" 2>/dev/null && echo "  Expo encerrado." || echo "  Nada ro
 
 if [ "${1:-}" = "--docker" ]; then
   echo "→ Derrubando o stack Docker..."
-  docker compose -f "$ROOT/docker-compose.yml" down
+  (cd "$ROOT" && docker compose down)
   echo "  Stack Docker parado."
 else
   echo "→ Stack Docker mantido de pé (use ./gym-down.sh --docker para pará-lo)."
