@@ -124,10 +124,36 @@ async def gather_context(user: dict) -> dict:
     if stress is not None:
         context_parts.append(f"estresse medio {stress}/5")
 
-    if profile:
-        level = profile.get("sport_profile", {}).get("experience_level")
-        if level:
-            context_parts.append(f"nivel {level}")
+    weekly_tss = round(sum(a.get("icu_training_load") or 0 for a in activities))
+    if weekly_tss:
+        context_parts.append(f"carga semanal ~{weekly_tss} TSS")
+
+    weight = None
+    async for h in db.habits.find(
+        {"user_id": user_id, "weight_kg": {"$ne": None}}, {"weight_kg": 1}
+    ).sort("date", -1).limit(1):
+        weight = h.get("weight_kg")
+    if weight:
+        context_parts.append(f"peso atual {weight}kg")
+
+    sport = (profile or {}).get("sport") or {}
+    disciplines = sport.get("disciplines") or []
+    if disciplines:
+        d = set(disciplines)
+        modality = (
+            "triatlo" if {"swim", "bike", "run"}.issubset(d)
+            else "corrida" if disciplines == ["run"]
+            else "+".join(sorted(d))
+        )
+        context_parts.append(f"modalidade {modality}")
+    if sport.get("experience"):
+        context_parts.append(f"experiencia {sport['experience']}")
+
+    plan_doc = await db.nutrition_plans.find_one({"user_id": user_id})
+    if plan_doc and plan_doc.get("plan"):
+        context_parts.append(
+            f"plano nutricional ~{plan_doc['plan'].get('daily_calories')} kcal/dia"
+        )
 
     if upcoming_race:
         context_parts.append(
@@ -152,6 +178,10 @@ async def gather_context(user: dict) -> dict:
         sources.append("calendario")
     if health_alerts:
         sources.append("exames")
+    if weight:
+        sources.append("peso")
+    if plan_doc and plan_doc.get("plan"):
+        sources.append("plano nutricional")
 
     text = "; ".join(context_parts) + "."
     return {"text": text, "sources": sources}
