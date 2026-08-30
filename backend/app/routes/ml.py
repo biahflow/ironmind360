@@ -2,11 +2,12 @@
 
 Expostas em ``/api/v1/ml/*``. Autenticação/RBAC/rate-limit do backend; o
 adaptador cuida da chamada interna autenticada por token ao serviço ml.
-As rotas de predição (overtraining, anomalias, prova) entram nos blocos 2–4.
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.adapters.ml import MLClient
 from app.dependencies import current_user, require_roles
@@ -62,4 +63,31 @@ async def ml_anomalies(
     return await ml.anomalies(
         user_id=str(user["_id"]),
         activity_type=activity_type,
+    )
+
+
+class RacePredictionIn(BaseModel):
+    race_type: Optional[str] = Field(default=None, description="sprint/olympic/half_ironman/ironman")
+    discipline: Optional[str] = Field(default=None, description="Run/Ride/Swim")
+    distance_m: Optional[float] = Field(default=None, description="Distância em metros")
+    elevation_m: Optional[float] = Field(default=None, description="Desnível em metros")
+    temperature_c: Optional[float] = Field(default=None, description="Temperatura em °C")
+
+
+@router.post(
+    "/race-prediction",
+    dependencies=[Depends(rate_limit("ml_prediction", 20, 60))],
+)
+async def ml_race_prediction(
+    body: RacePredictionIn,
+    user: dict = Depends(current_user),
+) -> dict:
+    """Previsão de performance em prova (intervalo de confiança)."""
+    return await ml.race_prediction(
+        user_id=str(user["_id"]),
+        race_type=body.race_type,
+        discipline=body.discipline,
+        distance_m=body.distance_m,
+        elevation_m=body.elevation_m,
+        temperature_c=body.temperature_c,
     )

@@ -60,3 +60,24 @@ class MLClient:
         if activity_type:
             payload["activity_type"] = activity_type
         return await asyncio.to_thread(self._request, "POST", "/anomalies", payload)
+
+    async def race_prediction(
+        self, *, user_id: str,
+        race_type: str | None = None,
+        discipline: str | None = None,
+        distance_m: float | None = None,
+        elevation_m: float | None = None,
+        temperature_c: float | None = None,
+    ) -> dict:
+        payload: dict = {"user_id": user_id}
+        if race_type:
+            payload["race_type"] = race_type
+        if discipline:
+            payload["discipline"] = discipline
+        if distance_m is not None:
+            payload["distance_m"] = distance_m
+        if elevation_m is not None:
+            payload["elevation_m"] = elevation_m
+        if temperature_c is not None:
+            payload["temperature_c"] = temperature_c
+        return await asyncio.to_thread(self._request, "POST", "/race-prediction", payload)

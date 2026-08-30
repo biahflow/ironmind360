@@ -60,6 +60,42 @@ class TestMLProxy:
         for t in body.get("types_analyzed", []):
             assert t == "Run"
 
+    def test_race_prediction_requires_auth(self, base_url, api_client):
+        r = api_client.post(f"{base_url}/api/v1/ml/race-prediction", json={})
+        assert r.status_code == 401
+
+    def test_race_prediction_triathlon(self, base_url, api_client, auth_headers):
+        r = api_client.post(
+            f"{base_url}/api/v1/ml/race-prediction",
+            json={"race_type": "olympic"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["race_type"] == "olympic"
+        assert body["status"] in ("ok", "partial")
+        assert "legs" in body
+        assert "model_version" in body
+
+    def test_race_prediction_single_discipline(self, base_url, api_client, auth_headers):
+        r = api_client.post(
+            f"{base_url}/api/v1/ml/race-prediction",
+            json={"discipline": "Run", "distance_m": 10000},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["discipline"] == "Run"
+        assert body["distance_m"] == 10000
+
+    def test_race_prediction_validation(self, base_url, api_client, auth_headers):
+        r = api_client.post(
+            f"{base_url}/api/v1/ml/race-prediction",
+            json={},
+            headers=auth_headers,
+        )
+        assert r.status_code == 422
+
     def test_dashboard_includes_overtraining(self, base_url, api_client, auth_headers):
         r = api_client.get(f"{base_url}/api/v1/dashboard", headers=auth_headers)
         assert r.status_code == 200, r.text

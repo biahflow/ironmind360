@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
-from app import anomaly, cache, db, features, registry, risk
+from app import anomaly, cache, db, features, prediction, registry, risk
 from app.config import settings
 from app.security import require_ml_token
 
@@ -182,10 +182,60 @@ async def detect_anomalies_endpoint(body: AnomaliesIn) -> dict[str, Any]:
     return {**result, "cached": False}
 
 
-# ── Predições (implementadas nos próximos blocos) ───────────────
-_NOT_IMPL = "Endpoint previsto para um bloco futuro da Fase 5"
+# ── Previsão de performance (Bloco 4) ──────────────────────────
+class RacePredictionIn(BaseModel):
+    user_id: str
+    race_type: str | None = None
+    discipline: str | None = None
+    distance_m: float | None = None
+    elevation_m: float | None = None
+    temperature_c: float | None = None
 
 
 @app.post("/race-prediction", dependencies=[Depends(require_ml_token)])
-async def race_prediction() -> dict[str, Any]:
-    raise HTTPException(501, _NOT_IMPL)
+async def race_prediction_endpoint(body: RacePredictionIn) -> dict[str, Any]:
+    cache_key = (
+        f"ml:pred:{body.user_id}:{body.race_type or ''}:"
+        f"{body.discipline or ''}:{body.distance_m or 0}"
+    )
+    cached = cache.get_json(cache_key)
+    if cached is not None:
+        return {**cached, "cached": True}
+
+    database = db.get_db()
+    projection = {
+        "type": 1, "distance": 1, "moving_time": 1,
+        "average_speed": 1, "average_heartrate": 1,
+        "icu_training_load": 1, "start_date_local": 1,
+        "_id": 0,
+    }
+    activities = list(
+        database.activities.find({"user_id": body.user_id}, projection)
+    )
+
+    if body.race_type and body.race_type in prediction.TRIATHLON_DISTANCES:
+        result = prediction.predict_triathlon(
+            activities,
+            body.race_type,
+            elevation_m=body.elevation_m,
+            temperature_c=body.temperature_c,
+        )
+    elif body.discipline and body.distance_m:
+        result = prediction.predict_race_time(
+            activities,
+            body.discipline,
+            body.distance_m,
+            elevation_m=body.elevation_m,
+            temperature_c=body.temperature_c,
+        )
+    else:
+        raise HTTPException(
+            422,
+            "Informe race_type (sprint/olympic/half_ironman/ironman) "
+            "ou discipline + distance_m.",
+        )
+
+    profile = prediction.build_performance_profile(activities)
+    result["profile"] = profile
+    cache.set_json(cache_key, result, ttl=3600)
+    return {**result, "cached": False}
