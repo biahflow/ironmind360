@@ -32,7 +32,7 @@ export default function Register() {
     try {
       await register(email.trim(), password, name.trim());
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(tabs)");
+      router.replace("/onboarding");
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError(e.message || "Falha no cadastro");

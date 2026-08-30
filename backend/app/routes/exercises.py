@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,10 +10,12 @@ from app.data.exercise_catalog import (
     EXERCISES,
     EXERCISES_BY_ID,
 )
-from app.data.programs import PROGRAMS, PROGRAMS_BY_ID
+from app.data.programs import PROGRAMS, PROGRAMS_BY_ID, WEEK_PARAMS
 from app.database import db
 from app.dependencies import current_user
 from app.models.exercise import LogSetIn, StartSessionIn
+from app.services.periodization import compute_periodization
+from app.services.readiness import compute_readiness
 from app.utils.time import now_utc
 
 router = APIRouter(tags=["exercises"])
@@ -417,3 +420,95 @@ async def training_history(
     for s in sessions:
         s["id"] = str(s.pop("_id"))
     return {"sessions": sessions, "source": "ironmind"}
+
+
+# ── Periodização inteligente ─────────────────────
+
+@router.get("/training/periodization")
+async def get_periodization(user: dict = Depends(current_user)):
+    user_id = str(user["_id"])
+
+    plan = await db.training_plans.find_one(
+        {"user_id": user_id, "status": {"$in": ["active", "in_progress"]}},
+        sort=[("started_at", -1)],
+    )
+
+    today_str = now_utc().strftime("%Y-%m-%d")
+
+    readiness: dict | None = None
+    habit = await db.habits.find_one(
+        {"user_id": user_id, "date": today_str},
+    )
+    if habit:
+        pain_logs = await db.pain_logs.find(
+            {"user_id": user_id, "date": today_str},
+        ).to_list(10)
+        pain_entries = []
+        for p in pain_logs:
+            pain_entries.extend(p.get("entries", []))
+        readiness = compute_readiness(habit, pain_entries)
+
+    races = await db.races.find(
+        {"user_id": user_id, "deleted_at": None, "date": {"$gte": today_str}},
+    ).sort("date", 1).to_list(50)
+
+    since = (now_utc() - timedelta(days=7)).strftime("%Y-%m-%d")
+    load_pipeline = [
+        {"$match": {"user_id": user_id, "start_date_local": {"$gte": since}}},
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$icu_training_load", 0]}}}},
+    ]
+    load_cursor = await db.activities.aggregate(load_pipeline)
+    load_result = await load_cursor.to_list(1)
+    training_load_7d = load_result[0]["total"] if load_result else 0.0
+
+    plan_dict = None
+    if plan:
+        plan_dict = {
+            "program_id": plan["program_id"],
+            "current_session": plan.get("current_session", 1),
+            "level": plan.get("level"),
+            "environment": plan.get("environment"),
+        }
+
+    periodization = compute_periodization(plan_dict, readiness, races, training_load_7d)
+
+    adjusted_session = None
+    if plan_dict:
+        program = PROGRAMS_BY_ID.get(plan_dict["program_id"])
+        if program:
+            session_def = next(
+                (s for s in program["sessions"]
+                 if s["session_number"] == plan_dict["current_session"]),
+                None,
+            )
+            if session_def:
+                week = session_def["week"]
+                wp = WEEK_PARAMS.get(week, {"sets": 3, "rpe": 7})
+                original_sets = wp["sets"]
+                original_rpe = wp["rpe"]
+
+                vm = periodization["volume_multiplier"]
+                ia = periodization["intensity_adjustment"]
+
+                adjusted_sets = max(1, round(original_sets * vm))
+                adjusted_rpe = max(1, min(10, original_rpe + ia))
+
+                is_deload = session_def.get("is_deload", False) or periodization["force_deload"]
+
+                adjusted_session = {
+                    "session_number": session_def["session_number"],
+                    "week": week,
+                    "day": session_def["day"],
+                    "title": session_def["title"],
+                    "original_sets": original_sets,
+                    "adjusted_sets": adjusted_sets,
+                    "original_rpe": original_rpe,
+                    "adjusted_rpe": adjusted_rpe,
+                    "is_deload": is_deload,
+                }
+
+    return {
+        "periodization": periodization,
+        "adjusted_session": adjusted_session,
+        "readiness": readiness,
+    }

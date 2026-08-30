@@ -307,7 +307,7 @@ SESSION_B = {
 }
 
 # RPE / sets per week block
-_WEEK_PARAMS = {
+WEEK_PARAMS = {
     1: {"sets": 3, "rpe": 6, "stab_sets": 2},
     2: {"sets": 3, "rpe": 6, "stab_sets": 2},
     3: {"sets": 3, "rpe": 7, "stab_sets": 3},
@@ -348,7 +348,7 @@ def _pick(table: dict, key: str, week: int) -> str:
 
 def _build_session_a(week: int, session_number: int, level: str, env: str) -> dict:
     tbl = SESSION_A[(level, env)]
-    p = _WEEK_PARAMS[week]
+    p = WEEK_PARAMS[week]
     is_deload = week in (4, 8)
     reps_key = "deload" if is_deload else "normal"
     reps = _REPS[level][reps_key]
@@ -377,7 +377,7 @@ def _build_session_a(week: int, session_number: int, level: str, env: str) -> di
 
 def _build_session_b(week: int, session_number: int, level: str, env: str) -> dict:
     tbl = SESSION_B[(level, env)]
-    p = _WEEK_PARAMS[week]
+    p = WEEK_PARAMS[week]
     is_deload = week in (4, 8)
     reps_key = "deload" if is_deload else "normal"
     reps = _REPS[level][reps_key]
