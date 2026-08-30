@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,6 +17,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ProgressRing from "@/src/components/ProgressRing";
+import { LineTrend } from "@/src/components/LineTrend";
 import { HeroCard, MetricCard, SectionHeader, StatTile, ErrorState, ProgressBar } from "@/src/components/ui";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
@@ -47,6 +49,11 @@ export default function Home() {
   const [data, setData] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [wearable, setWearable] = useState<any>(null);
+  const [chart, setChart] = useState<null | {
+    metric: "resting_hr" | "sleep";
+    loading: boolean;
+    points: { date: string; value: number }[];
+  }>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -84,6 +91,28 @@ export default function Home() {
     setRefreshing(true);
     await load();
     setRefreshing(false);
+  };
+
+  const openChart = async (metric: "resting_hr" | "sleep") => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setChart({ metric, loading: true, points: [] });
+    const from = new Date();
+    from.setDate(from.getDate() - 7);
+    const dateFrom = from.toISOString().slice(0, 10);
+    try {
+      const res = await api.get(
+        `/wearable-data?data_type=${metric}&date_from=${dateFrom}&limit=7`,
+      );
+      const key = metric === "resting_hr" ? "bpm" : "hours";
+      // O endpoint devolve em ordem decrescente; invertemos para cronológica.
+      const points = (res?.data || [])
+        .map((d: any) => ({ date: d.date, value: Number(d.value?.[key]) }))
+        .filter((p: any) => !isNaN(p.value))
+        .reverse();
+      setChart({ metric, loading: false, points });
+    } catch {
+      setChart({ metric, loading: false, points: [] });
+    }
   };
 
   const patchHabit = async (patch: any) => {
@@ -397,24 +426,26 @@ export default function Home() {
               <SectionHeader title="Saúde" />
               <View style={styles.insightGrid}>
                 {wearable?.resting_hr ? (
-                  <StatTile
-                    icon="heart-outline"
-                    label="FC repouso"
-                    value={`${wearable.resting_hr.value?.bpm ?? "—"} bpm`}
-                    supporting={
-                      `${fmtShortDate(wearable.resting_hr.date)} · via intervals.icu`
-                    }
-                  />
+                  <Pressable style={{ flex: 1 }} onPress={() => openChart("resting_hr")}>
+                    <StatTile
+                      icon="heart-outline"
+                      label="FC repouso"
+                      value={`${wearable.resting_hr.value?.bpm ?? "—"} bpm`}
+                      supporting={`${fmtShortDate(wearable.resting_hr.date)} · ver 7 dias`}
+                      trend="chevron-forward-outline"
+                    />
+                  </Pressable>
                 ) : null}
                 {wearable?.last_sleep ? (
-                  <StatTile
-                    icon="moon-outline"
-                    label="Sono"
-                    value={`${wearable.last_sleep.value?.hours ?? "—"}h`}
-                    supporting={
-                      `${fmtShortDate(wearable.last_sleep.date)} · via intervals.icu`
-                    }
-                  />
+                  <Pressable style={{ flex: 1 }} onPress={() => openChart("sleep")}>
+                    <StatTile
+                      icon="moon-outline"
+                      label="Sono"
+                      value={`${wearable.last_sleep.value?.hours ?? "—"}h`}
+                      supporting={`${fmtShortDate(wearable.last_sleep.date)} · ver 7 dias`}
+                      trend="chevron-forward-outline"
+                    />
+                  </Pressable>
                 ) : null}
               </View>
             </>
@@ -466,6 +497,72 @@ export default function Home() {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={!!chart}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setChart(null)}
+      >
+        <Pressable style={styles.sheetOverlay} onPress={() => setChart(null)}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.xl }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {chart && (() => {
+              const isHr = chart.metric === "resting_hr";
+              const unit = isHr ? "bpm" : "h";
+              const title = isHr ? "FC de repouso" : "Sono";
+              const vals = chart.points.map((p) => p.value);
+              const min = vals.length ? Math.min(...vals) : 0;
+              const max = vals.length ? Math.max(...vals) : 0;
+              const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+              const fmt = (n: number) => (isHr ? Math.round(n).toString() : n.toFixed(1));
+              return (
+                <>
+                  <View style={styles.sheetHandle} />
+                  <View style={styles.sheetHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.miniLabel, { color: colors.accent }]}>ÚLTIMOS 7 DIAS</Text>
+                      <Text style={[styles.sheetTitle, { color: colors.text }]}>{title}</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => setChart(null)}
+                      style={[styles.iconButton, { backgroundColor: colors.elevated, borderColor: colors.border }]}
+                    >
+                      <Ionicons name="close" size={20} color={colors.text} />
+                    </Pressable>
+                  </View>
+
+                  {chart.loading ? (
+                    <View style={styles.sheetEmpty}><ActivityIndicator color={colors.accent} /></View>
+                  ) : chart.points.length === 0 ? (
+                    <Text style={[styles.sheetEmptyText, { color: colors.textSecondary }]}>
+                      Ainda sem dados suficientes destes 7 dias. Conforme o intervals.icu sincroniza, o gráfico aparece aqui.
+                    </Text>
+                  ) : (
+                    <>
+                      <View style={{ marginTop: spacing.lg }}>
+                        <LineTrend points={chart.points} colors={colors} height={130} />
+                      </View>
+                      <View style={styles.sheetStats}>
+                        {[["Mín", min], ["Média", avg], ["Máx", max]].map(([label, v]) => (
+                          <View key={String(label)} style={styles.sheetStat}>
+                            <Text style={[styles.sheetStatValue, { color: colors.text }]}>
+                              {fmt(v as number)}<Text style={styles.sheetStatUnit}> {unit}</Text>
+                            </Text>
+                            <Text style={[styles.sheetStatLabel, { color: colors.textSecondary }]}>{label as string}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
+                </>
+              );
+            })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -724,4 +821,42 @@ const styles = StyleSheet.create({
   },
   connectTitle: { fontFamily: fonts.semibold, ...type.bodySmall },
   connectSubtitle: { fontFamily: fonts.text, ...type.caption, marginTop: 2, lineHeight: 16 },
+
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(128,128,128,0.4)",
+    marginBottom: spacing.lg,
+  },
+  sheetHeader: { flexDirection: "row", alignItems: "center" },
+  sheetTitle: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 26, marginTop: 2 },
+  sheetEmpty: { paddingVertical: spacing["3xl"], alignItems: "center" },
+  sheetEmptyText: {
+    fontFamily: fonts.text, ...type.bodySmall,
+    marginTop: spacing.xl, lineHeight: 20,
+  },
+  sheetStats: {
+    flexDirection: "row",
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(128,128,128,0.2)",
+  },
+  sheetStat: { flex: 1, alignItems: "center" },
+  sheetStatValue: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 26, fontVariant: ["tabular-nums"] },
+  sheetStatUnit: { fontFamily: fonts.text, fontSize: 13 },
+  sheetStatLabel: { fontFamily: fonts.medium, ...type.caption, marginTop: 2 },
 });
