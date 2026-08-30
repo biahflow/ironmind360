@@ -160,6 +160,56 @@ async def nutrition_trends(
 
 
 # ---------------------------------------------------------------------------
+# Resumo semanal consolidado
+# ---------------------------------------------------------------------------
+
+@router.get("/weekly-summary")
+async def weekly_summary(user: dict = Depends(current_user)):
+    user_id = str(user["_id"])
+    since = (now_utc() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    activities = await db.activities.find(
+        {"user_id": user_id, "start_date_local": {"$gte": since}},
+        {"distance": 1, "icu_training_load": 1},
+    ).to_list(200)
+    sessions = len(activities)
+    km = round(sum((a.get("distance") or 0) for a in activities) / 1000, 1)
+    tss = round(sum((a.get("icu_training_load") or 0) for a in activities))
+
+    meals = await db.meals.find(
+        {"user_id": user_id, "date": {"$gte": since}, "deleted_at": None},
+        {"date": 1, "calories": 1},
+    ).to_list(400)
+    meal_days = len({m["date"] for m in meals})
+    avg_calories = round(sum((m.get("calories") or 0) for m in meals) / meal_days) if meal_days else 0
+
+    habits = await db.habits.find(
+        {"user_id": user_id, "date": {"$gte": since}},
+        {"sleep_hours": 1, "mood": 1},
+    ).to_list(10)
+    checkins = len(habits)
+
+    def avg(key: str):
+        vals = [h[key] for h in habits if h.get(key) is not None]
+        return round(sum(vals) / len(vals), 1) if vals else None
+
+    weight_series = []
+    async for h in db.habits.find(
+        {"user_id": user_id, "date": {"$gte": since}, "weight_kg": {"$ne": None}},
+        {"weight_kg": 1},
+    ).sort("date", 1):
+        weight_series.append(h["weight_kg"])
+    weight_delta = round(weight_series[-1] - weight_series[0], 1) if len(weight_series) >= 2 else None
+
+    return {
+        "sessions": sessions, "km": km, "tss": tss,
+        "meal_days": meal_days, "avg_calories": avg_calories,
+        "checkins": checkins, "avg_sleep": avg("sleep_hours"), "avg_mood": avg("mood"),
+        "weight_delta": weight_delta,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Métricas corporais (peso / cintura ao longo do tempo)
 # ---------------------------------------------------------------------------
 

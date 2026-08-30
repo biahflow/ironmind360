@@ -64,18 +64,21 @@ function OverviewTab() {
   const [consistency, setConsistency] = useState<any>(null);
   const [correlations, setCorrelations] = useState<any>(null);
   const [loadSeries, setLoadSeries] = useState<{ date: string; value: number }[]>([]);
+  const [summary, setSummary] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, cor, ld] = await Promise.all([
+      const [c, cor, ld, sum] = await Promise.all([
         api.get("/analytics/consistency?days=28"),
         api.get("/analytics/correlations?days=28"),
         api.get("/analytics/load?days=28"),
+        api.get("/analytics/weekly-summary"),
       ]);
       setConsistency(c);
       setCorrelations(cor);
       setLoadSeries(buildDailySeries(ld?.data || [], 28));
+      setSummary(sum);
     } catch {} finally {
       setLoading(false);
     }
@@ -88,8 +91,33 @@ function OverviewTab() {
   const loadTotal = loadSeries.reduce((s2, p) => s2 + p.value, 0);
   const loadPeak = loadSeries.reduce((m, p) => Math.max(m, p.value), 0);
 
+  const sumTiles = summary ? [
+    { label: "Treinos", value: `${summary.sessions}` },
+    { label: "Distância", value: `${summary.km} km` },
+    { label: "Carga", value: `${summary.tss} TSS` },
+    { label: "Dias c/ refeição", value: `${summary.meal_days}/7` },
+    { label: "Kcal médio", value: summary.avg_calories ? `${summary.avg_calories}` : "—" },
+    { label: "Check-ins", value: `${summary.checkins}/7` },
+    { label: "Sono médio", value: summary.avg_sleep ? `${summary.avg_sleep}h` : "—" },
+    { label: "Peso (7d)", value: summary.weight_delta != null ? `${summary.weight_delta > 0 ? "+" : ""}${summary.weight_delta}kg` : "—" },
+  ] : [];
+
   return (
     <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
+      {summary && (
+        <Card>
+          <Overline color={colors.accent}>Resumo da semana</Overline>
+          <View style={s.sumGrid}>
+            {sumTiles.map((t) => (
+              <View key={t.label} style={s.sumTile}>
+                <Text style={[s.sumValue, { color: colors.text }]}>{t.value}</Text>
+                <Text style={[s.sumLabel, { color: colors.textSecondary }]}>{t.label}</Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      )}
+
       {loadTotal > 0 && (
         <Card>
           <View style={s.trendHead}>
@@ -598,6 +626,11 @@ const s = StyleSheet.create({
   trendTotal: { fontFamily: fonts.bold, ...type.metric, marginTop: spacing.md, fontVariant: ["tabular-nums"] },
   trendUnit: { fontFamily: fonts.text, ...type.bodySmall },
   weightLogRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+
+  sumGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: spacing.md },
+  sumTile: { width: "25%", paddingVertical: spacing.sm, alignItems: "center" },
+  sumValue: { fontFamily: fonts.bold, ...type.body, fontVariant: ["tabular-nums"] },
+  sumLabel: { fontFamily: fonts.text, fontSize: 10, lineHeight: 13, marginTop: 2, textAlign: "center" },
 
   statsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
   statItem: { alignItems: "center", flex: 1 },
