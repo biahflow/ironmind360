@@ -16,7 +16,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ProgressRing from "@/src/components/ProgressRing";
-import { HeroCard, MetricCard, SectionHeader, StatTile, ErrorState } from "@/src/components/ui";
+import { HeroCard, MetricCard, SectionHeader, StatTile, ErrorState, ProgressBar } from "@/src/components/ui";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import { fonts, radius, spacing, type } from "@/src/theme";
@@ -267,6 +267,31 @@ export default function Home() {
               ))}
             </View>
           </HeroCard>
+
+          {data.readiness && (() => {
+            const rd = data.readiness;
+            const tone = rd.level === "green" ? colors.accent : rd.level === "yellow" ? colors.warning : colors.error;
+            const label = rd.level === "green" ? "Prontidão alta" : rd.level === "yellow" ? "Prontidão moderada" : "Prontidão baixa";
+            const detail = rd.factors?.[0]?.detail || "Tudo em equilíbrio para treinar hoje.";
+            return (
+              <>
+                <SectionHeader title="Prontidão de hoje" />
+                <View style={[styles.readinessCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <View style={styles.readinessTop}>
+                    <View style={{ flex: 1, marginRight: spacing.md }}>
+                      <Text style={[styles.readinessLevel, { color: tone }]}>{label}</Text>
+                      <Text style={[styles.readinessDetail, { color: colors.textSecondary }]} numberOfLines={2}>{detail}</Text>
+                    </View>
+                    <Text style={[styles.readinessScore, { color: colors.text }]}>
+                      {Math.round(rd.score)}
+                      <Text style={[styles.readinessUnit, { color: colors.textSecondary }]}>/100</Text>
+                    </Text>
+                  </View>
+                  <ProgressBar progress={clamp(rd.score / 100)} color={tone} style={{ marginTop: spacing.lg }} />
+                </View>
+              </>
+            );
+          })()}
 
           <SectionHeader title="Metas de hoje" action="Editar" />
           <View style={styles.metricsRow}>
@@ -574,6 +599,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dayLabel: { fontFamily: fonts.semibold, ...type.caption },
+
+  readinessCard: {
+    borderRadius: radius.card,
+    borderWidth: 1,
+    padding: spacing.lg,
+  },
+  readinessTop: { flexDirection: "row", alignItems: "flex-start" },
+  readinessLevel: { fontFamily: fonts.bold, fontSize: 17, lineHeight: 22 },
+  readinessDetail: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 3 },
+  readinessScore: { fontFamily: fonts.bold, fontSize: 30, lineHeight: 32, fontVariant: ["tabular-nums"] },
+  readinessUnit: { fontFamily: fonts.text, ...type.bodySmall },
 
   metricsRow: { flexDirection: "row", gap: spacing.sm },
 
