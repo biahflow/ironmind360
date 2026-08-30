@@ -283,6 +283,8 @@ export default function Nutrition() {
       {tab === "today" && (
         <Pressable
           testID="camera-log-fab"
+          accessibilityRole="button"
+          accessibilityLabel="Registrar refeição"
           style={[s.fab, { bottom: insets.bottom + 64 + spacing.lg, backgroundColor: colors.accent }]}
           onPress={() => setPicker(true)}
           disabled={analyzing}

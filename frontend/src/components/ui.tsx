@@ -36,7 +36,7 @@ export function Screen({ children, style }: { children: React.ReactNode; style?:
 
 // ── Circular icon button (header / nav) ──────────────────────
 export function IconButton({
-  icon, onPress, testID, color, size = 18, disabled,
+  icon, onPress, testID, color, size = 18, disabled, label,
 }: {
   icon: IconName;
   onPress?: () => void;
@@ -44,6 +44,7 @@ export function IconButton({
   color?: string;
   size?: number;
   disabled?: boolean;
+  label?: string;
 }) {
   const { colors } = useTheme();
   return (
@@ -51,6 +52,8 @@ export function IconButton({
       testID={testID}
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label || (icon === "chevron-back" ? "Voltar" : icon)}
       style={({ pressed }) => [
         st.iconBtn,
         { backgroundColor: colors.surface, borderColor: colors.border },

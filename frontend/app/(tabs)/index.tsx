@@ -156,6 +156,8 @@ export default function Home() {
             <Pressable
               testID="settings-button"
               onPress={() => router.push("/settings")}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir configurações"
               style={[
                 styles.avatar,
                 { backgroundColor: colors.surface, borderColor: colors.border },
@@ -182,6 +184,8 @@ export default function Home() {
 
             <Pressable
               onPress={() => router.push("/settings")}
+              accessibilityRole="button"
+              accessibilityLabel="Notificações"
               style={[
                 styles.iconButton,
                 { backgroundColor: colors.surface, borderColor: colors.border },

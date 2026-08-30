@@ -320,7 +320,7 @@ function ChatTab() {
           multiline
           onSubmitEditing={send}
         />
-        <Pressable testID="coach-send-button" style={[s.sendBtn, { backgroundColor: colors.accent }]} onPress={send} disabled={sending || !input.trim()}>
+        <Pressable testID="coach-send-button" accessibilityRole="button" accessibilityLabel="Enviar mensagem" style={[s.sendBtn, { backgroundColor: colors.accent }]} onPress={send} disabled={sending || !input.trim()}>
           <Ionicons name="arrow-up" size={22} color={colors.onAccent} />
         </Pressable>
       </View>

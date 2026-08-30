@@ -136,34 +136,51 @@ export default function Onboarding() {
     setModalities(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   };
 
+  const buildSportPayload = () => ({
+    disciplines,
+    experience,
+    weekly_availability_days: availDays,
+    weekly_availability_hours: availHours,
+    environment,
+    equipment: [],
+    restrictions: [],
+    self_assessment: {
+      strength_training_months: strengthMonths,
+      weekly_active_days: activeDays,
+      returning_from_sedentary: sedentary,
+      can_squat_bodyweight: canSquat,
+      can_hinge_pattern: canHinge,
+      has_pain_or_injury: hasPain,
+    },
+    complementary_level_override: levelOverride,
+  });
+
   const submitSportProfile = async () => {
     setBusy(true);
     setError("");
     try {
-      const res = await api.put("/profile/sport", {
-        disciplines,
-        experience,
-        weekly_availability_days: availDays,
-        weekly_availability_hours: availHours,
-        environment,
-        equipment: [],
-        restrictions: [],
-        self_assessment: {
-          strength_training_months: strengthMonths,
-          weekly_active_days: activeDays,
-          returning_from_sedentary: sedentary,
-          can_squat_bodyweight: canSquat,
-          can_hinge_pattern: canHinge,
-          has_pain_or_injury: hasPain,
-        },
-        complementary_level_override: levelOverride,
-      });
+      const res = await api.put("/profile/sport", buildSportPayload());
       setRecommended(res.complementary_level.recommended);
       setReasons(res.complementary_level.reasons || []);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep(2);
     } catch (e: any) {
       setError(e.message || "Falha ao salvar perfil");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmLevel = async () => {
+    if (!levelOverride) { setStep(3); return; }
+    setBusy(true);
+    setError("");
+    try {
+      await api.put("/profile/sport", buildSportPayload());
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setStep(3);
+    } catch (e: any) {
+      setError(e.message || "Erro");
     } finally {
       setBusy(false);
     }
@@ -521,33 +538,7 @@ export default function Onboarding() {
 
             <PrimaryButton
               label={step === 4 ? "Concluir" : step === 2 ? "Confirmar nível" : "Próximo"}
-              onPress={step === 2 ? () => {
-                if (levelOverride) {
-                  setBusy(true);
-                  api.put("/profile/sport", {
-                    disciplines, experience,
-                    weekly_availability_days: availDays,
-                    weekly_availability_hours: availHours,
-                    environment,
-                    equipment: [], restrictions: [],
-                    self_assessment: {
-                      strength_training_months: strengthMonths,
-                      weekly_active_days: activeDays,
-                      returning_from_sedentary: sedentary,
-                      can_squat_bodyweight: canSquat,
-                      can_hinge_pattern: canHinge,
-                      has_pain_or_injury: hasPain,
-                    },
-                    complementary_level_override: levelOverride,
-                  }).then(() => {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    setStep(3);
-                  }).catch((e: any) => setError(e.message || "Erro"))
-                    .finally(() => setBusy(false));
-                } else {
-                  setStep(3);
-                }
-              } : next}
+              onPress={step === 2 ? confirmLevel : next}
               loading={busy}
             />
           </View>
