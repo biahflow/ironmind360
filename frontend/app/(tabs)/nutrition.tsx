@@ -1,9 +1,10 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
   Modal, Linking, RefreshControl, TextInput,
 } from "react-native";
 import { Image } from "expo-image";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,7 +15,7 @@ import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import DonutChart from "@/src/components/DonutChart";
-import { Screen, ScreenHeader, EmptyState, layout } from "@/src/components/ui";
+import { Screen, ScreenHeader, EmptyState, PrimaryButton, layout } from "@/src/components/ui";
 
 type SubTab = "today" | "week" | "favorites" | "recipes";
 
@@ -74,6 +75,9 @@ export default function Nutrition() {
   const [permMsg, setPermMsg] = useState("");
   const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
   const [manualModal, setManualModal] = useState(false);
+  const [manualInitial, setManualInitial] = useState<any>(null);
+  const [scanner, setScanner] = useState(false);
+  const [scanLoading, setScanLoading] = useState(false);
   const [editModal, setEditModal] = useState<any>(null);
   const [favModal, setFavModal] = useState(false);
   const [recipeModal, setRecipeModal] = useState(false);
@@ -157,6 +161,27 @@ export default function Nutrition() {
     }
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.6, mediaTypes: ["images"] });
     if (!res.canceled && res.assets?.[0]) handleImage(res.assets[0].uri);
+  };
+
+  const handleBarcode = async (code: string) => {
+    setScanner(false);
+    setScanLoading(true);
+    setPermMsg("");
+    try {
+      const res = await api.get(`/nutrition/barcode/${code}`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setManualInitial({ title: res.item.name, items: [res.item] });
+      setManualModal(true);
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setPermMsg(
+        String(e?.message || "").includes("não encontrado")
+          ? "Produto não encontrado. Você pode adicionar manualmente."
+          : "Falha ao buscar o produto. Tente novamente.",
+      );
+    } finally {
+      setScanLoading(false);
+    }
   };
 
   const removeMeal = async (id: string) => {
@@ -279,7 +304,11 @@ export default function Nutrition() {
               <Ionicons name="images" size={22} color={colors.text} />
               <Text style={[s.sheetBtnText, { color: colors.text }]}>Escolher da galeria</Text>
             </Pressable>
-            <Pressable testID="manual-entry-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setManualModal(true); }}>
+            <Pressable testID="scan-barcode-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setScanner(true); }}>
+              <Ionicons name="barcode-outline" size={22} color={colors.text} />
+              <Text style={[s.sheetBtnText, { color: colors.text }]}>Escanear código de barras</Text>
+            </Pressable>
+            <Pressable testID="manual-entry-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setManualInitial(null); setManualModal(true); }}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
               <Text style={[s.sheetBtnText, { color: colors.text }]}>Entrada manual</Text>
             </Pressable>
@@ -290,6 +319,7 @@ export default function Nutrition() {
       {/* Manual entry modal */}
       <ManualEntryModal
         visible={manualModal}
+        initialData={manualInitial}
         onClose={() => setManualModal(false)}
         onSave={async (data: any) => {
           await api.post("/nutrition/manual", data);
@@ -300,6 +330,21 @@ export default function Nutrition() {
         colors={colors}
         insets={insets}
       />
+
+      <BarcodeScannerModal
+        visible={scanner}
+        onClose={() => setScanner(false)}
+        onDetected={handleBarcode}
+        insets={insets}
+        colors={colors}
+      />
+
+      {scanLoading && (
+        <View style={[s.analyzeOverlay, { backgroundColor: colors.overlay }]}>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={[s.analyzeText, { color: colors.text }]}>Buscando produto...</Text>
+        </View>
+      )}
 
       {/* Edit meal modal */}
       {editModal && (
@@ -620,12 +665,23 @@ function NumInput({ label, value, onChange, colors }: { label: string; value: nu
 
 // ─── Manual Entry Modal ────────────────────────────────────────
 
-function ManualEntryModal({ visible, onClose, onSave, colors, insets }: any) {
+function ManualEntryModal({ visible, onClose, onSave, colors, insets, initialData }: any) {
   const [title, setTitle] = useState("");
   const [mealType, setMealType] = useState("meal");
   const [items, setItems] = useState<MealItem[]>([emptyItem()]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible && initialData) {
+      setTitle(initialData.title || "");
+      setItems(initialData.items?.length
+        ? initialData.items.map((i: any) => ({ ...emptyItem(), ...i }))
+        : [emptyItem()]);
+      setMealType("meal");
+      setNotes("");
+    }
+  }, [visible, initialData]);
 
   const save = async () => {
     if (!title.trim()) return;
@@ -844,6 +900,64 @@ function RecipeModal({ visible, onClose, onSave, colors, insets }: any) {
   );
 }
 
+// ─── Barcode Scanner ───────────────────────────────────────────
+
+function BarcodeScannerModal({ visible, onClose, onDetected, insets, colors }: any) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const scannedRef = useRef(false);
+
+  useEffect(() => {
+    if (visible) {
+      scannedRef.current = false;
+      if (permission && !permission.granted && permission.canAskAgain) requestPermission();
+    }
+  }, [visible, permission, requestPermission]);
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        {permission?.granted ? (
+          <CameraView
+            style={{ flex: 1 }}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }}
+            onBarcodeScanned={({ data }) => {
+              if (scannedRef.current) return;
+              scannedRef.current = true;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              onDetected(data);
+            }}
+          />
+        ) : (
+          <View style={[s.center, { paddingHorizontal: spacing.xl }]}>
+            <Ionicons name="camera-outline" size={40} color="#fff" />
+            <Text style={{ color: "#fff", fontFamily: fonts.semibold, ...type.body, textAlign: "center", marginTop: spacing.lg }}>
+              Precisamos da câmera para escanear o código de barras.
+            </Text>
+            <PrimaryButton label="Permitir câmera" onPress={requestPermission} style={{ marginTop: spacing.xl }} />
+          </View>
+        )}
+
+        {/* Overlay: fechar + moldura + dica */}
+        <Pressable
+          onPress={onClose}
+          style={[s.scanClose, { top: insets.top + spacing.md }]}
+        >
+          <Ionicons name="close" size={24} color="#fff" />
+        </Pressable>
+        {permission?.granted && (
+          <>
+            <View pointerEvents="none" style={s.scanFrame} />
+            <Text style={[s.scanHint, { bottom: insets.bottom + spacing["3xl"] }]}>
+              Aponte para o código de barras do produto
+            </Text>
+          </>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
 // ─── MacroChip ─────────────────────────────────────────────────
 
 function MacroChip({ label, value, pct, color, textColor, subColor }: any) {
@@ -934,6 +1048,22 @@ const s = StyleSheet.create({
 
   analyzeOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   analyzeText: { fontFamily: fonts.bold, ...type.body },
+
+  scanClose: {
+    position: "absolute", left: spacing.xl,
+    width: 44, height: 44, borderRadius: radius.pill,
+    backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center",
+  },
+  scanFrame: {
+    position: "absolute", alignSelf: "center", top: "35%",
+    width: "72%", aspectRatio: 1.6, borderRadius: radius.lg,
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.9)",
+  },
+  scanHint: {
+    position: "absolute", alignSelf: "center", textAlign: "center",
+    color: "#fff", fontFamily: fonts.semibold, ...type.bodySmall,
+    paddingHorizontal: spacing.xl,
+  },
 
   // Week
   weekRow: {

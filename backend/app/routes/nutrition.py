@@ -1,7 +1,9 @@
 from datetime import timedelta
 
+import requests
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.concurrency import run_in_threadpool
 
 from app.adapters.ai import analyze_food_image
 from app.adapters.legacy_storage import legacy_storage
@@ -117,6 +119,63 @@ async def analyze_meal(
     meal["id"] = str(result.inserted_id)
     meal["photo_url"] = f"/api/v1/files/{stored_file['_id']}"
     return meal
+
+
+# ── Busca por código de barras (OpenFoodFacts) ─────────────────
+
+
+def _num(nutriments: dict, key: str) -> float:
+    value = nutriments.get(key)
+    if value in (None, ""):
+        return 0.0
+    try:
+        return round(float(value), 1)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+@router.get("/barcode/{code}", dependencies=[Depends(rate_limit("barcode", 30, 60))])
+async def barcode_lookup(code: str, _user: dict = Depends(current_user)):
+    code = code.strip()
+    if not code.isdigit() or not (6 <= len(code) <= 14):
+        raise HTTPException(400, "Código de barras inválido")
+
+    def fetch():
+        return requests.get(
+            f"https://world.openfoodfacts.org/api/v2/product/{code}.json",
+            params={"fields": "product_name,product_name_pt,brands,nutriments"},
+            headers={"User-Agent": "IronMind360/1.0 (nutrition)"},
+            timeout=8,
+        )
+
+    try:
+        resp = await run_in_threadpool(fetch)
+    except Exception as exc:
+        raise HTTPException(502, "Falha ao consultar a base de alimentos") from exc
+
+    if resp.status_code != 200:
+        raise HTTPException(404, "Produto não encontrado")
+    body = resp.json()
+    product = body.get("product")
+    if body.get("status") != 1 or not product:
+        raise HTTPException(404, "Produto não encontrado")
+
+    nutriments = product.get("nutriments") or {}
+    name = product.get("product_name_pt") or product.get("product_name") or "Produto"
+    brand = (product.get("brands") or "").split(",")[0].strip()
+    item = {
+        "name": f"{name} ({brand})" if brand else name,
+        "quantity": 100,
+        "unit": "g",
+        "calories": _num(nutriments, "energy-kcal_100g"),
+        "protein_g": _num(nutriments, "proteins_100g"),
+        "carbs_g": _num(nutriments, "carbohydrates_100g"),
+        "fat_g": _num(nutriments, "fat_100g"),
+        "fiber_g": _num(nutriments, "fiber_100g"),
+        "sodium_mg": round(_num(nutriments, "sodium_100g") * 1000, 1),
+        "sugar_g": _num(nutriments, "sugars_100g"),
+    }
+    return {"found": True, "code": code, "item": item}
 
 
 # ── Manual entry ────────────────────────────────────────────────
