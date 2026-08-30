@@ -25,3 +25,30 @@ class MLProvider(Protocol):
     async def overtraining_risk(self, *, user_id: str, as_of: str | None = None) -> dict: ...
     async def anomalies(self, *, user_id: str, activity_type: str | None = None) -> dict: ...
     async def race_prediction(self, *, user_id: str, **kwargs: Any) -> dict: ...
+
+
+class PaymentProvider(Protocol):
+    async def create_connect_account(
+        self, *, email: str, country: str, metadata: dict
+    ) -> dict: ...
+
+    async def create_account_link(
+        self, *, account_id: str, refresh_url: str, return_url: str
+    ) -> dict: ...
+
+    async def create_checkout_session(
+        self, *, account_id: str, amount_cents: int, currency: str,
+        description: str, metadata: dict, commission_percent: int,
+        success_url: str, cancel_url: str,
+    ) -> dict: ...
+
+    async def retrieve_checkout_session(self, *, session_id: str) -> dict: ...
+
+    async def create_refund(
+        self, *, payment_intent_id: str,
+        amount_cents: int | None = None, reason: str = "",
+    ) -> dict: ...
+
+    def construct_webhook_event(
+        self, *, payload: bytes, sig_header: str
+    ) -> dict: ...

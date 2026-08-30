@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, TextInput, Pressable,
+  View, Text, StyleSheet, TextInput, Pressable, Platform, Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -13,6 +13,15 @@ import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { Screen, IconButton, Overline, PrimaryButton, SecondaryButton } from "@/src/components/ui";
+
+type WearablePermission = { source: string; data_types: string[] };
+type WearableSummary = {
+  resting_hr: { value: { bpm: number }; date: string } | null;
+  hrv: { value: { ms: number }; date: string } | null;
+  weight: { value: { kg: number }; date: string } | null;
+  last_sleep: { value: { hours: number }; date: string } | null;
+  sources_connected: string[];
+};
 
 export default function Settings() {
   const { colors, isDark, setMode } = useTheme();
@@ -28,6 +37,14 @@ export default function Settings() {
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
 
+  const [wearablePerms, setWearablePerms] = useState<WearablePermission[]>([]);
+  const [wearableSummary, setWearableSummary] = useState<WearableSummary | null>(null);
+  const [wearableLoading, setWearableLoading] = useState(false);
+
+  const [isProfessional, setIsProfessional] = useState(false);
+  const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; charges_enabled: boolean } | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -36,9 +53,86 @@ export default function Settings() {
         setConnected(s.intervals_connected);
         setAthleteId(s.intervals_athlete_id || "0");
         setGoals(s.goals || goals);
+        const roles: string[] = s.roles || [];
+        setIsProfessional(roles.includes("nutritionist") || roles.includes("psychologist"));
       } catch {}
     })();
+    loadWearables();
   }, []);
+
+  const loadWearables = async () => {
+    try {
+      const [perms, summary] = await Promise.all([
+        api.get("/wearable-permissions"),
+        api.get("/wearable-summary"),
+      ]);
+      setWearablePerms(perms.permissions || []);
+      setWearableSummary(summary);
+    } catch {}
+  };
+
+  const connectWearable = async (source: "apple_health" | "health_connect") => {
+    setWearableLoading(true);
+    try {
+      await api.put("/wearable-permissions", {
+        source,
+        data_types: ["sleep", "resting_hr", "hrv", "weight", "activity"],
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await loadWearables();
+    } catch (e: any) {
+      setErr(e.message || "Falha ao conectar");
+    } finally {
+      setWearableLoading(false);
+    }
+  };
+
+  const disconnectWearable = async (source: string) => {
+    setWearableLoading(true);
+    try {
+      await api.del(`/wearable-permissions/${source}`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await loadWearables();
+    } catch (e: any) {
+      setErr(e.message || "Falha ao desconectar");
+    } finally {
+      setWearableLoading(false);
+    }
+  };
+
+  const loadStripeStatus = async () => {
+    try {
+      const status = await api.get("/payments/connect/status");
+      setStripeStatus(status);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (isProfessional) loadStripeStatus();
+  }, [isProfessional]);
+
+  const startStripeOnboard = async () => {
+    setStripeLoading(true);
+    try {
+      const res = await api.post("/payments/connect/onboard", { country: "BR" });
+      if (res.onboarding_url) {
+        Linking.openURL(res.onboarding_url);
+      }
+    } catch (e: any) {
+      setErr(e.message || "Falha ao iniciar onboarding Stripe");
+    } finally {
+      setStripeLoading(false);
+    }
+  };
+
+  const openStripeDashboard = async () => {
+    try {
+      const res = await api.post("/payments/connect/dashboard-link");
+      if (res.url) Linking.openURL(res.url);
+    } catch (e: any) {
+      setErr(e.message || "Falha ao abrir painel Stripe");
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -177,6 +271,93 @@ export default function Settings() {
           <GoalField label="Sono (h)" value={String(goals.sleep_hours)} onChange={(v: string) => setGoal("sleep_hours", v)} testID="goal-sleep" colors={colors} />
         </View>
 
+        <Overline style={s.section}>SAÚDE E WEARABLES</Overline>
+        {(Platform.OS === "ios" || Platform.OS === "web") && (
+          <WearableCard
+            label="Apple Health"
+            source="apple_health"
+            icon="logo-apple"
+            connected={wearablePerms.some(p => p.source === "apple_health")}
+            loading={wearableLoading}
+            onConnect={() => connectWearable("apple_health")}
+            onDisconnect={() => disconnectWearable("apple_health")}
+            colors={colors}
+          />
+        )}
+        {(Platform.OS === "android" || Platform.OS === "web") && (
+          <WearableCard
+            label="Health Connect"
+            source="health_connect"
+            icon="fitness"
+            connected={wearablePerms.some(p => p.source === "health_connect")}
+            loading={wearableLoading}
+            onConnect={() => connectWearable("health_connect")}
+            onDisconnect={() => disconnectWearable("health_connect")}
+            colors={colors}
+          />
+        )}
+        {wearableSummary && (wearableSummary.resting_hr || wearableSummary.hrv || wearableSummary.weight || wearableSummary.last_sleep) && (
+          <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[s.themeLabel, { color: colors.text, marginBottom: spacing.md }]}>Últimos dados</Text>
+            {wearableSummary.resting_hr && (
+              <WearableMetric label="FC repouso" value={`${wearableSummary.resting_hr.value.bpm} bpm`} date={wearableSummary.resting_hr.date} colors={colors} />
+            )}
+            {wearableSummary.hrv && (
+              <WearableMetric label="HRV" value={`${wearableSummary.hrv.value.ms} ms`} date={wearableSummary.hrv.date} colors={colors} />
+            )}
+            {wearableSummary.weight && (
+              <WearableMetric label="Peso" value={`${wearableSummary.weight.value.kg} kg`} date={wearableSummary.weight.date} colors={colors} />
+            )}
+            {wearableSummary.last_sleep && (
+              <WearableMetric label="Sono" value={`${wearableSummary.last_sleep.value.hours}h`} date={wearableSummary.last_sleep.date} colors={colors} />
+            )}
+          </View>
+        )}
+
+        {isProfessional && (
+          <>
+            <Overline style={s.section}>PAGAMENTOS</Overline>
+            <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={s.themeInner}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.themeLabel, { color: colors.text }]}>Stripe Connect</Text>
+                  <Text style={[s.help, { color: colors.textSecondary, marginBottom: 0, marginTop: spacing.xs }]}>
+                    {stripeStatus?.connected
+                      ? stripeStatus.charges_enabled
+                        ? "Conta ativa — pronta para receber pagamentos"
+                        : "Onboarding em andamento"
+                      : "Conecte para receber pagamentos de atletas"}
+                  </Text>
+                </View>
+                <View style={[s.statusIcon, {
+                  backgroundColor: stripeStatus?.charges_enabled ? "rgba(46,204,113,0.2)" : "rgba(245,166,35,0.2)",
+                }]}>
+                  <Ionicons
+                    name={stripeStatus?.charges_enabled ? "checkmark-circle" : "alert-circle"}
+                    size={18}
+                    color={stripeStatus?.charges_enabled ? colors.success : colors.warning}
+                  />
+                </View>
+              </View>
+              {stripeStatus?.connected ? (
+                <SecondaryButton
+                  label="Abrir painel Stripe"
+                  icon="open-outline"
+                  onPress={openStripeDashboard}
+                  style={{ marginTop: spacing.lg }}
+                />
+              ) : (
+                <PrimaryButton
+                  label="Conectar Stripe"
+                  onPress={startStripeOnboard}
+                  loading={stripeLoading}
+                  style={{ marginTop: spacing.lg }}
+                />
+              )}
+            </View>
+          </>
+        )}
+
         {err ? <Text style={[s.err, { color: colors.error }]}>{err}</Text> : null}
 
         <PrimaryButton
@@ -221,6 +402,53 @@ function GoalField({ label, value, onChange, testID, colors }: any) {
         keyboardType="numeric"
         placeholderTextColor={colors.textSecondary}
       />
+    </View>
+  );
+}
+
+function WearableCard({ label, source, icon, connected, loading, onConnect, onDisconnect, colors }: any) {
+  return (
+    <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: spacing.md }]}>
+      <View style={s.themeInner}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flex: 1 }}>
+          <View style={[s.statusIcon, { backgroundColor: connected ? "rgba(46,204,113,0.2)" : "rgba(245,166,35,0.2)" }]}>
+            <Ionicons name={icon} size={18} color={connected ? colors.success : colors.textSecondary} />
+          </View>
+          <View>
+            <Text style={[s.themeLabel, { color: colors.text }]}>{label}</Text>
+            <Text style={[{ fontFamily: fonts.text, ...type.caption, color: colors.textSecondary }]}>
+              {connected ? "Conectado" : "Desconectado"}
+            </Text>
+          </View>
+        </View>
+        <Pressable
+          onPress={connected ? onDisconnect : onConnect}
+          disabled={loading}
+          style={[
+            s.themeChip,
+            {
+              backgroundColor: connected ? "rgba(231,76,60,0.1)" : colors.accentMuted,
+              borderColor: connected ? colors.error : colors.accent,
+            },
+          ]}
+        >
+          <Text style={[s.themeChipText, { color: connected ? colors.error : colors.accent }]}>
+            {connected ? "Desconectar" : "Conectar"}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function WearableMetric({ label, value, date, colors }: any) {
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: spacing.xs }}>
+      <Text style={{ fontFamily: fonts.text, ...type.bodySmall, color: colors.textSecondary }}>{label}</Text>
+      <View style={{ flexDirection: "row", alignItems: "baseline", gap: spacing.sm }}>
+        <Text style={{ fontFamily: fonts.semibold, ...type.body, color: colors.text }}>{value}</Text>
+        <Text style={{ fontFamily: fonts.text, ...type.caption, color: colors.textSecondary }}>{date}</Text>
+      </View>
     </View>
   );
 }

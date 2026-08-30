@@ -34,6 +34,11 @@ from app.models.wellness import (
     CustomHabitLogIn,
     PainCheckIn,
 )
+from app.models.wearables import (
+    WearableBatchIn,
+    WearableDataIn,
+    WearablePermissionIn,
+)
 from app.models.coach import (
     BreathingSessionIn,
     ChatIn as CoachChatIn,
@@ -42,6 +47,11 @@ from app.models.coach import (
     ConversationCreateIn,
     DiaryEntryIn,
     ReflectionIn,
+)
+from app.models.payments import (
+    CheckoutIn,
+    ProfessionalOnboardIn,
+    RefundRequestIn,
 )
 
 __all__ = [
@@ -79,4 +89,10 @@ __all__ = [
     "CustomHabitIn",
     "CustomHabitLogIn",
     "PainCheckIn",
+    "WearableBatchIn",
+    "WearableDataIn",
+    "WearablePermissionIn",
+    "CheckoutIn",
+    "ProfessionalOnboardIn",
+    "RefundRequestIn",
 ]

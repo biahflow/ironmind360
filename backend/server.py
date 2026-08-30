@@ -23,6 +23,8 @@ from app.routes.nutrition_feedback import router as nutrition_feedback_router
 from app.routes.ml import router as ml_router
 from app.routes.equipment import router as equipment_router
 from app.routes.analytics import router as analytics_router
+from app.routes.payments import router as payments_router
+from app.routes.wearables import router as wearables_router
 
 
 api = APIRouter()
@@ -47,6 +49,8 @@ for router in (
     ml_router,
     equipment_router,
     analytics_router,
+    wearables_router,
+    payments_router,
 ):
     api.include_router(router)
 

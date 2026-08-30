@@ -191,6 +191,40 @@ async def ensure_indexes() -> None:
             IndexModel([("expires_at", ASCENDING)], expireAfterSeconds=0),
         ]
     )
+    await db.professional_accounts.create_index(
+        [("user_id", ASCENDING)], unique=True
+    )
+    await db.payments.create_indexes(
+        [
+            IndexModel([("payer_user_id", ASCENDING), ("created_at", DESCENDING)]),
+            IndexModel([("receiver_user_id", ASCENDING), ("created_at", DESCENDING)]),
+            IndexModel(
+                [("stripe_session_id", ASCENDING)], unique=True, sparse=True
+            ),
+            IndexModel([("idempotency_key", ASCENDING)], unique=True),
+        ]
+    )
+    await db.payment_events.create_index(
+        [("event_id", ASCENDING)], unique=True
+    )
+    await db.wearable_permissions.create_index(
+        [("user_id", ASCENDING), ("source", ASCENDING)], unique=True
+    )
+    await db.wearable_data.create_indexes(
+        [
+            IndexModel(
+                [("user_id", ASCENDING), ("source", ASCENDING),
+                 ("data_type", ASCENDING), ("source_id", ASCENDING)],
+                unique=True,
+                name="wearable_dedup",
+            ),
+            IndexModel(
+                [("user_id", ASCENDING), ("data_type", ASCENDING),
+                 ("date", DESCENDING), ("deleted_at", ASCENDING)],
+                name="wearable_query",
+            ),
+        ]
+    )
 
 
 @asynccontextmanager

@@ -50,6 +50,9 @@ class Settings:
     app_public_url: str = os.getenv("APP_PUBLIC_URL", "http://localhost:8081")
     ml_service_url: str = os.getenv("ML_SERVICE_URL", "http://localhost:8100")
     ml_service_token: str | None = os.getenv("ML_SERVICE_TOKEN") or None
+    stripe_secret_key: str | None = os.getenv("STRIPE_SECRET_KEY") or None
+    stripe_webhook_secret: str | None = os.getenv("STRIPE_WEBHOOK_SECRET") or None
+    stripe_commission_percent: int = int(os.getenv("STRIPE_COMMISSION_PERCENT", "10"))
 
     def validate(self) -> None:
         if self.app_env.lower() in {"production", "prod"}:
@@ -65,6 +68,8 @@ class Settings:
                 raise RuntimeError("Provider externo de chaves e obrigatorio em producao")
             if self.s3_sse_algorithm != "aws:kms" or not self.s3_kms_key_id:
                 raise RuntimeError("S3 com aws:kms e key id externo e obrigatorio em producao")
+            if self.stripe_secret_key and not self.stripe_webhook_secret:
+                raise RuntimeError("STRIPE_WEBHOOK_SECRET e obrigatorio quando STRIPE_SECRET_KEY esta configurado")
 
 
 settings = Settings()
