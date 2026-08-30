@@ -125,9 +125,9 @@ export default function Nutrition() {
     try {
       const result = await api.uploadPhoto("/nutrition/analyze", uri, "meal");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (result.ai_failed) {
-        setEditModal(result);
-      }
+      // Sempre abre a confirmação: o usuário revisa itens e detalhes que mudam
+      // as calorias (tipo de leite, açúcar/adoçante, porção) antes de contar.
+      setEditModal({ ...result, _fresh: true });
       await loadAll();
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -700,12 +700,20 @@ function EditMealModal({ meal, onClose, onSave, colors, insets }: any) {
       <View style={[s.modalRoot, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
         <View style={s.modalHeader}>
           <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.text} /></Pressable>
-          <Text style={[s.modalTitle, { color: colors.text }]}>Editar refeição</Text>
+          <Text style={[s.modalTitle, { color: colors.text }]}>{meal._fresh ? "Confirmar refeição" : "Editar refeição"}</Text>
           <Pressable onPress={save} disabled={saving}>
             {saving ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={[s.saveBtn, { color: colors.accent }]}>Salvar</Text>}
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
+          {meal._fresh && !meal.ai_failed && (
+            <View style={[s.confirmHint, { backgroundColor: colors.accentMuted }]}>
+              <Ionicons name="sparkles-outline" size={18} color={colors.accent} />
+              <Text style={[s.confirmHintText, { color: colors.text }]}>
+                Estimativa da IA — revise antes de salvar. Detalhes que mudam as calorias: tipo de leite (integral/desnatado), açúcar ou adoçante, e a porção.
+              </Text>
+            </View>
+          )}
           <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Título</Text>
           <TextInput style={[s.textInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={title} onChangeText={setTitle} />
 
@@ -998,4 +1006,9 @@ const s = StyleSheet.create({
     padding: spacing.md, borderRadius: radius.md, marginTop: spacing.md,
   },
   aiWarningText: { fontFamily: fonts.text, ...type.bodySmall, flex: 1 },
+  confirmHint: {
+    flexDirection: "row", gap: spacing.sm, alignItems: "flex-start",
+    padding: spacing.lg, borderRadius: radius.md, marginBottom: spacing.lg,
+  },
+  confirmHintText: { fontFamily: fonts.medium, ...type.bodySmall, flex: 1, lineHeight: 19 },
 });
