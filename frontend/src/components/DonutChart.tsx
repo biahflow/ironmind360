@@ -76,13 +76,14 @@ export default function DonutChart({
 
 const styles = StyleSheet.create({
   centerValue: {
-    fontFamily: fonts.display,
-    fontSize: tp["3xl"],
-    lineHeight: tp["3xl"] + 2,
+    fontFamily: fonts.bold,
+    fontSize: 30,
+    lineHeight: 34,
+    fontVariant: ["tabular-nums"],
   },
   centerLabel: {
     fontFamily: fonts.medium,
     fontSize: tp.sm,
-    marginTop: -2,
+    marginTop: 2,
   },
 });

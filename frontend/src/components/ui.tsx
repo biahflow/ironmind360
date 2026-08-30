@@ -391,7 +391,7 @@ export function Input({
 
 // ── Primary button (accent fill, no glow) ────────────────────
 export function PrimaryButton({
-  label, onPress, loading, disabled, icon, testID, style,
+  label, onPress, loading, disabled, icon, testID, style, small,
 }: {
   label: string;
   onPress?: () => void;
@@ -400,6 +400,7 @@ export function PrimaryButton({
   icon?: IconName;
   testID?: string;
   style?: StyleProp<ViewStyle>;
+  small?: boolean;
 }) {
   const { colors } = useTheme();
   return (
@@ -409,6 +410,7 @@ export function PrimaryButton({
       disabled={disabled || loading}
       style={({ pressed }) => [
         st.primaryBtn,
+        small && st.primaryBtnSmall,
         { backgroundColor: colors.accent },
         (disabled || loading) && { opacity: 0.5 },
         pressed && { opacity: 0.85 },
@@ -416,11 +418,11 @@ export function PrimaryButton({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={colors.onAccent} />
+        <ActivityIndicator color={colors.onAccent} size={small ? "small" : undefined} />
       ) : (
         <>
-          {icon ? <Ionicons name={icon} size={18} color={colors.onAccent} /> : null}
-          <Text style={[st.primaryBtnText, { color: colors.onAccent }]}>{label}</Text>
+          {icon ? <Ionicons name={icon} size={small ? 16 : 18} color={colors.onAccent} /> : null}
+          <Text style={[small ? st.primaryBtnTextSmall : st.primaryBtnText, { color: colors.onAccent }]}>{label}</Text>
         </>
       )}
     </Pressable>
@@ -717,9 +719,16 @@ const st = StyleSheet.create({
     justifyContent: "center",
     gap: spacing.sm,
     height: controlHeight,
+    paddingHorizontal: spacing["2xl"],
     borderRadius: radius.pill,
   },
   primaryBtnText: { fontFamily: fonts.bold, ...type.body },
+  primaryBtnSmall: {
+    height: 44,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
+  },
+  primaryBtnTextSmall: { fontFamily: fonts.bold, ...type.bodySmall },
 
   secondaryBtn: {
     flexDirection: "row",

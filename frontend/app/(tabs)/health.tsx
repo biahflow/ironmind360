@@ -12,7 +12,18 @@ import * as DocumentPicker from "expo-document-picker";
 import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
-import { Screen, ScreenHeader, PrimaryButton, EmptyState, layout } from "@/src/components/ui";
+import { Screen, ScreenHeader, PrimaryButton, EmptyState, Chip, StatusPill, layout } from "@/src/components/ui";
+
+type Tone = "accent" | "neutral" | "success" | "warning" | "error" | "info";
+
+const STATUS_TONE: Record<string, Tone> = {
+  uploaded: "neutral",
+  extracting: "warning",
+  validating: "warning",
+  needs_review: "warning",
+  ready: "success",
+  failed: "error",
+};
 
 type HealthDoc = {
   id: string;
@@ -38,17 +49,6 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "Falhou",
 };
 
-function useStatusColor(colors: ReturnType<typeof useTheme>["colors"]) {
-  return {
-    uploaded: colors.textSecondary,
-    extracting: colors.warning,
-    validating: colors.warning,
-    needs_review: colors.warning,
-    ready: colors.success,
-    failed: colors.error,
-  } as Record<string, string>;
-}
-
 function useAlertColor(colors: ReturnType<typeof useTheme>["colors"]) {
   return {
     informativo: colors.textSecondary,
@@ -65,7 +65,6 @@ function fmtDate(iso: string) {
 
 export default function Health() {
   const { colors } = useTheme();
-  const statusColor = useStatusColor(colors);
   const alertColor = useAlertColor(colors);
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -160,9 +159,7 @@ export default function Health() {
               {item.title || item.original_name || "Documento"}
             </Text>
             <View style={s.cardMeta}>
-              {item.doc_type && (
-                <Text style={[s.metaChip, { color: colors.accent, backgroundColor: colors.accentMuted }]}>{item.doc_type}</Text>
-              )}
+              {item.doc_type && <Chip label={item.doc_type} tone="accent" />}
               {item.doc_date && (
                 <Text style={[s.metaText, { color: colors.textSecondary }]}>{fmtDate(item.doc_date)}</Text>
               )}
@@ -171,12 +168,10 @@ export default function Health() {
               )}
             </View>
           </View>
-          <View style={s.statusBadge}>
-            <View style={[s.statusDot, { backgroundColor: statusColor[item.status] || colors.textSecondary }]} />
-            <Text style={[s.statusText, { color: statusColor[item.status] || colors.textSecondary }]}>
-              {STATUS_LABEL[item.status] || item.status}
-            </Text>
-          </View>
+          <StatusPill
+            label={STATUS_LABEL[item.status] || item.status}
+            tone={STATUS_TONE[item.status] || "neutral"}
+          />
         </View>
 
         {item.status === "ready" && item.marker_count > 0 && (
@@ -207,7 +202,7 @@ export default function Health() {
     <Screen>
       <ScreenHeader
         title="Saúde"
-        right={<PrimaryButton label="Enviar exame" icon="cloud-upload" loading={uploading} onPress={pickAndUpload} />}
+        right={<PrimaryButton small label="Enviar exame" icon="cloud-upload" loading={uploading} onPress={pickAndUpload} />}
       />
 
       {loading ? (
@@ -240,7 +235,7 @@ export default function Health() {
 
 const s = StyleSheet.create({
   card: {
-    borderRadius: radius.xl, padding: spacing.xl,
+    borderRadius: radius.card, padding: spacing.xl,
     borderWidth: 1,
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
@@ -251,16 +246,8 @@ const s = StyleSheet.create({
   cardTitle: {
     fontFamily: fonts.bold, ...type.body,
   },
-  cardMeta: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs, flexWrap: "wrap" },
-  metaChip: {
-    fontFamily: fonts.medium, ...type.caption,
-    paddingHorizontal: spacing.md, paddingVertical: 2,
-    borderRadius: radius.pill, overflow: "hidden",
-  },
+  cardMeta: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs, flexWrap: "wrap", alignItems: "center" },
   metaText: { fontFamily: fonts.text, ...type.bodySmall },
-  statusBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontFamily: fonts.medium, ...type.bodySmall },
   markerCount: {
     fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.md,
   },

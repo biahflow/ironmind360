@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, TextInput, Pressable, FlatList, ActivityIndicator,
   ScrollView, Modal, Alert,
 } from "react-native";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -17,8 +16,6 @@ import {
   Screen, ScreenHeader, Card, PillTabs, Overline, PrimaryButton,
   SecondaryButton, EmptyState, SectionTitle,
 } from "@/src/components/ui";
-
-const AVATAR = "https://images.unsplash.com/photo-1581889470536-467bdbe30cd0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwyfHxkYXJrJTIwZ3JpdHR5JTIwcnVubmluZyUyMG1hcmF0aG9uJTIwdG91Z2glMjBmaXRuZXNzfGVufDB8fHx8MTc4ODAyNzc2N3ww&ixlib=rb-4.1.0&q=85";
 
 const TONE_LABELS: Record<string, string> = {
   direct: "Direto",
@@ -48,6 +45,15 @@ const GREETING: Record<string, { role: string; content: string }> = {
 };
 
 type Tab = "chat" | "wellness" | "reports";
+
+function CoachAvatar() {
+  const { colors } = useTheme();
+  return (
+    <View style={[s.msgAvatar, { backgroundColor: colors.accentMuted }]}>
+      <Ionicons name="chatbubble-ellipses" size={18} color={colors.accent} />
+    </View>
+  );
+}
 
 export default function Coach() {
   const [tab, setTab] = useState<Tab>("chat");
@@ -185,7 +191,7 @@ function ChatTab() {
     const isCoach = item.role === "assistant";
     return (
       <View style={[s.msgRow, isCoach ? s.rowLeft : s.rowRight]}>
-        {isCoach && <Image source={{ uri: AVATAR }} style={s.msgAvatar} contentFit="cover" />}
+        {isCoach && <CoachAvatar />}
         <View style={[
           s.bubble,
           isCoach
@@ -258,7 +264,7 @@ function ChatTab() {
 
       {/* Tone picker modal */}
       <Modal visible={showTonePicker} transparent animationType="fade">
-        <Pressable style={s.modalOverlay} onPress={() => setShowTonePicker(false)}>
+        <Pressable style={[s.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setShowTonePicker(false)}>
           <View style={[s.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[s.modalTitle, { color: colors.text }]}>Tom do Coach</Text>
             {Object.entries(TONE_LABELS).map(([key, label]) => (
@@ -294,7 +300,7 @@ function ChatTab() {
         showsVerticalScrollIndicator={false}
         ListFooterComponent={sending ? (
           <View style={[s.msgRow, s.rowLeft]}>
-            <Image source={{ uri: AVATAR }} style={s.msgAvatar} contentFit="cover" />
+            <CoachAvatar />
             <View style={[s.bubble, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
               <Text style={[s.typing, { color: colors.textSecondary }]}>escrevendo...</Text>
             </View>
@@ -732,10 +738,9 @@ const s = StyleSheet.create({
 
   modalOverlay: {
     flex: 1, justifyContent: "center", alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
   modalContent: {
-    width: "85%", borderRadius: radius.xl, padding: spacing.xl, borderWidth: 1,
+    width: "85%", borderRadius: radius.hero, padding: spacing.xl, borderWidth: 1,
   },
   modalTitle: { fontFamily: fonts.bold, ...type.h2, marginBottom: spacing.lg },
   toneOption: {
@@ -749,7 +754,10 @@ const s = StyleSheet.create({
   msgRow: { flexDirection: "row", gap: spacing.sm, maxWidth: "100%" },
   rowLeft: { justifyContent: "flex-start" },
   rowRight: { justifyContent: "flex-end" },
-  msgAvatar: { width: 36, height: 36, borderRadius: radius.pill, marginTop: 2 },
+  msgAvatar: {
+    width: 36, height: 36, borderRadius: radius.pill, marginTop: 2,
+    alignItems: "center", justifyContent: "center",
+  },
   bubble: { maxWidth: "80%", padding: spacing.lg, borderRadius: radius.lg },
   coachName: { fontFamily: fonts.bold, ...type.caption, marginBottom: 4 },
   msgText: { fontFamily: fonts.text, ...type.body },

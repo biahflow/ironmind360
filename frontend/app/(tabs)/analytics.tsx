@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -7,7 +8,7 @@ import { spacing, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import {
-  Screen, ScreenHeader, Card, PillTabs, Overline, EmptyState,
+  Screen, ScreenHeader, Card, PillTabs, Overline, EmptyState, LoadingState, layout,
 } from "@/src/components/ui";
 
 type Tab = "overview" | "records" | "races";
@@ -36,6 +37,7 @@ export default function Analytics() {
 
 function OverviewTab() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [consistency, setConsistency] = useState<any>(null);
   const [correlations, setCorrelations] = useState<any>(null);
@@ -56,12 +58,10 @@ function OverviewTab() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading) {
-    return <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />;
-  }
+  if (loading) return <LoadingState />;
 
   return (
-    <ScrollView contentContainerStyle={s.content}>
+    <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
       {consistency && (
         <Card>
           <Overline color={colors.accent}>Consistência · 28 dias</Overline>
@@ -115,6 +115,7 @@ function StatItem({ label, value, sub, colors }: any) {
 
 function RecordsTab() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<any>(null);
 
@@ -130,7 +131,7 @@ function RecordsTab() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading) return <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />;
+  if (loading) return <LoadingState />;
 
   const formatPace = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -146,7 +147,7 @@ function RecordsTab() {
   ];
 
   return (
-    <ScrollView contentContainerStyle={s.content}>
+    <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
       {sections.map((sec) => {
         const data = records?.[sec.key] || {};
         const entries = Object.entries(data);
@@ -182,6 +183,7 @@ function RecordsTab() {
 
 function RacesTab() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [races, setRaces] = useState<any[]>([]);
 
@@ -197,7 +199,7 @@ function RacesTab() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading) return <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />;
+  if (loading) return <LoadingState />;
 
   const raceTypeLabel: Record<string, string> = {
     sprint: "Sprint", olympic: "Olímpico",
@@ -207,7 +209,7 @@ function RacesTab() {
   const stars = (rating: number) => "★".repeat(rating) + "☆".repeat(5 - rating);
 
   return (
-    <ScrollView contentContainerStyle={s.content}>
+    <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
       {races.length === 0 ? (
         <EmptyState icon="flag-outline" title="Nenhuma prova registrada" text="Adicione provas na aba de Calendário." />
       ) : (
@@ -249,7 +251,7 @@ function RacesTab() {
 }
 
 const s = StyleSheet.create({
-  content: { padding: spacing.xl, gap: spacing.md, paddingBottom: 120 },
+  content: { padding: spacing.xl, gap: spacing.md },
 
   statsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
   statItem: { alignItems: "center", flex: 1 },
