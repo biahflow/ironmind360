@@ -170,13 +170,22 @@ export default function Workouts() {
       return (
         <EmptyState
           icon="barbell-outline"
-          title="Nenhum programa ativo"
-          text="Escolha um programa de preparação física auxiliar para começar."
+          title="Como quer treinar hoje?"
+          text="Siga um programa de preparação física estruturado ou monte seu próprio treino escolhendo os exercícios."
           action={
-            <PrimaryButton
-              label="Escolher programa"
-              onPress={() => router.push("/program-select")}
-            />
+            <View style={{ alignSelf: "stretch", gap: spacing.md }}>
+              <PrimaryButton
+                label="Seguir um programa"
+                icon="list-outline"
+                onPress={() => router.push("/program-select")}
+              />
+              <SecondaryButton
+                label="Montar meu treino"
+                icon="add-circle-outline"
+                color={colors.accent}
+                onPress={() => router.push("/custom-workout")}
+              />
+            </View>
           }
         />
       );
@@ -257,6 +266,14 @@ export default function Workouts() {
             onPress={() => router.push("/program-select")}
           />
         </View>
+
+        <SecondaryButton
+          style={{ marginTop: spacing.md }}
+          icon="add-circle-outline"
+          label="Montar treino avulso"
+          color={colors.accent}
+          onPress={() => router.push("/custom-workout")}
+        />
       </View>
     );
   };

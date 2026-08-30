@@ -68,6 +68,8 @@ type SessionData = {
   is_deload: boolean;
   exercises: { exercise_id: string; sets: { set_number: number; reps?: number; weight_kg?: number; rpe?: number }[] }[];
   status: string;
+  custom?: boolean;
+  prescription?: SessionExercise[];
 };
 
 export default function SessionScreen() {
@@ -89,20 +91,24 @@ export default function SessionScreen() {
       const { session: sess, resumed } = await api.post("/training/sessions/start");
       setSession(sess);
 
-      const plan = await api.get("/training/active");
-      if (plan?.plan) {
-        const progData = await api.get(
-          `/programs/${plan.plan.program_id}/sessions/${sess.session_number}`
-        );
-        setProgramExercises(progData.exercises || []);
-
-        if (resumed && sess.exercises?.length) {
-          const lastExId = sess.exercises[sess.exercises.length - 1].exercise_id;
-          const idx = (progData.exercises || []).findIndex(
-            (e: SessionExercise) => e.exercise_id === lastExId
+      let exercises: SessionExercise[] = [];
+      if (sess.custom && Array.isArray(sess.prescription)) {
+        exercises = sess.prescription;
+      } else {
+        const plan = await api.get("/training/active");
+        if (plan?.plan) {
+          const progData = await api.get(
+            `/programs/${plan.plan.program_id}/sessions/${sess.session_number}`
           );
-          if (idx >= 0) setCurrentExIdx(idx);
+          exercises = progData.exercises || [];
         }
+      }
+      setProgramExercises(exercises);
+
+      if (resumed && sess.exercises?.length) {
+        const lastExId = sess.exercises[sess.exercises.length - 1].exercise_id;
+        const idx = exercises.findIndex((e) => e.exercise_id === lastExId);
+        if (idx >= 0) setCurrentExIdx(idx);
       }
     } catch {}
     setLoading(false);
@@ -244,8 +250,9 @@ export default function SessionScreen() {
         <View style={s.topCenter}>
           <Text style={[s.topTitle, { color: colors.text }]}>{session.title}</Text>
           <Text style={[s.topSub, { color: colors.textSecondary }]}>
-            Semana {session.week} · Dia {session.day}
-            {session.is_deload ? " · Deload" : ""}
+            {session.custom
+              ? "Treino personalizado"
+              : `Semana ${session.week} · Dia ${session.day}${session.is_deload ? " · Deload" : ""}`}
           </Text>
         </View>
         <View style={[s.timerBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>

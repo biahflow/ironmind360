@@ -13,7 +13,7 @@ from app.data.exercise_catalog import (
 from app.data.programs import PROGRAMS, PROGRAMS_BY_ID, WEEK_PARAMS
 from app.database import db
 from app.dependencies import current_user
-from app.models.exercise import LogSetIn, StartSessionIn
+from app.models.exercise import CustomSessionIn, LogSetIn, StartSessionIn
 from app.services.periodization import compute_periodization
 from app.services.readiness import compute_readiness
 from app.utils.time import now_utc
@@ -213,21 +213,73 @@ async def restart_plan(user: dict = Depends(current_user)):
 
 # ── Sessões de treino ─────────────────────────────
 
+@router.post("/training/custom/start")
+async def start_custom_session(body: CustomSessionIn, user: dict = Depends(current_user)):
+    user_id = str(user["_id"])
+    existing = await db.training_sessions.find_one(
+        {"user_id": user_id, "status": "in_progress"}
+    )
+    if existing:
+        raise HTTPException(
+            409, "Você já tem uma sessão em andamento. Finalize-a antes de iniciar outra."
+        )
+
+    prescription = []
+    for item in body.items:
+        catalog_entry = EXERCISES_BY_ID.get(item.exercise_id)
+        if not catalog_entry:
+            raise HTTPException(400, f"Exercício inválido: {item.exercise_id}")
+        prescription.append({
+            "exercise_id": item.exercise_id,
+            "phase": "strength",
+            "sets": item.sets,
+            "reps": item.reps,
+            "duration_seconds": None,
+            "rest_seconds": item.rest_seconds,
+            "rpe_target": None,
+            "tempo": None,
+            "notes": None,
+            "exercise": catalog_entry,
+        })
+
+    now = now_utc()
+    session_doc = {
+        "user_id": user_id,
+        "custom": True,
+        "plan_id": None,
+        "program_id": None,
+        "session_number": 0,
+        "week": 0,
+        "day": "-",
+        "title": body.title.strip() or "Meu treino",
+        "is_deload": False,
+        "prescription": prescription,
+        "exercises": [],
+        "status": "in_progress",
+        "started_at": now,
+        "updated_at": now,
+    }
+    result = await db.training_sessions.insert_one(session_doc)
+    session_doc["id"] = str(result.inserted_id)
+    session_doc.pop("_id", None)
+    return {"session": session_doc, "resumed": False}
+
+
 @router.post("/training/sessions/start")
 async def start_session(user: dict = Depends(current_user)):
     user_id = str(user["_id"])
-    plan = await db.training_plans.find_one(
-        {"user_id": user_id, "status": {"$in": ["active", "in_progress"]}}
-    )
-    if not plan:
-        raise HTTPException(404, "Nenhum programa ativo encontrado")
-
     existing = await db.training_sessions.find_one(
         {"user_id": user_id, "status": "in_progress"}
     )
     if existing:
         existing["id"] = str(existing.pop("_id"))
         return {"session": existing, "resumed": True}
+
+    plan = await db.training_plans.find_one(
+        {"user_id": user_id, "status": {"$in": ["active", "in_progress"]}}
+    )
+    if not plan:
+        raise HTTPException(404, "Nenhum programa ativo encontrado")
 
     program = PROGRAMS_BY_ID.get(plan["program_id"])
     if not program:
@@ -331,11 +383,13 @@ async def complete_session(user: dict = Depends(current_user)):
         {"$set": {"status": "completed", "completed_at": now_utc(), "updated_at": now_utc()}},
     )
 
-    plan = await db.training_plans.find_one({"_id": session["plan_id"]})
-    if not plan:
-        plan = await db.training_plans.find_one(
-            {"user_id": user_id, "status": "in_progress"}
-        )
+    plan = None
+    if not session.get("custom"):
+        plan = await db.training_plans.find_one({"_id": session.get("plan_id")})
+        if not plan:
+            plan = await db.training_plans.find_one(
+                {"user_id": user_id, "status": "in_progress"}
+            )
 
     if plan:
         completed = plan.get("completed_sessions", 0) + 1

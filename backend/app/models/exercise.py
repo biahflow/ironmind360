@@ -114,6 +114,18 @@ class StartSessionIn(BaseModel):
     session_number: int = Field(ge=1, le=16)
 
 
+class CustomSessionItemIn(BaseModel):
+    exercise_id: str
+    sets: int = Field(default=3, ge=1, le=10)
+    reps: Optional[str] = Field(default=None, max_length=20)
+    rest_seconds: int = Field(default=60, ge=0, le=300)
+
+
+class CustomSessionIn(BaseModel):
+    title: str = Field(default="Meu treino", min_length=1, max_length=80)
+    items: list[CustomSessionItemIn] = Field(min_length=1, max_length=30)
+
+
 class LogSetIn(BaseModel):
     exercise_id: str
     set_number: int = Field(ge=1, le=20)
