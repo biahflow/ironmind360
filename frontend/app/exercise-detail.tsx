@@ -41,7 +41,7 @@ const PATTERN_LABEL: Record<string, string> = {
   anti_rotation: "Antirrotação", anti_extension: "Anti-extensão",
   anti_lateral_flexion: "Anti-flexão lateral",
   carry: "Carry", calf: "Panturrilha", hip_stability: "Estabilidade de quadril",
-  mobility: "Mobilidade", warmup: "Aquecimento",
+  power: "Potência", mobility: "Mobilidade", warmup: "Aquecimento",
 };
 
 // Placeholder visual por padrão de movimento até termos mídia real por
@@ -54,7 +54,7 @@ const PATTERN_ICON: Record<string, IconName> = {
   anti_rotation: "sync-circle", anti_extension: "shield",
   anti_lateral_flexion: "shield-half",
   carry: "briefcase", calf: "footsteps", hip_stability: "accessibility",
-  mobility: "refresh-circle", warmup: "flame",
+  power: "flash", mobility: "refresh-circle", warmup: "flame",
 };
 
 type Exercise = {

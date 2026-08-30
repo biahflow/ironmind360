@@ -9,6 +9,7 @@ MovementPattern = Literal[
     "pull_horizontal", "pull_vertical",
     "anti_rotation", "anti_extension", "anti_lateral_flexion",
     "carry", "calf", "hip_stability",
+    "power",
     "mobility", "warmup",
 ]
 
@@ -19,7 +20,7 @@ Equipment = Literal[
     "trx", "box", "wall",
 ]
 
-SessionPhase = Literal["warmup", "strength", "stability", "circuit", "cooldown"]
+SessionPhase = Literal["warmup", "strength", "power", "stability", "circuit", "cooldown"]
 
 ProgramLevel = Literal["beginner", "intermediate", "advanced"]
 ProgramEnvironment = Literal["home", "gym"]

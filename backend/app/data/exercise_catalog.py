@@ -1331,6 +1331,112 @@ EXERCISES: list[dict] = [
         ),
         "alternatives": ["mob-thoracic-rotation"],
     },
+
+    # -----------------------------------------------------------------
+    # Potência / pliometria — bloco opcional de fim de ciclo (avançado).
+    # Trabalho explosivo: poucas reps, máxima velocidade, descanso longo.
+    # Sempre com aterrissagem controlada; parar se houver dor ou fadiga alta.
+    # -----------------------------------------------------------------
+    {
+        "id": "power-squat-jump",
+        "name": "Agachamento com salto",
+        "movement_pattern": "power",
+        "equipment": ["bodyweight"],
+        "environment": "both",
+        "min_level": "advanced",
+        "primary_muscles": ["quadriceps", "glutes", "calves"],
+        "secondary_muscles": ["hamstrings"],
+        "instructions": (
+            "Agache até meia profundidade e salte com máxima força,"
+            " estendendo quadris, joelhos e tornozelos. Aterrisse suave,"
+            " absorvendo com joelhos alinhados. Reset a cada repetição."
+        ),
+        "common_errors": (
+            "Aterrissar com joelhos rígidos ou colapsando para dentro,"
+            " encadear saltos sem controle ou perder a postura do tronco."
+        ),
+        "alternatives": ["power-split-jump", "squat-bodyweight"],
+    },
+    {
+        "id": "power-broad-jump",
+        "name": "Salto horizontal",
+        "movement_pattern": "power",
+        "equipment": ["bodyweight"],
+        "environment": "both",
+        "min_level": "advanced",
+        "primary_muscles": ["glutes", "quadriceps", "hamstrings"],
+        "secondary_muscles": ["calves"],
+        "instructions": (
+            "Parta de meio agachamento e projete o corpo à frente com os"
+            " braços. Salte o mais longe possível e aterrisse firme, com"
+            " quadril para trás e joelhos flexionados. Recupere antes de repetir."
+        ),
+        "common_errors": (
+            "Aterrissar desequilibrado, joelhos para dentro"
+            " ou emendar saltos sem estabilizar."
+        ),
+        "alternatives": ["power-squat-jump"],
+    },
+    {
+        "id": "power-box-jump",
+        "name": "Salto no caixote",
+        "movement_pattern": "power",
+        "equipment": ["box"],
+        "environment": "gym",
+        "min_level": "advanced",
+        "primary_muscles": ["quadriceps", "glutes", "calves"],
+        "secondary_muscles": ["hamstrings"],
+        "instructions": (
+            "De frente para um caixote estável, salte para cima do topo"
+            " aterrissando suave e em meio agachamento. Suba de pé e"
+            " DESÇA sempre andando (nunca pule para baixo)."
+        ),
+        "common_errors": (
+            "Pular de volta ao chão (impacto alto), caixote instável"
+            " ou aterrissar com pernas estendidas."
+        ),
+        "alternatives": ["power-squat-jump", "power-broad-jump"],
+    },
+    {
+        "id": "power-split-jump",
+        "name": "Salto alternado (afundo)",
+        "movement_pattern": "power",
+        "equipment": ["bodyweight"],
+        "environment": "both",
+        "min_level": "advanced",
+        "primary_muscles": ["quadriceps", "glutes"],
+        "secondary_muscles": ["hamstrings", "calves"],
+        "instructions": (
+            "Em posição de afundo, salte trocando as pernas no ar e"
+            " aterrisse suave no afundo oposto. Mantenha o tronco ereto"
+            " e o joelho da frente alinhado ao pé."
+        ),
+        "common_errors": (
+            "Joelho da frente passando muito da ponta do pé,"
+            " tronco caindo à frente ou aterrissagem dura."
+        ),
+        "alternatives": ["power-squat-jump", "lunge-reverse-bw"],
+    },
+    {
+        "id": "power-pogo-hops",
+        "name": "Saltitos rápidos (pogo)",
+        "movement_pattern": "power",
+        "equipment": ["bodyweight"],
+        "environment": "both",
+        "min_level": "advanced",
+        "primary_muscles": ["calves"],
+        "secondary_muscles": ["quadriceps"],
+        "instructions": (
+            "Saltitos curtos e rápidos usando só os tornozelos, pernas"
+            " quase estendidas e rígidas. Mínimo tempo de contato com o"
+            " chão, como uma mola. Bom para rigidez elástica da corrida."
+        ),
+        "common_errors": (
+            "Flexionar muito os joelhos, contato lento com o solo"
+            " ou perder o ritmo."
+        ),
+        "alternatives": ["calf-raise-standing"],
+    },
 ]
 
 EXERCISES_BY_ID: dict[str, dict] = {e["id"]: e for e in EXERCISES}

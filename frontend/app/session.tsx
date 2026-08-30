@@ -17,6 +17,7 @@ import { PrimaryButton } from "@/src/components/ui";
 const PHASE_LABEL: Record<string, string> = {
   warmup: "Aquecimento",
   strength: "Força",
+  power: "Potência",
   stability: "Estabilidade",
   circuit: "Circuito",
   cooldown: "Mobilidade",
@@ -24,6 +25,7 @@ const PHASE_LABEL: Record<string, string> = {
 const PHASE_ICON: Record<string, string> = {
   warmup: "flame-outline",
   strength: "barbell-outline",
+  power: "flash",
   stability: "body-outline",
   circuit: "flash-outline",
   cooldown: "leaf-outline",

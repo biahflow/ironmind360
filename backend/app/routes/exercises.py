@@ -122,11 +122,17 @@ async def get_program_session(
     if not session:
         raise HTTPException(404, "Sessão não encontrada")
 
-    # Personalização por tempo (essential) + auto-regulação por carga (ML).
+    # Personalização por tempo (essential) + interconexão com recuperação e prova.
     session = _trim_session(session, length)
     if autoregulate:
-        risk = await _safe_ml_risk(str(user["_id"]))
-        session = _autoregulate(session, (risk or {}).get("risk_level"))
+        uid = str(user["_id"])
+        # Prova-alvo tem precedência (taper é data-certa); senão, carga do ML.
+        race = await _days_to_target_race(uid)
+        if race and race["days"] <= 10:
+            session = _taper_session(session, race["days"], race.get("name"))
+        else:
+            risk = await _safe_ml_risk(uid)
+            session = _autoregulate(session, (risk or {}).get("risk_level"))
 
     exercises_enriched = []
     for ex in session["exercises"]:
@@ -173,7 +179,8 @@ def _trim_session(session: dict, length: str) -> dict:
     warm = [e for e in ex if e.get("phase") == "warmup"][:2]
     main = [
         e for e in ex
-        if e.get("phase") == "strength" and not str(e.get("exercise_id", "")).startswith("calf-")
+        if e.get("phase") in ("strength", "power")
+        and not str(e.get("exercise_id", "")).startswith("calf-")
     ]
     cool = [e for e in ex if e.get("phase") == "cooldown"][:1]
     return {**session, "exercises": warm + main + cool}
@@ -186,18 +193,60 @@ def _autoregulate(session: dict, risk_level: Optional[str]) -> dict:
     aumenta; nunca diagnostica — só um ajuste de segurança sinalizado."""
     if risk_level not in ("alto", "critico"):
         return session
-    adjusted = []
-    for e in session.get("exercises", []):
-        if e.get("phase") in ("strength", "stability") and isinstance(e.get("sets"), int) and e["sets"] > 1:
-            adjusted.append({**e, "sets": e["sets"] - 1})
-        else:
-            adjusted.append(e)
+    adjusted = _reduce_sets(session.get("exercises", []))
     note = (
         "Volume reduzido automaticamente: sua carga de treino está "
         + ("crítica" if risk_level == "critico" else "alta")
         + ". Priorize a recuperação."
     )
     return {**session, "exercises": adjusted, "autoregulated": True, "autoregulation_note": note}
+
+
+def _reduce_sets(exercises: list[dict]) -> list[dict]:
+    """Remove 1 série dos exercícios de força/potência/estabilidade (mín. 1)."""
+    out = []
+    for e in exercises:
+        if e.get("phase") in ("strength", "power", "stability") and isinstance(e.get("sets"), int) and e["sets"] > 1:
+            out.append({**e, "sets": e["sets"] - 1})
+        else:
+            out.append(e)
+    return out
+
+
+def _taper_session(session: dict, days: int, race_name: Optional[str]) -> dict:
+    """Interconexão treino×prova: aproxima-se a prova-alvo → afinação (taper).
+    ≤3 dias: só aquecimento + soltura (guarda as pernas). 4-10 dias: volume
+    reduzido. Reduzir perto da prova é consenso — chega descansado."""
+    ex = session.get("exercises", [])
+    ref = f" para {race_name}" if race_name else ""
+    if days <= 3:
+        kept = [e for e in ex if e.get("phase") in ("warmup", "cooldown", "mobility")]
+        note = f"Prova{ref} em {days} dia(s): só ative e solte — guarde as pernas para a prova."
+        return {**session, "exercises": kept, "autoregulated": True, "autoregulation_note": note}
+    note = f"Prova{ref} em {days} dias: fase de afinação (taper) — volume reduzido para chegar descansado."
+    return {**session, "exercises": _reduce_sets(ex), "autoregulated": True, "autoregulation_note": note}
+
+
+async def _days_to_target_race(user_id: str) -> Optional[dict]:
+    """Dias até a prova-alvo (prioridade A futura mais próxima; senão a próxima
+    futura). None se não houver."""
+    today = now_utc().strftime("%Y-%m-%d")
+    races = await db.races.find(
+        {"user_id": user_id, "deleted_at": None, "date": {"$gte": today}},
+        {"date": 1, "priority": 1, "name": 1},
+    ).sort("date", 1).to_list(20)
+    if not races:
+        return None
+    target = next((r for r in races if r.get("priority") == "A"), races[0])
+    try:
+        from datetime import datetime
+        target_date = datetime.strptime(target["date"], "%Y-%m-%d").date()
+    except (ValueError, KeyError):
+        return None
+    days = (target_date - now_utc().date()).days
+    if days < 0:
+        return None
+    return {"days": days, "name": target.get("name")}
 
 
 # ── Plano ativo do atleta ─────────────────────────

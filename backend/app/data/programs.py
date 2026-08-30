@@ -59,6 +59,21 @@ def _stability(exercise_id: str, sets: int, reps: str | None = None,
     return d
 
 
+def _power(exercise_id: str, sets: int, reps: str, rest: int = 120,
+           rpe: int = 7, notes: str | None = None) -> dict:
+    d: dict = {
+        "exercise_id": exercise_id,
+        "phase": "power",
+        "sets": sets,
+        "reps": reps,
+        "rest_seconds": rest,
+        "rpe_target": rpe,
+    }
+    if notes:
+        d["notes"] = notes
+    return d
+
+
 def _cooldown(exercise_id: str, duration: int = 30) -> dict:
     return {
         "exercise_id": exercise_id,
@@ -361,7 +376,14 @@ def _build_session_a(week: int, session_number: int, level: str, env: str) -> di
     if is_deload:
         title += " (redução)"
 
-    exercises = list(warmup) + [
+    # Bloco de potência (RFD) no fim do ciclo, só avançado e fora do deload.
+    # Trabalho explosivo vem logo após o aquecimento, com o atleta descansado.
+    power_block = []
+    if level == "advanced" and week in (6, 7):
+        jump = "power-box-jump" if env == "gym" else "power-squat-jump"
+        power_block = [_power(jump, 4, "3-5", notes="Explosivo, máxima velocidade")]
+
+    exercises = list(warmup) + power_block + [
         _strength(_pick(tbl, "squat", week), p["sets"], reps, rest, p["rpe"], tempo),
         _strength(_pick(tbl, "row", week), p["sets"], reps, rest, p["rpe"], tempo),
         _strength(_pick(tbl, "hinge_uni", week), p["sets"], reps, rest, p["rpe"], tempo,
@@ -389,10 +411,14 @@ def _build_session_b(week: int, session_number: int, level: str, env: str) -> di
     if is_deload:
         title += " (redução)"
 
+    power_block = []
+    if level == "advanced" and week in (6, 7):
+        power_block = [_power("power-broad-jump", 4, "3-5", notes="Explosivo, aterrissagem controlada")]
+
     lateral_key = _pick(tbl, "lateral", week)
     is_carry = lateral_key.startswith("carry-")
 
-    exercises = list(warmup) + [
+    exercises = list(warmup) + power_block + [
         _strength(_pick(tbl, "hinge_bi", week), p["sets"], reps, rest, p["rpe"], tempo),
         _strength(_pick(tbl, "lunge", week), p["sets"], reps, rest, p["rpe"], tempo,
                   notes="Cada lado"),
