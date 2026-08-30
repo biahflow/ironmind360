@@ -91,6 +91,10 @@ export default function Login() {
             style={s.btn}
           />
 
+          <Pressable testID="forgot-password-button" onPress={() => router.push("/forgot-password")} style={s.forgotRow}>
+            <Text style={[s.link, { color: colors.textSecondary }]}>Esqueci minha senha</Text>
+          </Pressable>
+
           <Pressable testID="go-register-button" onPress={() => router.push("/register")} style={s.linkRow}>
             <Text style={[s.linkMuted, { color: colors.textSecondary }]}>Ainda não tem conta? </Text>
             <Text style={[s.link, { color: colors.accent }]}>Criar conta</Text>
@@ -112,6 +116,7 @@ const s = StyleSheet.create({
   form: { gap: spacing.lg },
   error: { fontFamily: fonts.text, ...type.bodySmall },
   btn: { marginTop: spacing.sm },
+  forgotRow: { alignItems: "center", marginTop: spacing.lg },
   linkRow: { flexDirection: "row", justifyContent: "center", marginTop: spacing.md },
   linkMuted: { fontFamily: fonts.text, ...type.bodySmall },
   link: { fontFamily: fonts.bold, ...type.bodySmall },
