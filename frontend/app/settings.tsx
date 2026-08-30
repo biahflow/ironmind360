@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, TextInput, Pressable, Platform, Linking,
+  View, Text, StyleSheet, TextInput, Pressable, Platform, Linking, ActivityIndicator,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 
 import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
-import { api } from "@/src/lib/api";
+import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { Screen, IconButton, Overline, PrimaryButton, SecondaryButton } from "@/src/components/ui";
 
@@ -29,6 +31,9 @@ export default function Settings() {
   const router = useRouter();
   const { logout, refreshUser } = useAuth();
   const [name, setName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [athleteId, setAthleteId] = useState("0");
   const [connected, setConnected] = useState(false);
@@ -50,6 +55,7 @@ export default function Settings() {
       try {
         const s = await api.get("/settings");
         setName(s.name || "");
+        setAvatarUrl(s.avatar_url || null);
         setConnected(s.intervals_connected);
         setAthleteId(s.intervals_athlete_id || "0");
         setGoals(s.goals || goals);
@@ -57,8 +63,45 @@ export default function Settings() {
         setIsProfessional(roles.includes("nutritionist") || roles.includes("psychologist"));
       } catch {}
     })();
+    (async () => setImageHeaders(await authHeaders()))();
     loadWearables();
   }, []);
+
+  const pickAvatar = async () => {
+    setErr("");
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setErr(perm.canAskAgain ? "Precisamos da galeria para escolher a foto." : "Acesso à galeria bloqueado. Abra as configurações.");
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1] });
+    if (res.canceled || !res.assets?.[0]) return;
+    setAvatarBusy(true);
+    try {
+      const out = await api.uploadImage("/profile/avatar", res.assets[0].uri, "PUT");
+      setAvatarUrl(out.avatar_url);
+      setImageHeaders(await authHeaders());
+      await refreshUser();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setErr(e.message || "Falha ao enviar foto");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    setAvatarBusy(true);
+    try {
+      await api.del("/profile/avatar");
+      setAvatarUrl(null);
+      await refreshUser();
+    } catch (e: any) {
+      setErr(e.message || "Falha ao remover foto");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const loadWearables = async () => {
     try {
@@ -230,6 +273,31 @@ export default function Settings() {
         </View>
 
         <Overline style={s.section}>PERFIL</Overline>
+        <View style={[s.avatarRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Pressable testID="avatar-picker" onPress={pickAvatar} disabled={avatarBusy} style={[s.avatar, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
+            {avatarBusy ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : avatarUrl ? (
+              <Image source={{ uri: fileUrl(avatarUrl), headers: imageHeaders }} style={s.avatarImg} contentFit="cover" />
+            ) : (
+              <Ionicons name="person" size={28} color={colors.textSecondary} />
+            )}
+            <View style={[s.avatarEdit, { backgroundColor: colors.accent, borderColor: colors.surface }]}>
+              <Ionicons name="camera" size={13} color={colors.onAccent} />
+            </View>
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.themeLabel, { color: colors.text }]}>Foto de perfil</Text>
+            <View style={s.avatarActions}>
+              <Text onPress={pickAvatar} suppressHighlighting style={[s.avatarLink, { color: colors.accent }]}>
+                {avatarUrl ? "Alterar" : "Adicionar"}
+              </Text>
+              {avatarUrl ? (
+                <Text onPress={removeAvatar} suppressHighlighting style={[s.avatarLink, { color: colors.textSecondary }]}>Remover</Text>
+              ) : null}
+            </View>
+          </View>
+        </View>
         <Field label="Nome" colors={colors}>
           <TextInput testID="settings-name-input" style={inputFieldStyle} value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
         </Field>
@@ -466,6 +534,22 @@ const s = StyleSheet.create({
   section: { marginTop: spacing["2xl"], marginBottom: spacing.lg },
 
   card: { borderRadius: radius.card, padding: spacing.xl, borderWidth: 1 },
+  avatarRow: {
+    flexDirection: "row", alignItems: "center", gap: spacing.lg,
+    borderRadius: radius.card, padding: spacing.lg, borderWidth: 1, marginBottom: spacing.lg,
+  },
+  avatar: {
+    width: 64, height: 64, borderRadius: radius.pill, borderWidth: 1,
+    alignItems: "center", justifyContent: "center", overflow: "visible",
+  },
+  avatarImg: { width: 64, height: 64, borderRadius: radius.pill },
+  avatarEdit: {
+    position: "absolute", right: -2, bottom: -2,
+    width: 24, height: 24, borderRadius: radius.pill, borderWidth: 2,
+    alignItems: "center", justifyContent: "center",
+  },
+  avatarActions: { flexDirection: "row", gap: spacing.lg, marginTop: spacing.xs },
+  avatarLink: { fontFamily: fonts.semibold, ...type.bodySmall },
   themeInner: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },

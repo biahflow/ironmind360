@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -17,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import ProgressRing from "@/src/components/ProgressRing";
 import { HeroCard, MetricCard, SectionHeader, StatTile } from "@/src/components/ui";
 import { useTheme } from "@/src/context/ThemeContext";
-import { api } from "@/src/lib/api";
+import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import { fonts, radius, spacing, type } from "@/src/theme";
 
 function greetingLabel() {
@@ -40,6 +41,7 @@ export default function Home() {
   const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +51,7 @@ export default function Home() {
       ]);
       setData(dashboard);
       setPlan(activePlan?.plan || null);
+      setImageHeaders(await authHeaders());
     } catch {
       // Keep the last successfully loaded state visible.
     } finally {
@@ -144,7 +147,15 @@ export default function Home() {
                 { backgroundColor: colors.surface, borderColor: colors.border },
               ]}
             >
-              <Ionicons name="person" size={20} color={colors.text} />
+              {data.avatar_url ? (
+                <Image
+                  source={{ uri: fileUrl(data.avatar_url), headers: imageHeaders }}
+                  style={styles.avatarImg}
+                  contentFit="cover"
+                />
+              ) : (
+                <Ionicons name="person" size={20} color={colors.text} />
+              )}
               <View style={[styles.onlineDot, { backgroundColor: colors.accent }]} />
             </Pressable>
 
@@ -424,6 +435,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  avatarImg: { width: 46, height: 46, borderRadius: 23 },
   onlineDot: {
     position: "absolute",
     right: -1,

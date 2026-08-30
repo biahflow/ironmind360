@@ -363,6 +363,7 @@ async def dashboard(user: dict = Depends(current_user)):
     return {
         "date": current_date,
         "name": user.get("name"),
+        "avatar_url": user.get("avatar_url"),
         "discipline_score": compute_discipline(
             habits, len(meals), workout_today, goals
         ),

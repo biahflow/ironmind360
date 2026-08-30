@@ -117,6 +117,17 @@ export const api = {
       body: data ? JSON.stringify(data) : undefined,
     });
   },
+  async uploadImage(path: string, uri: string, method: "POST" | "PUT" = "PUT") {
+    const form = new FormData();
+    const name = `image_${Date.now()}.jpg`;
+    if (Platform.OS === "web") {
+      const blob = await (await fetch(uri)).blob();
+      form.append("file", blob, name);
+    } else {
+      form.append("file", { uri, name, type: "image/jpeg" } as any);
+    }
+    return request(path, { method, body: form });
+  },
 };
 
 export function fileUrl(photoPath: string): string {
