@@ -22,6 +22,24 @@ const CATEGORY_LABEL: Record<string, string> = {
   transition: "Transição", logistics: "Logística", general: "Geral",
 };
 
+function daysUntil(dateStr?: string): number | null {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const today = new Date();
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const t1 = new Date(y, m - 1, d).getTime();
+  return Math.round((t1 - t0) / 86400000);
+}
+
+function racePhase(days: number) {
+  if (days < 0) return { label: "Prova realizada", tip: "Registre sua retrospectiva para aprender com ela." };
+  if (days === 0) return { label: "É hoje! 🏁", tip: "Café leve e familiar, hidrate bem e faça o aquecimento. Confie no plano." };
+  if (days <= 3) return { label: "Ajuste final", tip: "Carbo-load nos últimos 2-3 dias, capriche na hidratação e no sono. Nada novo agora." };
+  if (days <= 7) return { label: "Semana de taper", tip: "Reduza o volume ~40%, mantendo tiros curtos de intensidade. Priorize recuperação." };
+  if (days <= 21) return { label: "Pico de forma", tip: "Treinos específicos da prova (pace/altimetria). Simule nutrição de prova nos longos." };
+  return { label: "Base / construção", tip: "Construa consistência e volume progressivo. Ainda há tempo de evoluir." };
+}
+
 export default function RaceDetail() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -45,6 +63,28 @@ export default function RaceDetail() {
         subtitle={[RACE_TYPE_LABEL[params.type || ""] || params.type, params.date].filter(Boolean).join(" · ")}
         onBack={() => router.back()}
       />
+      {(() => {
+        const days = daysUntil(params.date);
+        if (days === null) return null;
+        const phase = racePhase(days);
+        const done = days < 0;
+        return (
+          <View style={[cd.card, { backgroundColor: colors.surface, borderColor: colors.border, marginHorizontal: spacing.xl }]}>
+            <View style={[cd.badge, { backgroundColor: done ? colors.elevated : colors.accentMuted }]}>
+              <Text style={[cd.badgeNum, { color: done ? colors.textSecondary : colors.accent }]}>
+                {done ? "✓" : days === 0 ? "0" : days}
+              </Text>
+              <Text style={[cd.badgeUnit, { color: done ? colors.textSecondary : colors.accent }]}>
+                {done ? "" : days === 1 ? "dia" : "dias"}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[cd.phase, { color: colors.text }]}>{phase.label}</Text>
+              <Text style={[cd.tip, { color: colors.textSecondary }]}>{phase.tip}</Text>
+            </View>
+          </View>
+        );
+      })()}
       <PillTabs<Tab>
         tabs={[
           { key: "checklist", label: "Checklist" },
@@ -266,6 +306,21 @@ function MultilineField({ label, value, onChange, colors }: any) {
     </View>
   );
 }
+
+const cd = StyleSheet.create({
+  card: {
+    flexDirection: "row", alignItems: "center", gap: spacing.lg,
+    borderRadius: radius.card, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.md,
+  },
+  badge: {
+    width: 64, height: 64, borderRadius: radius.lg,
+    alignItems: "center", justifyContent: "center",
+  },
+  badgeNum: { fontFamily: fonts.bold, fontSize: 26, lineHeight: 28, fontVariant: ["tabular-nums"] },
+  badgeUnit: { fontFamily: fonts.medium, ...type.caption },
+  phase: { fontFamily: fonts.bold, ...type.body },
+  tip: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 3, lineHeight: 18 },
+});
 
 const s = StyleSheet.create({
   progress: { fontFamily: fonts.medium, ...type.bodySmall },
