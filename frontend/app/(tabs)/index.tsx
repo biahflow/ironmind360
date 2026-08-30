@@ -58,9 +58,9 @@ function restingHrTone(bpm: number | null | undefined, colors: any): string {
 }
 function sleepTone(hours: number | null | undefined, colors: any): string {
   if (hours == null) return colors.textSecondary;
-  if (hours >= 7 && hours <= 9) return colors.accent;
-  if ((hours >= 6 && hours < 7) || (hours > 9 && hours <= 10)) return colors.warning;
-  return colors.error;
+  if (hours >= 7 && hours <= 9) return colors.accent; // ideal
+  if (hours < 6) return colors.error; // pouco sono prejudica treino/recuperação
+  return colors.warning; // 6–7h ou dormir demais (>9h): só alerta, nunca vermelho
 }
 
 export default function Home() {
