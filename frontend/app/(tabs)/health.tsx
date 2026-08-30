@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator,
-  RefreshControl, Alert, Platform,
+  RefreshControl, Alert, Platform, Modal, ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -72,6 +72,7 @@ export default function Health() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
 
   const loadDocs = useCallback(async () => {
     try {
@@ -219,6 +220,21 @@ export default function Health() {
           renderItem={renderDoc}
           keyExtractor={item => item.id}
           contentContainerStyle={{ paddingBottom: layout.tabBarPad(insets.bottom), paddingHorizontal: layout.screenPad }}
+          ListHeaderComponent={
+            <Pressable
+              onPress={() => setInsightsOpen(true)}
+              style={({ pressed }) => [s.insightsCta, { backgroundColor: colors.accentMuted }, pressed && { opacity: 0.85 }]}
+            >
+              <View style={[s.insightsIcon, { backgroundColor: colors.accent }]}>
+                <Ionicons name="sparkles" size={18} color={colors.onAccent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.insightsTitle, { color: colors.text }]}>Sugestões alimentares dos exames</Text>
+                <Text style={[s.insightsSub, { color: colors.textSecondary }]}>Ideias gerais da IA — não substitui o nutricionista</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+            </Pressable>
+          }
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -229,11 +245,85 @@ export default function Health() {
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         />
       )}
+
+      <HealthInsightsModal visible={insightsOpen} onClose={() => setInsightsOpen(false)} colors={colors} insets={insets} />
     </Screen>
   );
 }
 
+function HealthInsightsModal({ visible, onClose, colors, insets }: any) {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [err, setErr] = useState("");
+
+  React.useEffect(() => {
+    if (!visible) { setData(null); setErr(""); return; }
+    setLoading(true); setErr("");
+    (async () => {
+      try { setData(await api.post("/health/nutrition-insights")); }
+      catch (e: any) { setErr(e?.message || "Falha ao gerar sugestões."); }
+      finally { setLoading(false); }
+    })();
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Screen>
+        <ScreenHeader title="Sugestões alimentares" onBack={onClose} />
+        <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingBottom: insets.bottom + spacing["3xl"], gap: spacing.md }}>
+          <View style={[s.disclaimer, { backgroundColor: colors.warningMuted }]}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
+            <Text style={[s.disclaimerText, { color: colors.text }]}>
+              {data?.disclaimer || "Sugestões gerais — não substituem médico/nutricionista."}
+            </Text>
+          </View>
+
+          {loading ? (
+            <View style={{ paddingVertical: 40, alignItems: "center", gap: spacing.md }}>
+              <ActivityIndicator color={colors.accent} />
+              <Text style={{ fontFamily: fonts.medium, ...type.bodySmall, color: colors.textSecondary }}>Analisando seus marcadores...</Text>
+            </View>
+          ) : err ? (
+            <Text style={{ fontFamily: fonts.text, ...type.body, color: colors.error }}>{err}</Text>
+          ) : data?.insights?.length ? (
+            data.insights.map((it: any, i: number) => (
+              <View key={i} style={[s.insightCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={s.insightHead}>
+                  <Text style={[s.insightMarker, { color: colors.text }]}>{it.marker}</Text>
+                  {it.status ? <Text style={[s.insightStatus, { color: colors.warning }]}>{it.status}</Text> : null}
+                </View>
+                <Text style={[s.insightText, { color: colors.textSecondary }]}>{it.suggestion}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={{ fontFamily: fonts.text, ...type.body, color: colors.textSecondary, textAlign: "center", marginTop: spacing.xl }}>
+              {data?.message || "Nenhum marcador alterado nos seus exames."}
+            </Text>
+          )}
+        </ScrollView>
+      </Screen>
+    </Modal>
+  );
+}
+
 const s = StyleSheet.create({
+  insightsCta: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.md,
+  },
+  insightsIcon: { width: 36, height: 36, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  insightsTitle: { fontFamily: fonts.semibold, ...type.body },
+  insightsSub: { fontFamily: fonts.text, ...type.caption, marginTop: 2 },
+  disclaimer: {
+    flexDirection: "row", alignItems: "flex-start", gap: spacing.sm,
+    padding: spacing.lg, borderRadius: radius.md,
+  },
+  disclaimerText: { fontFamily: fonts.medium, ...type.bodySmall, flex: 1, lineHeight: 18 },
+  insightCard: { borderRadius: radius.card, borderWidth: 1, padding: spacing.lg },
+  insightHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs },
+  insightMarker: { fontFamily: fonts.bold, ...type.body },
+  insightStatus: { fontFamily: fonts.semibold, ...type.caption },
+  insightText: { fontFamily: fonts.text, ...type.bodySmall, lineHeight: 19 },
   card: {
     borderRadius: radius.card, padding: spacing.xl,
     borderWidth: 1,

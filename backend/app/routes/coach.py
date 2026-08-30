@@ -97,7 +97,8 @@ async def gather_context(user: dict) -> dict:
     )
 
     health_alerts = await db.health_markers.find(
-        {"user_id": user_id, "deleted_at": None, "flag": {"$in": ["attention", "priority"]}}
+        {"user_id": user_id, "deleted_at": None,
+         "flag": {"$in": ["baixo", "alto", "critico_baixo", "critico_alto"]}}
     ).sort("date", -1).to_list(5)
 
     context_parts = [

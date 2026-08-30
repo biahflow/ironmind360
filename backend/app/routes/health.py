@@ -1,6 +1,10 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from typing import Optional
 
+from app.adapters.ai import complete_text
+from app.config import settings
+from app.database import db
 from app.dependencies import current_user
 from app.models.health import MarkerCorrection
 from app.rate_limit import rate_limit
@@ -23,6 +27,63 @@ from app.services.files import create_file
 
 
 router = APIRouter(prefix="/health", tags=["health"])
+
+INSIGHTS_DISCLAIMER = (
+    "Sugestões alimentares GERAIS geradas por IA — não são diagnóstico nem "
+    "prescrição. Converse com seu médico e nutricionista antes de mudar dieta ou "
+    "usar suplementos. O nutricionista fica disponível ao enviar seus exames."
+)
+
+
+@router.post("/nutrition-insights", dependencies=[Depends(rate_limit("health_insights", 6, 3600))])
+async def nutrition_insights(user: dict = Depends(current_user)):
+    user_id = str(user["_id"])
+    abnormal = ["baixo", "alto", "critico_baixo", "critico_alto"]
+    markers = await db.health_markers.find(
+        {"user_id": user_id, "deleted_at": None, "flag": {"$in": abnormal}},
+        {"name": 1, "value": 1, "unit": 1, "flag": 1},
+    ).sort("date", -1).to_list(12)
+
+    if not markers:
+        return {"insights": [], "disclaimer": INSIGHTS_DISCLAIMER,
+                "message": "Nenhum marcador alterado encontrado nos seus exames."}
+
+    listed = "; ".join(
+        f"{m.get('name')}: {m.get('value')}{m.get('unit') or ''} ({m.get('flag')})"
+        for m in markers
+    )
+    system = (
+        "Voce e um nutricionista esportivo. Para cada marcador de exame ALTERADO, "
+        "sugira alimentos-fonte e habitos alimentares GERAIS que costumam ajudar. "
+        "REGRAS: nao diagnostique, nao prescreva doses nem suplementos especificos, "
+        "e sempre reforce procurar medico/nutricionista. Responda SOMENTE JSON valido, "
+        "sem markdown: {\"insights\":[{\"marker\":\"\", \"status\":\"\", \"suggestion\":\"\"}]}"
+    )
+    prompt = "Marcadores alterados: " + listed
+
+    try:
+        raw = await complete_text(
+            session_id=f"health-insights-{user_id}",
+            system=system, prompt=prompt,
+            provider=settings.coach_provider, model=settings.coach_model,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, "Falha ao gerar sugestões") from exc
+
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1].removeprefix("json").strip()
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end <= start:
+            raise HTTPException(502, "Resposta inválida da IA")
+        parsed = json.loads(raw[start:end + 1])
+
+    return {"insights": parsed.get("insights", []), "disclaimer": INSIGHTS_DISCLAIMER}
 
 
 def _doc_to_out(doc: dict) -> dict:
