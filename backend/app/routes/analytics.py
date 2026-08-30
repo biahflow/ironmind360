@@ -160,6 +160,50 @@ async def nutrition_trends(
 
 
 # ---------------------------------------------------------------------------
+# Métricas corporais (peso / cintura ao longo do tempo)
+# ---------------------------------------------------------------------------
+
+@router.get("/body-metrics")
+async def body_metrics(
+    days: int = Query(90, ge=7, le=365),
+    user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    since = (now_utc() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    weight: list[dict] = []
+    waist: list[dict] = []
+    cursor = db.habits.find(
+        {"user_id": user_id, "date": {"$gte": since}},
+        {"date": 1, "weight_kg": 1, "waist_cm": 1},
+    ).sort("date", 1)
+    async for h in cursor:
+        if h.get("weight_kg") is not None:
+            weight.append({"date": h["date"], "value": round(float(h["weight_kg"]), 1)})
+        if h.get("waist_cm") is not None:
+            waist.append({"date": h["date"], "value": round(float(h["waist_cm"]), 1)})
+
+    def summary(series: list[dict]) -> dict:
+        if not series:
+            return {"latest": None, "delta": None, "min": None, "max": None}
+        values = [p["value"] for p in series]
+        return {
+            "latest": series[-1]["value"],
+            "delta": round(series[-1]["value"] - series[0]["value"], 1),
+            "min": min(values),
+            "max": max(values),
+        }
+
+    return {
+        "weight": weight,
+        "waist": waist,
+        "weight_summary": summary(weight),
+        "waist_summary": summary(waist),
+        "days": days,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Força (progresso nos exercícios de treino)
 # ---------------------------------------------------------------------------
 

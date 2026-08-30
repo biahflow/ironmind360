@@ -3,6 +3,7 @@ import { View, Text, ScrollView, StyleSheet, Modal, Pressable } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Polyline, Circle } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 
 import { spacing, radius, fonts, type } from "@/src/theme";
@@ -13,7 +14,7 @@ import {
   Input, PrimaryButton, SecondaryButton, layout,
 } from "@/src/components/ui";
 
-type Tab = "overview" | "records" | "races";
+type Tab = "overview" | "body" | "records" | "races";
 
 export default function Analytics() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -23,7 +24,8 @@ export default function Analytics() {
       <ScreenHeader title="Analytics" />
       <PillTabs
         tabs={[
-          { key: "overview" as Tab, label: "Visão geral" },
+          { key: "overview" as Tab, label: "Geral" },
+          { key: "body" as Tab, label: "Corpo" },
           { key: "records" as Tab, label: "Recordes" },
           { key: "races" as Tab, label: "Provas" },
         ]}
@@ -31,6 +33,7 @@ export default function Analytics() {
         onChange={setTab}
       />
       {tab === "overview" && <OverviewTab />}
+      {tab === "body" && <BodyTab />}
       {tab === "records" && <RecordsTab />}
       {tab === "races" && <RacesTab />}
     </Screen>
@@ -184,6 +187,108 @@ function StatItem({ label, value, sub, colors }: any) {
       <Text style={[s.statSub, { color: colors.accent }]}>{sub}</Text>
       <Text style={[s.statLabel, { color: colors.textSecondary }]}>{label}</Text>
     </View>
+  );
+}
+
+function LineTrend({ points, colors, height = 110 }: { points: { date: string; value: number }[]; colors: any; height?: number }) {
+  const W = 300;
+  const H = height;
+  const pad = 10;
+  const values = points.map((p) => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const stepX = points.length > 1 ? (W - pad * 2) / (points.length - 1) : 0;
+  const coords = points.map((p, i) => ({
+    x: pad + i * stepX,
+    y: pad + (1 - (p.value - min) / range) * (H - pad * 2),
+  }));
+  const poly = coords.map((c) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
+  const last = coords[coords.length - 1];
+  return (
+    <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
+      <Polyline points={poly} fill="none" stroke={colors.accent} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      <Circle cx={last.x} cy={last.y} r={4} fill={colors.accent} />
+    </Svg>
+  );
+}
+
+function BodyTab() {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
+  const [weightInput, setWeightInput] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api.get("/analytics/body-metrics?days=90");
+      setData(d);
+    } catch {} finally { setLoading(false); }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const saveWeight = async () => {
+    const kg = parseFloat(weightInput.replace(",", "."));
+    if (!kg || kg < 20 || kg > 300) return;
+    setSaving(true);
+    try {
+      await api.put("/habits", { date: new Date().toISOString().slice(0, 10), weight_kg: kg });
+      setWeightInput("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await load();
+    } catch {} finally { setSaving(false); }
+  };
+
+  if (loading) return <LoadingState />;
+
+  const weight = data?.weight || [];
+  const ws = data?.weight_summary || {};
+  const deltaSign = ws.delta > 0 ? "+" : "";
+
+  return (
+    <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
+      <Card>
+        <Overline color={colors.accent}>Registrar peso</Overline>
+        <View style={[s.weightLogRow, { marginTop: spacing.md }]}>
+          <Input
+            containerStyle={{ flex: 1 }}
+            placeholder="Ex: 72.5"
+            keyboardType="decimal-pad"
+            value={weightInput}
+            onChangeText={setWeightInput}
+          />
+          <PrimaryButton label="Salvar" onPress={saveWeight} loading={saving} small style={{ height: 56 }} />
+        </View>
+      </Card>
+
+      {weight.length >= 2 ? (
+        <Card>
+          <View style={s.trendHead}>
+            <Overline color={colors.accent}>Peso · 90 dias</Overline>
+            <Text style={[s.trendPeak, { color: colors.textSecondary }]}>
+              {deltaSign}{ws.delta} kg
+            </Text>
+          </View>
+          <Text style={[s.trendTotal, { color: colors.text }]}>
+            {ws.latest} <Text style={[s.trendUnit, { color: colors.textSecondary }]}>kg</Text>
+          </Text>
+          <LineTrend points={weight} colors={colors} />
+          <View style={s.trendLabels}>
+            <Text style={[s.trendLabel, { color: colors.textSecondary }]}>mín {ws.min}</Text>
+            <Text style={[s.trendLabel, { color: colors.textSecondary }]}>máx {ws.max}</Text>
+          </View>
+        </Card>
+      ) : (
+        <EmptyState
+          icon="body-outline"
+          title="Sem histórico de peso"
+          text="Registre seu peso por alguns dias para ver a evolução aqui."
+        />
+      )}
+    </ScrollView>
   );
 }
 
@@ -492,6 +597,7 @@ const s = StyleSheet.create({
   trendLabel: { fontFamily: fonts.text, ...type.caption },
   trendTotal: { fontFamily: fonts.bold, ...type.metric, marginTop: spacing.md, fontVariant: ["tabular-nums"] },
   trendUnit: { fontFamily: fonts.text, ...type.bodySmall },
+  weightLogRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
 
   statsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
   statItem: { alignItems: "center", flex: 1 },
