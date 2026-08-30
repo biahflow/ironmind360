@@ -8,11 +8,11 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { spacing, radius, fonts, type as tp } from "@/src/theme";
+import { spacing, radius, fonts, type as tp, controlHeight } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/lib/api";
-import { PrimaryButton, SecondaryButton, Overline } from "@/src/components/ui";
+import { Screen, PrimaryButton, SecondaryButton, Overline } from "@/src/components/ui";
 
 const TOTAL_STEPS = 5;
 
@@ -27,9 +27,6 @@ const EXPERIENCE_LABELS: Record<Experience, string> = {
   competitive: "Competitivo", elite: "Elite",
 };
 const ENV_LABELS: Record<Environment, string> = { home: "Casa", gym: "Academia", both: "Ambos" };
-const LEVEL_COLORS: Record<ComplementaryLevel, string> = {
-  beginner: "#2ECC71", intermediate: "#F5A623", advanced: "#E74C3C",
-};
 const LEVEL_LABELS: Record<ComplementaryLevel, string> = {
   beginner: "Iniciante", intermediate: "Intermediário", advanced: "Avançado",
 };
@@ -42,6 +39,13 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const LEVEL_COLOR: Record<ComplementaryLevel, string> = {
+    beginner: colors.success, intermediate: colors.warning, advanced: colors.error,
+  };
+  const LEVEL_MUTED: Record<ComplementaryLevel, string> = {
+    beginner: colors.successMuted, intermediate: colors.warningMuted, advanced: colors.errorMuted,
+  };
 
   // Step 1
   const [disciplines, setDisciplines] = useState<Discipline[]>([]);
@@ -338,11 +342,11 @@ export default function Onboarding() {
             </Text>
 
             <View style={[s.levelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={[s.levelBadge, { backgroundColor: LEVEL_COLORS[recommended] + "22" }]}>
+              <View style={[s.levelBadge, { backgroundColor: LEVEL_MUTED[recommended] }]}>
                 <Ionicons
                   name={recommended === "beginner" ? "leaf" : recommended === "intermediate" ? "fitness" : "flame"}
                   size={28}
-                  color={LEVEL_COLORS[recommended]}
+                  color={LEVEL_COLOR[recommended]}
                 />
               </View>
               <Text style={[s.levelTitle, { color: colors.text }]}>{LEVEL_LABELS[recommended]}</Text>
@@ -439,10 +443,11 @@ export default function Onboarding() {
   const stepTitles = ["Esporte", "Avaliação", "Nível", "Nutrição", "intervals.icu"];
 
   return (
-    <View style={[s.root, { backgroundColor: colors.bg }]}>
+    <Screen>
       <KeyboardAwareScrollView
         contentContainerStyle={{
           flexGrow: 1,
+          paddingHorizontal: spacing.xl,
           paddingTop: insets.top + spacing.xl,
           paddingBottom: insets.bottom + spacing["3xl"],
         }}
@@ -535,13 +540,12 @@ export default function Onboarding() {
           </View>
         </View>
       </KeyboardAwareScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: spacing.xl },
+  content: { flex: 1 },
 
   indicator: {
     flexDirection: "row", justifyContent: "center", alignItems: "flex-start",
@@ -587,7 +591,7 @@ const s = StyleSheet.create({
   toggleLabel: { fontFamily: fonts.text, ...tp.body, flex: 1, marginRight: spacing.md },
 
   levelCard: {
-    borderRadius: radius.xl, padding: spacing["2xl"], borderWidth: 1,
+    borderRadius: radius.cardLarge, padding: spacing["2xl"], borderWidth: 1,
     alignItems: "center", marginTop: spacing.lg,
   },
   levelBadge: {
@@ -617,7 +621,7 @@ const s = StyleSheet.create({
   },
 
   intervalsCard: {
-    borderRadius: radius.xl, padding: spacing.xl, borderWidth: 1,
+    borderRadius: radius.cardLarge, padding: spacing.xl, borderWidth: 1,
     marginTop: spacing.lg,
   },
   intervalsRow: {
@@ -627,7 +631,7 @@ const s = StyleSheet.create({
   intervalsTitle: { fontFamily: fonts.bold, ...tp.h2 },
 
   input: {
-    height: 48, borderRadius: radius.lg, borderWidth: 1,
+    height: controlHeight, borderRadius: radius.lg, borderWidth: 1,
     paddingHorizontal: spacing.lg, fontFamily: fonts.text, ...tp.body,
   },
 
