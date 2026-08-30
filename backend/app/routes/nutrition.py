@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 
 import requests
@@ -5,8 +6,9 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
-from app.adapters.ai import analyze_food_image
+from app.adapters.ai import analyze_food_image, complete_text
 from app.adapters.legacy_storage import legacy_storage
+from app.config import settings
 from app.database import db
 from app.dependencies import current_user
 from app.models import Goals
@@ -236,6 +238,118 @@ async def food_search(q: str = Query(..., min_length=2, max_length=80), _user: d
 
     items = [i for i in (_product_to_item(p) for p in products) if i]
     return {"query": q, "results": items[:20]}
+
+
+# ── Plano nutricional sugerido (IA, por modalidade) ────────────
+
+PLAN_DISCLAIMER = (
+    "Sugestão automática gerada por IA com base nos seus dados. NÃO substitui "
+    "acompanhamento com nutricionista — que fica disponível ao enviar seus exames."
+)
+
+
+def _derive_modality(disciplines: list) -> str:
+    d = set(disciplines or [])
+    if {"swim", "bike", "run"}.issubset(d):
+        return "triatlo"
+    if d == {"run"}:
+        return "corrida"
+    if d:
+        return "+".join(sorted(d))
+    return "geral"
+
+
+async def _gather_plan_context(user: dict) -> dict:
+    user_id = str(user["_id"])
+    profile = await db.profiles.find_one({"user_id": user_id}) or {}
+    sport = profile.get("sport") or {}
+    goals = user.get("goals") or Goals().model_dump()
+
+    since = (now_utc() - timedelta(days=14)).strftime("%Y-%m-%d")
+    cursor = await db.activities.aggregate([
+        {"$match": {"user_id": user_id, "start_date_local": {"$gte": since}}},
+        {"$group": {"_id": None, "tss": {"$sum": {"$ifNull": ["$icu_training_load", 0]}}, "n": {"$sum": 1}}},
+    ])
+    agg = await cursor.to_list(1)
+    weekly_tss = round((agg[0]["tss"] / 2) if agg else 0)
+    sessions_14d = agg[0]["n"] if agg else 0
+
+    weight = None
+    async for h in db.habits.find(
+        {"user_id": user_id, "weight_kg": {"$ne": None}}, {"weight_kg": 1}
+    ).sort("date", -1).limit(1):
+        weight = h.get("weight_kg")
+
+    return {
+        "modality": _derive_modality(sport.get("disciplines")),
+        "experience": sport.get("experience"),
+        "weekly_availability_hours": sport.get("weekly_availability_hours"),
+        "goals": goals,
+        "avg_weekly_tss": weekly_tss,
+        "sessions_last_14d": sessions_14d,
+        "weight_kg": weight,
+    }
+
+
+@router.get("/plan")
+async def get_nutrition_plan(user: dict = Depends(current_user)):
+    doc = await db.nutrition_plans.find_one({"user_id": str(user["_id"])})
+    if not doc:
+        return {"plan": None, "disclaimer": PLAN_DISCLAIMER}
+    return {
+        "plan": doc.get("plan"),
+        "modality": doc.get("modality"),
+        "generated_at": doc.get("created_at"),
+        "disclaimer": PLAN_DISCLAIMER,
+    }
+
+
+@router.post("/plan/generate", dependencies=[Depends(rate_limit("nutrition_plan", 6, 3600))])
+async def generate_nutrition_plan(user: dict = Depends(current_user)):
+    ctx = await _gather_plan_context(user)
+    system = (
+        "Voce e um nutricionista esportivo criando uma SUGESTAO de plano alimentar "
+        "diario para um atleta de " + ctx["modality"] + ". Use os dados fornecidos "
+        "para calibrar calorias e macros a carga de treino. NAO faca diagnostico nem "
+        "prescricao medica. Maximo 6 refeicoes, sugestoes curtas. Responda SOMENTE "
+        "JSON valido, sem markdown e sem texto fora do JSON, no formato: "
+        '{"summary":"", "daily_calories":0, "protein_g":0, "carbs_g":0, "fat_g":0, '
+        '"hydration_ml":0, "meals":[{"name":"", "suggestion":"", "kcal":0}], '
+        '"pre_workout":"", "post_workout":"", "notes":""}'
+    )
+    prompt = "Dados do atleta (JSON):\n" + json.dumps(ctx, ensure_ascii=False)
+
+    try:
+        raw = await complete_text(
+            session_id=f"nutriplan-{user['_id']}",
+            system=system,
+            prompt=prompt,
+            provider=settings.coach_provider,
+            model=settings.coach_model,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, "Falha ao gerar o plano") from exc
+
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1].removeprefix("json").strip()
+    try:
+        plan = json.loads(raw)
+    except json.JSONDecodeError:
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end <= start:
+            raise HTTPException(502, "Resposta invalida da IA")
+        plan = json.loads(raw[start:end + 1])
+
+    now = now_utc()
+    await db.nutrition_plans.update_one(
+        {"user_id": str(user["_id"])},
+        {"$set": {"plan": plan, "modality": ctx["modality"], "created_at": now}},
+        upsert=True,
+    )
+    return {"plan": plan, "modality": ctx["modality"], "generated_at": now, "disclaimer": PLAN_DISCLAIMER}
 
 
 # ── Manual entry ────────────────────────────────────────────────

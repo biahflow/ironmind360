@@ -15,9 +15,9 @@ import { spacing, radius, fonts, type, controlHeight } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import DonutChart from "@/src/components/DonutChart";
-import { Screen, ScreenHeader, EmptyState, PrimaryButton, layout } from "@/src/components/ui";
+import { Screen, ScreenHeader, EmptyState, PrimaryButton, SecondaryButton, layout } from "@/src/components/ui";
 
-type SubTab = "today" | "week" | "favorites" | "recipes";
+type SubTab = "today" | "plan" | "week" | "favorites" | "recipes";
 
 const MEAL_TYPES = [
   { value: "breakfast", label: "Café da manhã" },
@@ -235,6 +235,7 @@ export default function Nutrition() {
 
   const SUB_TABS: { key: SubTab; label: string; icon: string }[] = [
     { key: "today", label: "Hoje", icon: "today-outline" },
+    { key: "plan", label: "Plano", icon: "nutrition-outline" },
     { key: "week", label: "Semana", icon: "calendar-outline" },
     { key: "favorites", label: "Favoritos", icon: "heart-outline" },
     { key: "recipes", label: "Receitas", icon: "book-outline" },
@@ -274,6 +275,7 @@ export default function Nutrition() {
           refreshControl={<RefreshControl refreshing={false} onRefresh={loadAll} tintColor={colors.accent} />}
         >
           {tab === "today" && <TodayView {...{ meals, totals, goals, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }} />}
+          {tab === "plan" && <PlanView colors={colors} />}
           {tab === "week" && <WeekView days={weekly} goals={goals} colors={colors} />}
           {tab === "favorites" && <FavoritesView favorites={favorites} colors={colors} applyFavorite={applyFavorite} deleteFavorite={deleteFavorite} setFavModal={setFavModal} />}
           {tab === "recipes" && <RecipesView recipes={recipes} colors={colors} applyRecipe={applyRecipe} deleteRecipe={deleteRecipe} setRecipeModal={setRecipeModal} />}
@@ -490,6 +492,119 @@ function TodayView({ meals, totals, goals, segments, protG, carbG, fatG, totalMa
         ))
       )}
     </>
+  );
+}
+
+// ─── Plan View (plano nutricional sugerido por IA) ─────────────
+
+function PlanView({ colors }: any) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [err, setErr] = useState("");
+
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    (async () => {
+      try { const d = await api.get("/nutrition/plan"); if (alive) setData(d); }
+      catch {} finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, []));
+
+  const generate = async () => {
+    setGenerating(true);
+    setErr("");
+    try {
+      const d = await api.post("/nutrition/plan/generate");
+      setData(d);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setErr(e?.message || "Não foi possível gerar o plano agora.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  if (loading) return <View style={s.center}><ActivityIndicator color={colors.accent} /></View>;
+
+  const plan = data?.plan;
+
+  return (
+    <>
+      <View style={[s.planDisclaimer, { backgroundColor: colors.warningMuted }]}>
+        <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
+        <Text style={[s.planDisclaimerText, { color: colors.text }]}>
+          {data?.disclaimer || "Sugestão automática — não substitui um nutricionista."}
+        </Text>
+      </View>
+
+      {!plan ? (
+        <EmptyState
+          icon="nutrition-outline"
+          title="Plano alimentar sugerido"
+          text="Gere um plano personalizado pela sua modalidade, metas e carga de treino."
+          action={<PrimaryButton label={generating ? "Gerando..." : "Gerar plano"} icon="sparkles-outline" onPress={generate} loading={generating} />}
+        />
+      ) : (
+        <>
+          <View style={[s.donutSection, { backgroundColor: colors.surface, borderColor: colors.border, alignItems: "stretch" }]}>
+            {data?.modality ? <Text style={[s.planKicker, { color: colors.accent }]}>MODALIDADE · {String(data.modality).toUpperCase()}</Text> : null}
+            <Text style={[s.planKcal, { color: colors.text }]}>
+              {plan.daily_calories} <Text style={[s.planKcalUnit, { color: colors.textSecondary }]}>kcal/dia</Text>
+            </Text>
+            <View style={s.planMacroRow}>
+              <PlanMacro label="Proteína" value={`${plan.protein_g}g`} colors={colors} />
+              <PlanMacro label="Carbo" value={`${plan.carbs_g}g`} colors={colors} />
+              <PlanMacro label="Gordura" value={`${plan.fat_g}g`} colors={colors} />
+              <PlanMacro label="Água" value={`${((plan.hydration_ml || 0) / 1000).toFixed(1)}L`} colors={colors} />
+            </View>
+            {plan.summary ? <Text style={[s.planSummary, { color: colors.textSecondary }]}>{plan.summary}</Text> : null}
+          </View>
+
+          <Text style={[s.sectionTitle, { color: colors.text }]}>Refeições</Text>
+          {(plan.meals || []).map((m: any, i: number) => (
+            <View key={i} style={[s.meal, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <View style={s.mealHead}>
+                  <Text style={[s.mealTitle, { color: colors.text }]}>{m.name}</Text>
+                  {m.kcal ? <Text style={[s.planMealKcal, { color: colors.accent }]}>{m.kcal} kcal</Text> : null}
+                </View>
+                <Text style={[s.mealMacros, { color: colors.textSecondary }]}>{m.suggestion}</Text>
+              </View>
+            </View>
+          ))}
+
+          {plan.pre_workout ? <PlanNote icon="flash-outline" title="Pré-treino" text={plan.pre_workout} colors={colors} /> : null}
+          {plan.post_workout ? <PlanNote icon="barbell-outline" title="Pós-treino" text={plan.post_workout} colors={colors} /> : null}
+          {plan.notes ? <PlanNote icon="bulb-outline" title="Observações" text={plan.notes} colors={colors} /> : null}
+
+          {err ? <Text style={[s.aiFailed, { color: colors.error, marginTop: spacing.md }]}>{err}</Text> : null}
+          <SecondaryButton label={generating ? "Atualizando..." : "Atualizar plano"} icon="refresh" onPress={generate} style={{ marginTop: spacing.lg }} />
+        </>
+      )}
+    </>
+  );
+}
+
+function PlanMacro({ label, value, colors }: any) {
+  return (
+    <View style={s.planMacro}>
+      <Text style={[s.planMacroValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[s.planMacroLabel, { color: colors.textSecondary }]}>{label}</Text>
+    </View>
+  );
+}
+
+function PlanNote({ icon, title, text, colors }: any) {
+  return (
+    <View style={[s.planNote, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={s.planNoteHead}>
+        <Ionicons name={icon} size={16} color={colors.accent} />
+        <Text style={[s.planNoteTitle, { color: colors.text }]}>{title}</Text>
+      </View>
+      <Text style={[s.planNoteText, { color: colors.textSecondary }]}>{text}</Text>
+    </View>
   );
 }
 
@@ -1087,6 +1202,25 @@ const s = StyleSheet.create({
   subTabText: { fontFamily: fonts.semibold, ...type.bodySmall },
 
   donutSection: { borderRadius: radius.cardLarge, padding: spacing.xl, alignItems: "center", borderWidth: 1 },
+
+  planDisclaimer: {
+    flexDirection: "row", alignItems: "flex-start", gap: spacing.sm,
+    padding: spacing.lg, borderRadius: radius.md, marginBottom: spacing.lg,
+  },
+  planDisclaimerText: { fontFamily: fonts.medium, ...type.caption, flex: 1, lineHeight: 17 },
+  planKicker: { fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.2, marginBottom: spacing.xs },
+  planKcal: { fontFamily: fonts.bold, fontSize: 34, lineHeight: 38, fontVariant: ["tabular-nums"] },
+  planKcalUnit: { fontFamily: fonts.text, ...type.bodySmall },
+  planMacroRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.lg },
+  planMacro: { alignItems: "center", flex: 1 },
+  planMacroValue: { fontFamily: fonts.bold, ...type.body, fontVariant: ["tabular-nums"] },
+  planMacroLabel: { fontFamily: fonts.text, ...type.caption, marginTop: 2 },
+  planSummary: { fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.lg, lineHeight: 19 },
+  planMealKcal: { fontFamily: fonts.bold, ...type.bodySmall, fontVariant: ["tabular-nums"] },
+  planNote: { borderRadius: radius.card, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.md },
+  planNoteHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs },
+  planNoteTitle: { fontFamily: fonts.semibold, ...type.bodySmall },
+  planNoteText: { fontFamily: fonts.text, ...type.bodySmall, lineHeight: 19 },
   macroLegend: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.lg },
   macroChip: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   macroDot: { width: 10, height: 10, borderRadius: 5 },

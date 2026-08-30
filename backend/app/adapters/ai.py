@@ -29,7 +29,7 @@ FOOD_SYSTEM = (
     "Nao diagnostique nem prescreva."
 )
 FOOD_PROMPT = "Analise esta refeicao/bebida e estime os itens e valores nutricionais."
-MAX_TOKENS = 1500
+MAX_TOKENS = 2000
 
 
 def _openai() -> "AsyncOpenAI":

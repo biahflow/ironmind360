@@ -1,3 +1,5 @@
+import { api, setAuthLostHandler } from "@/src/lib/api";
+
 jest.mock("@/src/utils/storage", () => ({
   storage: {
     secureGet: jest.fn(async () => "tok"),
@@ -5,8 +7,6 @@ jest.mock("@/src/utils/storage", () => ({
     secureRemove: jest.fn(async () => undefined),
   },
 }));
-
-import { api, setAuthLostHandler } from "@/src/lib/api";
 
 function jsonRes(body: any, ok = true, status = 200) {
   return { ok, status, text: async () => JSON.stringify(body), json: async () => body };
