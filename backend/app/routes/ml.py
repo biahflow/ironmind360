@@ -5,7 +5,7 @@ adaptador cuida da chamada interna autenticada por token ao serviço ml.
 As rotas de predição (overtraining, anomalias, prova) entram nos blocos 2–4.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from app.adapters.ml import MLClient
@@ -36,3 +36,16 @@ class RetrainIn(BaseModel):
 async def ml_retrain(body: RetrainIn | None = None) -> dict:
     """Dispara retreino sob demanda (somente administrador)."""
     return await ml.retrain(model=body.model if body else "baseline")
+
+
+@router.post(
+    "/overtraining-risk",
+    dependencies=[Depends(rate_limit("ml_overtraining", 30, 60))],
+)
+async def ml_overtraining_risk(
+    as_of: str | None = Query(default=None, description="YYYY-MM-DD; padrão hoje"),
+    user: dict = Depends(current_user),
+) -> dict:
+    """Risco de overtraining do próprio usuário (carga + recuperação subjetiva)."""
+    # Sempre o id do usuário autenticado (ignora qualquer entrada externa) → sem IDOR.
+    return await ml.overtraining_risk(user_id=str(user["_id"]), as_of=as_of)

@@ -42,3 +42,21 @@ def test_factors_explain_each_impact():
     assert result["level"] == "red"
     areas = {f["area"] for f in result["factors"]}
     assert areas >= {"sono", "fadiga", "energia", "humor", "ansiedade", "estresse", "motivação", "qualidade_sono"}
+
+
+def test_high_load_risk_adds_factor_and_penalizes():
+    base = compute_readiness({})["score"]
+    result = compute_readiness({}, None, {"risk_level": "alto"})
+    assert result["score"] == base - 12
+    assert any(f["area"] == "carga" for f in result["factors"])
+
+
+def test_critical_load_risk_penalizes_more():
+    result = compute_readiness({}, None, {"risk_level": "critico"})
+    assert result["score"] == 75
+    assert any(f["area"] == "carga" and f["impact"] == "red" for f in result["factors"])
+
+
+def test_low_load_risk_does_not_change_readiness():
+    assert compute_readiness({}, None, {"risk_level": "baixo"})["score"] == 100
+    assert compute_readiness({}, None, {"risk_level": "indeterminado"})["score"] == 100

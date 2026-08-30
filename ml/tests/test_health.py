@@ -36,8 +36,9 @@ def test_retrain_registers_version(monkeypatch):
 
 
 def test_prediction_stubs_not_implemented():
+    # /overtraining-risk foi implementado no Bloco 2; restam os stubs 501.
     with TestClient(app) as client:
-        for path in ("/overtraining-risk", "/anomalies", "/race-prediction"):
+        for path in ("/anomalies", "/race-prediction"):
             assert client.post(path).status_code == 501
 
 

@@ -9,8 +9,16 @@ from typing import Literal
 ReadinessLevel = Literal["green", "yellow", "red"]
 
 
-def compute_readiness(checkin: dict, pain_entries: list[dict] | None = None) -> dict:
-    """Retorna nível, score numérico (0-100) e fatores explícitos."""
+def compute_readiness(
+    checkin: dict,
+    pain_entries: list[dict] | None = None,
+    load_risk: dict | None = None,
+) -> dict:
+    """Retorna nível, score numérico (0-100) e fatores explícitos.
+
+    ``load_risk`` (opcional) é o resultado do modelo de risco de overtraining;
+    quando alto/crítico, entra como fator e penaliza a prontidão.
+    """
 
     factors: list[dict] = []
     score = 100.0
@@ -71,6 +79,21 @@ def compute_readiness(checkin: dict, pain_entries: list[dict] | None = None) -> 
         elif max_pain >= 4:
             score -= 12
             factors.append({"area": "dor", "impact": "yellow", "detail": f"Dor moderada ({max_pain}/10)."})
+
+    if load_risk:
+        risk_level = load_risk.get("risk_level")
+        if risk_level == "critico":
+            score -= 25
+            factors.append({
+                "area": "carga", "impact": "red",
+                "detail": "Risco de carga crítico — priorize recuperação.",
+            })
+        elif risk_level == "alto":
+            score -= 12
+            factors.append({
+                "area": "carga", "impact": "yellow",
+                "detail": "Risco de carga alto — atenção ao volume.",
+            })
 
     final_score = max(0, min(100, int(score)))
 

@@ -17,7 +17,7 @@ sincronizado).
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from statistics import mean
+from statistics import mean, pstdev
 from typing import Any, Iterable
 
 FEATURE_SCHEMA_VERSION = "1.0.0"
@@ -79,13 +79,23 @@ def compute_acwr(activities: Iterable[dict], as_of: date) -> dict[str, Any]:
     chronic_daily = mean(chronic_series) if chronic_series else 0.0
     acwr = round(acute_daily / chronic_daily, 3) if chronic_daily > 0 else None
 
+    # Monotonia de treino (Foster) = média / desvio-padrão da carga diária (7d).
+    # Alta monotonia (>2) indica pouca variação dia-a-dia, associada a maior
+    # risco. Strain = carga semanal × monotonia.
+    weekly_load = sum(acute_series)
+    std_7d = pstdev(acute_series) if len(acute_series) > 1 else 0.0
+    monotony = round(acute_daily / std_7d, 2) if std_7d > 0 else None
+    strain = round(weekly_load * monotony, 1) if monotony is not None else None
+
     return {
-        "acute_load_7d": round(sum(acute_series), 1),
+        "acute_load_7d": round(weekly_load, 1),
         "chronic_load_28d": round(sum(chronic_series), 1),
         "acute_daily": round(acute_daily, 2),
         "chronic_daily": round(chronic_daily, 2),
         "acwr": acwr,
         "acwr_zone": _acwr_zone(acwr),
+        "monotony": monotony,
+        "strain": strain,
         "active_days_28d": sum(1 for v in chronic_series if v > 0),
     }
 

@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
-from app import cache, db, features, registry
+from app import cache, db, features, registry, risk
 from app.config import settings
 from app.security import require_ml_token
 
@@ -81,18 +81,25 @@ class RetrainIn(BaseModel):
     model: str = "baseline"
 
 
+def _load_risk_config() -> dict:
+    """Config do modelo de risco: versão mais recente no registry ou o default."""
+    meta = registry.load_metadata("overtraining_risk")
+    if meta and isinstance(meta.get("config"), dict):
+        return meta["config"]
+    return risk.DEFAULT_CONFIG
+
+
 @app.post("/retrain", dependencies=[Depends(require_ml_token)])
 async def retrain(body: RetrainIn | None = None) -> dict[str, Any]:
     name = (body.model if body else "baseline") or "baseline"
-    meta = registry.save_model(
-        name,
-        model=None,
-        metadata={
-            "note": "scaffold — modelos reais chegam nos blocos 2-4 da Fase 5",
-            "feature_schema_version": features.FEATURE_SCHEMA_VERSION,
-        },
-        created_at=_now_iso(),
-    )
+    metadata: dict[str, Any] = {"feature_schema_version": features.FEATURE_SCHEMA_VERSION}
+    if name == "overtraining_risk":
+        # Modelo composto: "treinar" = materializar a config atual como versão.
+        metadata["config"] = risk.DEFAULT_CONFIG
+        metadata["note"] = "modelo composto de risco de overtraining (ACWR + monotonia + subjetivo)"
+    else:
+        metadata["note"] = "scaffold — modelos reais chegam nos blocos 2-4 da Fase 5"
+    meta = registry.save_model(name, model=None, metadata=metadata, created_at=_now_iso())
     return {"retrained": True, **meta, "versions": registry.list_versions(name)}
 
 
@@ -101,13 +108,35 @@ async def model_versions(name: str) -> dict[str, Any]:
     return {"model": name, "versions": registry.list_versions(name)}
 
 
-# ── Predições (implementadas nos próximos blocos) ───────────────
-_NOT_IMPL = "Endpoint previsto para um bloco futuro da Fase 5"
+# ── Risco de overtraining (Bloco 2) ─────────────────────────────
+class OvertrainingIn(BaseModel):
+    user_id: str
+    as_of: str | None = None
 
 
 @app.post("/overtraining-risk", dependencies=[Depends(require_ml_token)])
-async def overtraining_risk() -> dict[str, Any]:
-    raise HTTPException(501, _NOT_IMPL)
+async def overtraining_risk(body: OvertrainingIn) -> dict[str, Any]:
+    parsed: date | None = None
+    if body.as_of:
+        try:
+            parsed = date.fromisoformat(body.as_of)
+        except ValueError as exc:
+            raise HTTPException(422, "as_of invalido (use YYYY-MM-DD)") from exc
+
+    cache_key = f"ml:otr:{body.user_id}:{body.as_of or 'today'}"
+    cached = cache.get_json(cache_key)
+    if cached is not None:
+        return {**cached, "cached": True}
+
+    feats = features.load_features(db.get_db(), body.user_id, as_of=parsed)
+    result = risk.compute_overtraining_risk(feats, _load_risk_config())
+    result["source_counts"] = feats.get("source_counts")
+    cache.set_json(cache_key, result)
+    return {**result, "cached": False}
+
+
+# ── Predições (implementadas nos próximos blocos) ───────────────
+_NOT_IMPL = "Endpoint previsto para um bloco futuro da Fase 5"
 
 
 @app.post("/anomalies", dependencies=[Depends(require_ml_token)])

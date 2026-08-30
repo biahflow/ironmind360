@@ -178,6 +178,13 @@ export default function Home() {
           </View>
         </View>
 
+        {/* ── Training Load Risk ── */}
+        {data.overtraining && (
+          <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["2xl"] }}>
+            <TrainingLoadCard risk={data.overtraining} colors={colors} />
+          </View>
+        )}
+
         {/* ── Next Workout ── */}
         {plan && plan.status !== "completed" && (
           <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["2xl"] }}>
@@ -276,6 +283,66 @@ export default function Home() {
 }
 
 /* ── Sub-components ── */
+
+const RISK_META: Record<string, { label: string; key: "success" | "warning" | "error" | "textSecondary" }> = {
+  baixo: { label: "Baixo", key: "success" },
+  moderado: { label: "Moderado", key: "warning" },
+  alto: { label: "Alto", key: "error" },
+  critico: { label: "Crítico", key: "error" },
+  indeterminado: { label: "Sem dados", key: "textSecondary" },
+};
+
+function TrainingLoadCard({ risk, colors }: any) {
+  const meta = RISK_META[risk.risk_level] || RISK_META.indeterminado;
+  const tint = colors[meta.key];
+  const isIndeterminate = risk.risk_level === "indeterminado";
+  return (
+    <View style={[s.loadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={s.loadHeader}>
+        <View style={s.loadTitleRow}>
+          <Ionicons name="pulse-outline" size={18} color={colors.textSecondary} />
+          <Text style={[s.loadTitle, { color: colors.text }]}>Carga de treino</Text>
+        </View>
+        <View style={[s.loadPill, { backgroundColor: tint + "22" }]}>
+          <View style={[s.loadDot, { backgroundColor: tint }]} />
+          <Text style={[s.loadPillText, { color: tint }]}>{meta.label}</Text>
+        </View>
+      </View>
+
+      {isIndeterminate ? (
+        <Text style={[s.loadRec, { color: colors.textSecondary }]}>
+          {risk.recommendation || "Registre treinos para estimar sua carga."}
+        </Text>
+      ) : (
+        <>
+          <View style={s.loadMetrics}>
+            {risk.acwr != null && (
+              <View style={s.loadMetric}>
+                <Text style={[s.loadMetricValue, { color: colors.text }]}>{risk.acwr}</Text>
+                <Text style={[s.loadMetricLabel, { color: colors.textSecondary }]}>ACWR</Text>
+              </View>
+            )}
+            {risk.risk_score != null && (
+              <View style={s.loadMetric}>
+                <Text style={[s.loadMetricValue, { color: colors.text }]}>{risk.risk_score}</Text>
+                <Text style={[s.loadMetricLabel, { color: colors.textSecondary }]}>Score</Text>
+              </View>
+            )}
+            {risk.monotony != null && (
+              <View style={s.loadMetric}>
+                <Text style={[s.loadMetricValue, { color: colors.text }]}>{risk.monotony}</Text>
+                <Text style={[s.loadMetricLabel, { color: colors.textSecondary }]}>Monotonia</Text>
+              </View>
+            )}
+          </View>
+          {risk.recommendation && (
+            <Text style={[s.loadRec, { color: colors.textSecondary }]}>{risk.recommendation}</Text>
+          )}
+        </>
+      )}
+    </View>
+  );
+}
 
 function DailyGoalCard({ icon, label, value, pct, colors, onPlus }: any) {
   return (
@@ -454,6 +521,44 @@ const s = StyleSheet.create({
     marginTop: spacing.sm,
   },
   goalFill: { height: 3, borderRadius: radius.pill },
+
+  // Training load
+  loadCard: {
+    borderRadius: radius.xl,
+    padding: spacing["2xl"],
+    borderWidth: 1,
+  },
+  loadHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  loadTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  loadTitle: { fontFamily: fonts.semibold, ...type.body },
+  loadPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  loadDot: { width: 8, height: 8, borderRadius: 4 },
+  loadPillText: { fontFamily: fonts.semibold, ...type.caption },
+  loadMetrics: { flexDirection: "row", gap: spacing["2xl"], marginTop: spacing.lg },
+  loadMetric: {},
+  loadMetricValue: {
+    fontFamily: fonts.bold,
+    ...type.metric,
+    fontVariant: ["tabular-nums"],
+  },
+  loadMetricLabel: { fontFamily: fonts.medium, ...type.caption, marginTop: 2 },
+  loadRec: {
+    fontFamily: fonts.text,
+    ...type.bodySmall,
+    marginTop: spacing.lg,
+    lineHeight: 20,
+  },
 
   // Workout
   workoutCard: {

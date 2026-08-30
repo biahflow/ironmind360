@@ -3,6 +3,7 @@ from datetime import timedelta
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
+from app.adapters.ml import MLClient
 from app.database import db
 from app.dependencies import current_user
 from app.models import Goals, HabitIn
@@ -14,6 +15,16 @@ from app.utils.time import now_utc, today_str
 
 
 router = APIRouter(tags=["wellness"])
+
+_ml = MLClient()
+
+
+async def _safe_ml_risk(user_id: str) -> dict | None:
+    """Risco de overtraining do serviço ml, fail-open (None se indisponível)."""
+    try:
+        return await _ml.overtraining_risk(user_id=user_id)
+    except Exception:
+        return None
 
 DAILY_CHALLENGES = [
     "Faça 30 minutos de cardio leve e registre como se sentiu.",
@@ -91,8 +102,11 @@ async def get_readiness(date: str | None = Query(None), user: dict = Depends(cur
     checkin = await db.habits.find_one({"user_id": user_id, "date": target_date})
     pain_doc = await db.pain_logs.find_one({"user_id": user_id, "date": target_date})
     pain_entries = (pain_doc or {}).get("entries", [])
-    result = compute_readiness(checkin or {}, pain_entries)
+    load_risk = await _safe_ml_risk(user_id)
+    result = compute_readiness(checkin or {}, pain_entries, load_risk)
     result["date"] = target_date
+    if load_risk:
+        result["overtraining"] = load_risk
     return result
 
 
@@ -335,7 +349,8 @@ async def dashboard(user: dict = Depends(current_user)):
             break
 
     pain_doc = await db.pain_logs.find_one({"user_id": user_id, "date": current_date})
-    readiness = compute_readiness(habits or {}, (pain_doc or {}).get("entries", []))
+    load_risk = await _safe_ml_risk(user_id)
+    readiness = compute_readiness(habits or {}, (pain_doc or {}).get("entries", []), load_risk)
 
     return {
         "date": current_date,
@@ -344,6 +359,7 @@ async def dashboard(user: dict = Depends(current_user)):
             habits, len(meals), workout_today, goals
         ),
         "readiness": readiness,
+        "overtraining": load_risk,
         "streak": streak,
         "daily_challenge": DAILY_CHALLENGES[
             now_utc().timetuple().tm_yday % len(DAILY_CHALLENGES)

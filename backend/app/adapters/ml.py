@@ -48,3 +48,9 @@ class MLClient:
 
     async def retrain(self, *, model: str = "baseline") -> dict:
         return await asyncio.to_thread(self._request, "POST", "/retrain", {"model": model})
+
+    async def overtraining_risk(self, *, user_id: str, as_of: str | None = None) -> dict:
+        payload: dict = {"user_id": user_id}
+        if as_of:
+            payload["as_of"] = as_of
+        return await asyncio.to_thread(self._request, "POST", "/overtraining-risk", payload)
