@@ -22,8 +22,8 @@ export default function Register() {
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    if (!name || !email || password.length < 6) {
-      setError("Nome, email e senha (mín. 6 caracteres) são obrigatórios");
+    if (!name || !email || password.length < 8) {
+      setError("Nome, email e senha (mín. 8 caracteres) são obrigatórios");
       return;
     }
     setBusy(true);
@@ -77,7 +77,7 @@ export default function Register() {
           <Input
             testID="register-password-input"
             icon="lock-closed-outline"
-            placeholder="Senha (mín. 6)"
+            placeholder="Senha (mín. 8)"
             secureTextEntry
             value={password}
             onChangeText={setPassword}
