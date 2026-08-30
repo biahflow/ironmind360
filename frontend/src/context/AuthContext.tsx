@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { storage } from "@/src/utils/storage";
-import { api, REFRESH_TOKEN_KEY, TOKEN_KEY } from "@/src/lib/api";
+import { api, REFRESH_TOKEN_KEY, TOKEN_KEY, setAuthLostHandler } from "@/src/lib/api";
 
 type User = {
   id: string;
@@ -44,6 +44,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    // Quando a API detecta sessão irrecuperável, limpa o usuário (o gate no
+    // layout redireciona para o login).
+    setAuthLostHandler(() => setUser(null));
+    return () => setAuthLostHandler(null);
+  }, []);
 
   const login = async (email: string, password: string) => {
     const res = await api.post("/auth/login", { email, password });

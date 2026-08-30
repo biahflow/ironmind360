@@ -1,4 +1,4 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { LogBox } from "react-native";
@@ -9,14 +9,30 @@ import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
-import { AuthProvider } from "@/src/context/AuthContext";
+import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
+
+// Redireciona ao login sempre que a sessão é perdida (de qualquer tela).
+function useAuthGate() {
+  const { user, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  useEffect(() => {
+    if (loading) return;
+    const top = segments[0];
+    const onAuthScreen = top === "login" || top === "register";
+    if (!user && !onAuthScreen) {
+      router.replace("/login");
+    }
+  }, [user, loading, segments, router]);
+}
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
 
 function ThemedApp() {
   const { colors, isDark } = useTheme();
+  useAuthGate();
 
   return (
     <>

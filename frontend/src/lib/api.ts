@@ -11,6 +11,13 @@ export async function authHeaders(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// Chamado quando a sessão é perdida de forma irrecuperável (refresh falhou).
+// A AuthContext registra um handler para limpar o usuário e redirecionar ao login.
+let authLostHandler: (() => void) | null = null;
+export function setAuthLostHandler(fn: (() => void) | null) {
+  authLostHandler = fn;
+}
+
 async function handle(res: Response) {
   const text = await res.text();
   let body: any = {};
@@ -47,11 +54,16 @@ async function refreshAccessToken(): Promise<boolean> {
 async function request(path: string, init: RequestInit = {}, retry = true): Promise<any> {
   const headers = { ...(init.headers || {}), ...(await authHeaders()) };
   let response = await fetch(`${API_URL}${path}`, { ...init, headers });
-  if (response.status === 401 && retry && path !== "/auth/refresh" && (await refreshAccessToken())) {
-    response = await fetch(`${API_URL}${path}`, {
-      ...init,
-      headers: { ...(init.headers || {}), ...(await authHeaders()) },
-    });
+  if (response.status === 401 && retry && path !== "/auth/refresh") {
+    if (await refreshAccessToken()) {
+      response = await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: { ...(init.headers || {}), ...(await authHeaders()) },
+      });
+    } else if (path !== "/auth/login" && path !== "/auth/register") {
+      // Sessão irrecuperável: sinaliza para limpar estado e ir ao login.
+      authLostHandler?.();
+    }
   }
   return handle(response);
 }
