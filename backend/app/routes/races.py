@@ -127,10 +127,15 @@ DEFAULT_CHECKLIST_ITEMS = [
 ]
 
 
+def _default_checklist() -> list[dict]:
+    # Cópia — nunca retornar/mutar a lista global compartilhada.
+    return [dict(item) for item in DEFAULT_CHECKLIST_ITEMS]
+
+
 @router.get("/{race_id}/checklist")
 async def get_checklist(race_id: str, user: dict = Depends(current_user)):
     doc = await _get_race(race_id, str(user["_id"]))
-    items = doc.get("checklist", DEFAULT_CHECKLIST_ITEMS)
+    items = doc.get("checklist") or _default_checklist()
     return {"checklist": items}
 
 
@@ -152,7 +157,7 @@ async def toggle_checklist_item(
     race_id: str, item_index: int, user: dict = Depends(current_user),
 ):
     doc = await _get_race(race_id, str(user["_id"]))
-    items = doc.get("checklist", DEFAULT_CHECKLIST_ITEMS)
+    items = doc.get("checklist") or _default_checklist()
     if item_index < 0 or item_index >= len(items):
         raise HTTPException(400, "Indice invalido")
     items[item_index]["checked"] = not items[item_index]["checked"]

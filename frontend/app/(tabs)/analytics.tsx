@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, Modal, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
@@ -271,6 +271,7 @@ const PRIORITIES = [
 function RacesTab() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [races, setRaces] = useState<any[]>([]);
   const [adding, setAdding] = useState(false);
@@ -314,7 +315,13 @@ function RacesTab() {
         />
       ) : (
         races.map((r) => (
-          <Card key={r.id}>
+          <Card
+            key={r.id}
+            onPress={() => router.push({
+              pathname: "/race-detail",
+              params: { id: r.id, name: r.name, type: r.race_type, date: r.date },
+            })}
+          >
             <View style={s.raceHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={[s.raceName, { color: colors.text }]}>{r.name}</Text>
@@ -322,6 +329,7 @@ function RacesTab() {
                   {raceTypeLabel[r.race_type] || r.race_type} · {r.date} · Prioridade {r.priority}
                 </Text>
               </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </View>
             {r.retrospective && (
               <View style={s.retroSection}>
