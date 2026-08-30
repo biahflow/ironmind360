@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
-from app import cache, db, features, registry, risk
+from app import anomaly, cache, db, features, registry, risk
 from app.config import settings
 from app.security import require_ml_token
 
@@ -135,13 +135,55 @@ async def overtraining_risk(body: OvertrainingIn) -> dict[str, Any]:
     return {**result, "cached": False}
 
 
-# ── Predições (implementadas nos próximos blocos) ───────────────
-_NOT_IMPL = "Endpoint previsto para um bloco futuro da Fase 5"
+# ── Detecção de anomalias (Bloco 3) ────────────────────────────
+class AnomaliesIn(BaseModel):
+    user_id: str
+    activity_type: str | None = None
+    recent_days: int | None = None
 
 
 @app.post("/anomalies", dependencies=[Depends(require_ml_token)])
-async def anomalies() -> dict[str, Any]:
-    raise HTTPException(501, _NOT_IMPL)
+async def detect_anomalies_endpoint(body: AnomaliesIn) -> dict[str, Any]:
+    cache_key = f"ml:anom:{body.user_id}:{body.activity_type or 'all'}:{body.recent_days or 0}"
+    cached = cache.get_json(cache_key)
+    if cached is not None:
+        return {**cached, "cached": True}
+
+    database = db.get_db()
+    query: dict[str, Any] = {"user_id": body.user_id}
+    if body.activity_type:
+        query["type"] = body.activity_type
+    projection = {
+        "type": 1, "name": 1, "start_date_local": 1, "icu_id": 1,
+        "average_speed": 1, "average_heartrate": 1,
+        "icu_training_load": 1, "moving_time": 1, "distance": 1,
+        "_id": 0,
+    }
+    activities = list(database.activities.find(query, projection))
+    if not activities:
+        return {
+            "model_version": anomaly.ANOMALY_MODEL_VERSION,
+            "types_analyzed": [],
+            "skipped_types": [],
+            "total_activities": 0,
+            "anomalies": [],
+            "anomaly_count": 0,
+            "cached": False,
+        }
+
+    result = anomaly.detect_anomalies(
+        activities,
+        activity_type=body.activity_type,
+        recent_days=body.recent_days,
+    )
+    profile = anomaly.build_athlete_profile(activities)
+    result["profile"] = profile
+    cache.set_json(cache_key, result)
+    return {**result, "cached": False}
+
+
+# ── Predições (implementadas nos próximos blocos) ───────────────
+_NOT_IMPL = "Endpoint previsto para um bloco futuro da Fase 5"
 
 
 @app.post("/race-prediction", dependencies=[Depends(require_ml_token)])

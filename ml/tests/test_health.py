@@ -36,10 +36,9 @@ def test_retrain_registers_version(monkeypatch):
 
 
 def test_prediction_stubs_not_implemented():
-    # /overtraining-risk foi implementado no Bloco 2; restam os stubs 501.
+    # /overtraining-risk (Bloco 2) e /anomalies (Bloco 3) implementados; resta o stub 501.
     with TestClient(app) as client:
-        for path in ("/anomalies", "/race-prediction"):
-            assert client.post(path).status_code == 501
+        assert client.post("/race-prediction").status_code == 501
 
 
 def test_token_guard_blocks_when_configured(monkeypatch):

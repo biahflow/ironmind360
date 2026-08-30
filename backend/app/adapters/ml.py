@@ -54,3 +54,9 @@ class MLClient:
         if as_of:
             payload["as_of"] = as_of
         return await asyncio.to_thread(self._request, "POST", "/overtraining-risk", payload)
+
+    async def anomalies(self, *, user_id: str, activity_type: str | None = None) -> dict:
+        payload: dict = {"user_id": user_id}
+        if activity_type:
+            payload["activity_type"] = activity_type
+        return await asyncio.to_thread(self._request, "POST", "/anomalies", payload)

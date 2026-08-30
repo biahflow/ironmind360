@@ -185,6 +185,13 @@ export default function Home() {
           </View>
         )}
 
+        {/* ── Session Anomalies ── */}
+        {data.anomalies && data.anomalies.anomaly_count > 0 && (
+          <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["2xl"] }}>
+            <AnomalyCard anomalies={data.anomalies} colors={colors} />
+          </View>
+        )}
+
         {/* ── Next Workout ── */}
         {plan && plan.status !== "completed" && (
           <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["2xl"] }}>
@@ -340,6 +347,53 @@ function TrainingLoadCard({ risk, colors }: any) {
           )}
         </>
       )}
+    </View>
+  );
+}
+
+const ANOMALY_CLASS: Record<string, { label: string; icon: string; key: "success" | "warning" | "error" }> = {
+  positiva: { label: "Positiva", icon: "trending-up-outline", key: "success" },
+  negativa: { label: "Negativa", icon: "trending-down-outline", key: "error" },
+  neutra: { label: "Neutra", icon: "swap-horizontal-outline", key: "warning" },
+};
+
+function AnomalyCard({ anomalies, colors }: any) {
+  const items: any[] = anomalies.anomalies || [];
+  const count = items.length;
+  return (
+    <View style={[s.loadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={s.loadHeader}>
+        <View style={s.loadTitleRow}>
+          <Ionicons name="analytics-outline" size={18} color={colors.textSecondary} />
+          <Text style={[s.loadTitle, { color: colors.text }]}>Sessões atípicas</Text>
+        </View>
+        <View style={[s.loadPill, { backgroundColor: colors.warning + "22" }]}>
+          <Text style={[s.loadPillText, { color: colors.warning }]}>{count}</Text>
+        </View>
+      </View>
+      {items.slice(0, 3).map((a: any, i: number) => {
+        const meta = ANOMALY_CLASS[a.classification] || ANOMALY_CLASS.neutra;
+        const tint = colors[meta.key];
+        return (
+          <View
+            key={a.icu_id || i}
+            style={[s.anomalyItem, { borderTopColor: colors.border }]}
+          >
+            <Ionicons name={meta.icon as any} size={16} color={tint} />
+            <View style={s.anomalyContent}>
+              <Text style={[s.anomalyName, { color: colors.text }]} numberOfLines={1}>
+                {a.activity_name || a.activity_type}
+              </Text>
+              <Text style={[s.anomalySummary, { color: colors.textSecondary }]} numberOfLines={2}>
+                {a.summary}
+              </Text>
+            </View>
+            <View style={[s.loadPill, { backgroundColor: tint + "22" }]}>
+              <Text style={[s.loadPillText, { color: tint }]}>{meta.label}</Text>
+            </View>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -558,6 +612,26 @@ const s = StyleSheet.create({
     ...type.bodySmall,
     marginTop: spacing.lg,
     lineHeight: 20,
+  },
+
+  // Anomalies
+  anomalyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingTop: spacing.lg,
+    marginTop: spacing.lg,
+    borderTopWidth: 1,
+  },
+  anomalyContent: { flex: 1 },
+  anomalyName: {
+    fontFamily: fonts.semibold,
+    ...type.bodySmall,
+  },
+  anomalySummary: {
+    fontFamily: fonts.text,
+    ...type.caption,
+    marginTop: 2,
   },
 
   // Workout

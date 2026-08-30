@@ -37,8 +37,32 @@ class TestMLProxy:
         # O demo é semeado com atividades → deve haver ACWR e fatores estruturados.
         assert "factors" in body and isinstance(body["factors"], list)
 
+    def test_anomalies_requires_auth(self, base_url, api_client):
+        r = api_client.post(f"{base_url}/api/v1/ml/anomalies")
+        assert r.status_code == 401
+
+    def test_anomalies_for_demo(self, base_url, api_client, auth_headers):
+        r = api_client.post(f"{base_url}/api/v1/ml/anomalies", headers=auth_headers)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert "anomalies" in body
+        assert isinstance(body["anomalies"], list)
+        assert "model_version" in body
+        assert "types_analyzed" in body
+
+    def test_anomalies_filter_by_type(self, base_url, api_client, auth_headers):
+        r = api_client.post(
+            f"{base_url}/api/v1/ml/anomalies?activity_type=Run",
+            headers=auth_headers,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        for t in body.get("types_analyzed", []):
+            assert t == "Run"
+
     def test_dashboard_includes_overtraining(self, base_url, api_client, auth_headers):
         r = api_client.get(f"{base_url}/api/v1/dashboard", headers=auth_headers)
         assert r.status_code == 200, r.text
-        # Campo presente (pode ser None se o ml estiver fora — fail-open).
-        assert "overtraining" in r.json()
+        body = r.json()
+        assert "overtraining" in body
+        assert "anomalies" in body

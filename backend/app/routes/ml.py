@@ -47,5 +47,19 @@ async def ml_overtraining_risk(
     user: dict = Depends(current_user),
 ) -> dict:
     """Risco de overtraining do próprio usuário (carga + recuperação subjetiva)."""
-    # Sempre o id do usuário autenticado (ignora qualquer entrada externa) → sem IDOR.
     return await ml.overtraining_risk(user_id=str(user["_id"]), as_of=as_of)
+
+
+@router.post(
+    "/anomalies",
+    dependencies=[Depends(rate_limit("ml_anomalies", 20, 60))],
+)
+async def ml_anomalies(
+    activity_type: str | None = Query(default=None, description="Filtrar por tipo"),
+    user: dict = Depends(current_user),
+) -> dict:
+    """Detecção de anomalias nas sessões do próprio usuário."""
+    return await ml.anomalies(
+        user_id=str(user["_id"]),
+        activity_type=activity_type,
+    )
