@@ -9,6 +9,7 @@ import * as Haptics from "expo-haptics";
 import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
+import { exportReportPdf } from "@/src/lib/export-pdf";
 import {
   Screen, ScreenHeader, Card, PillTabs, Overline, EmptyState, LoadingState,
   Input, PrimaryButton, SecondaryButton, layout,
@@ -65,6 +66,8 @@ function OverviewTab() {
   const [correlations, setCorrelations] = useState<any>(null);
   const [loadSeries, setLoadSeries] = useState<{ date: string; value: number }[]>([]);
   const [summary, setSummary] = useState<any>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportErr, setExportErr] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -168,6 +171,20 @@ function OverviewTab() {
           </Text>
         </Card>
       )}
+
+      {exportErr ? <Text style={[s.obsDisclaimer, { color: colors.error, textAlign: "center" }]}>{exportErr}</Text> : null}
+      <SecondaryButton
+        label={exporting ? "Gerando PDF..." : "Exportar relatório (PDF)"}
+        icon="download-outline"
+        color={colors.accent}
+        onPress={async () => {
+          setExporting(true); setExportErr("");
+          try { await exportReportPdf(28); }
+          catch (e: any) { setExportErr(e?.message || "Falha ao exportar."); }
+          finally { setExporting(false); }
+        }}
+        style={{ marginTop: spacing.sm }}
+      />
     </ScrollView>
   );
 }
