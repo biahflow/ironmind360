@@ -10,7 +10,7 @@ import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import MuscleMap from "@/src/components/MuscleMap";
-import { Screen, ScreenHeader, Card, Overline } from "@/src/components/ui";
+import { Screen, ScreenHeader, Card, Overline, Chip } from "@/src/components/ui";
 
 const MUSCLE_LABEL: Record<string, string> = {
   quadriceps: "Quadríceps", hamstrings: "Isquiotibiais", glutes: "Glúteos",
@@ -89,7 +89,7 @@ export default function ExerciseDetail() {
       <ScreenHeader title={exercise.name} onBack={() => router.back()} />
 
       <ScrollView
-        contentContainerStyle={{ padding: spacing["2xl"], paddingTop: spacing.md, paddingBottom: insets.bottom + spacing.xl }}
+        contentContainerStyle={{ padding: spacing.xl, paddingTop: spacing.md, paddingBottom: insets.bottom + spacing.xl }}
         showsVerticalScrollIndicator={false}
       >
         {/* Muscle map illustration */}
@@ -103,16 +103,10 @@ export default function ExerciseDetail() {
 
         {/* Badges */}
         <View style={s.badgeRow}>
-          <View style={[s.badge, { backgroundColor: colors.elevated }]}>
-            <Text style={[s.badgeText, { color: colors.textSecondary }]}>{PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern}</Text>
-          </View>
-          <View style={[s.badge, { backgroundColor: colors.elevated }]}>
-            <Text style={[s.badgeText, { color: colors.textSecondary }]}>{LEVEL_LABEL[exercise.min_level]}</Text>
-          </View>
+          <Chip label={PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern} tone="neutral" />
+          <Chip label={LEVEL_LABEL[exercise.min_level]} tone="neutral" />
           {exercise.equipment.map((eq) => (
-            <View key={eq} style={[s.badge, { backgroundColor: colors.elevated }]}>
-              <Text style={[s.badgeText, { color: colors.textSecondary }]}>{eq}</Text>
-            </View>
+            <Chip key={eq} label={eq} tone="neutral" />
           ))}
         </View>
 
@@ -125,9 +119,7 @@ export default function ExerciseDetail() {
                 <Text style={[s.muscleLabel, { color: colors.textSecondary }]}>Primários</Text>
                 <View style={s.muscleChips}>
                   {exercise.primary_muscles.map((m) => (
-                    <View key={m} style={[s.musclePrimary, { backgroundColor: colors.accentMuted }]}>
-                      <Text style={[s.musclePrimaryText, { color: colors.accent }]}>{MUSCLE_LABEL[m] || m}</Text>
-                    </View>
+                    <Chip key={m} label={MUSCLE_LABEL[m] || m} tone="accent" />
                   ))}
                 </View>
               </View>
@@ -137,9 +129,7 @@ export default function ExerciseDetail() {
                 <Text style={[s.muscleLabel, { color: colors.textSecondary }]}>Secundários</Text>
                 <View style={s.muscleChips}>
                   {exercise.secondary_muscles.map((m) => (
-                    <View key={m} style={[s.muscleSecondary, { backgroundColor: colors.elevated }]}>
-                      <Text style={[s.muscleSecondaryText, { color: colors.textSecondary }]}>{MUSCLE_LABEL[m] || m}</Text>
-                    </View>
+                    <Chip key={m} label={MUSCLE_LABEL[m] || m} tone="neutral" />
                   ))}
                 </View>
               </View>
@@ -202,14 +192,10 @@ const s = StyleSheet.create({
   illustrationArea: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: spacing.lg, marginBottom: spacing.xl, paddingVertical: spacing.xl,
-    borderRadius: radius.xl, borderWidth: 1, minHeight: 200,
+    borderRadius: radius.cardLarge, borderWidth: 1, minHeight: 200,
   },
 
   badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
-  badge: {
-    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
-  },
-  badgeText: { fontFamily: fonts.medium, fontSize: 11, letterSpacing: 0.5 },
 
   section: { marginBottom: spacing["2xl"] },
   sectionTitle: { marginBottom: spacing.md },
@@ -217,14 +203,6 @@ const s = StyleSheet.create({
   muscleRow: {},
   muscleLabel: { fontFamily: fonts.semibold, ...type.bodySmall, marginBottom: spacing.xs },
   muscleChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  musclePrimary: {
-    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
-  },
-  musclePrimaryText: { fontFamily: fonts.semibold, fontSize: 11 },
-  muscleSecondary: {
-    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
-  },
-  muscleSecondaryText: { fontFamily: fonts.medium, fontSize: 11 },
 
   infoCard: {
     flexDirection: "row", gap: spacing.md,

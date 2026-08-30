@@ -184,7 +184,7 @@ export default function Settings() {
       </View>
 
       <KeyboardAwareScrollView
-        contentContainerStyle={{ paddingHorizontal: spacing["2xl"], paddingBottom: insets.bottom + spacing["3xl"] }}
+        contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: insets.bottom + spacing["3xl"] }}
         bottomOffset={20}
         showsVerticalScrollIndicator={false}
       >
@@ -235,11 +235,11 @@ export default function Settings() {
         <View style={[
           s.statusBox,
           {
-            backgroundColor: connected ? "rgba(46,204,113,0.1)" : colors.surface,
+            backgroundColor: connected ? colors.successMuted : colors.surface,
             borderColor: colors.border,
           },
         ]}>
-          <View style={[s.statusIcon, { backgroundColor: connected ? "rgba(46,204,113,0.2)" : "rgba(245,166,35,0.2)" }]}>
+          <View style={[s.statusIcon, { backgroundColor: connected ? colors.successMuted : colors.warningMuted }]}>
             <Ionicons name={connected ? "checkmark-circle" : "alert-circle"} size={18} color={connected ? colors.success : colors.warning} />
           </View>
           <Text style={[s.statusText, { color: colors.text }]}>{connected ? "Conta conectada" : "Não conectado"}</Text>
@@ -330,7 +330,7 @@ export default function Settings() {
                   </Text>
                 </View>
                 <View style={[s.statusIcon, {
-                  backgroundColor: stripeStatus?.charges_enabled ? "rgba(46,204,113,0.2)" : "rgba(245,166,35,0.2)",
+                  backgroundColor: stripeStatus?.charges_enabled ? colors.successMuted : colors.warningMuted,
                 }]}>
                   <Ionicons
                     name={stripeStatus?.charges_enabled ? "checkmark-circle" : "alert-circle"}
@@ -362,7 +362,8 @@ export default function Settings() {
 
         <PrimaryButton
           testID="settings-save-button"
-          label={saved ? "Salvo ✓" : "Salvar"}
+          label={saved ? "Salvo" : "Salvar"}
+          icon={saved ? "checkmark" : undefined}
           onPress={save}
           loading={saving}
           style={s.saveBtn}
@@ -411,7 +412,7 @@ function WearableCard({ label, source, icon, connected, loading, onConnect, onDi
     <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: spacing.md }]}>
       <View style={s.themeInner}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flex: 1 }}>
-          <View style={[s.statusIcon, { backgroundColor: connected ? "rgba(46,204,113,0.2)" : "rgba(245,166,35,0.2)" }]}>
+          <View style={[s.statusIcon, { backgroundColor: connected ? colors.successMuted : colors.warningMuted }]}>
             <Ionicons name={icon} size={18} color={connected ? colors.success : colors.textSecondary} />
           </View>
           <View>
@@ -427,7 +428,7 @@ function WearableCard({ label, source, icon, connected, loading, onConnect, onDi
           style={[
             s.themeChip,
             {
-              backgroundColor: connected ? "rgba(231,76,60,0.1)" : colors.accentMuted,
+              backgroundColor: connected ? colors.errorMuted : colors.accentMuted,
               borderColor: connected ? colors.error : colors.accent,
             },
           ]}
@@ -456,12 +457,12 @@ function WearableMetric({ label, value, date, colors }: any) {
 const s = StyleSheet.create({
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: spacing["2xl"], paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.xl, paddingBottom: spacing.xl,
   },
   title: { fontFamily: fonts.bold, ...type.h1 },
   section: { marginTop: spacing["2xl"], marginBottom: spacing.lg },
 
-  card: { borderRadius: radius.xl, padding: spacing.xl, borderWidth: 1 },
+  card: { borderRadius: radius.card, padding: spacing.xl, borderWidth: 1 },
   themeInner: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
