@@ -95,8 +95,8 @@ export default function Nutrition() {
       setImageHeaders(await authHeaders());
     } catch {}
     try {
-      const pd = await api.get("/nutrition/plan");
-      setPlanTarget(pd?.plan || null);
+      const td = await api.get("/nutrition/today-target");
+      setPlanTarget(td?.calories ? td : null);
     } catch {}
     setLoading(false);
   }, []);
@@ -459,7 +459,7 @@ function RemainingBar({ label, consumed, target, colors }: any) {
 
 function TodayView({ meals, totals, goals, planTarget, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }: any) {
   const target = planTarget
-    ? { calories: planTarget.daily_calories, protein_g: planTarget.protein_g, carbs_g: planTarget.carbs_g, fat_g: planTarget.fat_g }
+    ? { calories: planTarget.calories, protein_g: planTarget.protein_g, carbs_g: planTarget.carbs_g, fat_g: planTarget.fat_g }
     : { calories: goals.calories, protein_g: goals.protein };
   const hasTarget = Number(target.calories) > 0;
   return (
@@ -468,8 +468,16 @@ function TodayView({ meals, totals, goals, planTarget, segments, protG, carbG, f
         <View style={[s.remCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={s.remCardHead}>
             <Text style={[s.remTitle, { color: colors.text }]}>Restante hoje</Text>
-            <Text style={[s.remSource, { color: colors.textSecondary }]}>{planTarget ? "meta do plano" : "sua meta"}</Text>
+            <Text style={[s.remSource, { color: colors.textSecondary }]}>{planTarget?.source === "plano" ? "meta do plano" : "sua meta"}</Text>
           </View>
+          {planTarget?.is_training_day && planTarget?.extra_kcal ? (
+            <View style={[s.trainDayTag, { backgroundColor: colors.accentMuted }]}>
+              <Ionicons name="barbell-outline" size={13} color={colors.accent} />
+              <Text style={[s.trainDayText, { color: colors.accent }]}>
+                Dia de treino · +{planTarget.extra_kcal} kcal (carbo) pela carga
+              </Text>
+            </View>
+          ) : null}
           <RemainingBar label="Calorias" consumed={totals.calories || 0} target={target.calories} colors={colors} />
           <RemainingBar label="Proteína" consumed={protG} target={target.protein_g || 0} colors={colors} />
           {target.carbs_g ? <RemainingBar label="Carbo" consumed={carbG} target={target.carbs_g} colors={colors} /> : null}
@@ -1407,6 +1415,12 @@ const s = StyleSheet.create({
   remValue: { fontFamily: fonts.bold, ...type.bodySmall, fontVariant: ["tabular-nums"] },
   remTarget: { fontFamily: fonts.text, ...type.caption },
   remTrack: { height: 4, borderRadius: 999, overflow: "hidden" },
+  trainDayTag: {
+    flexDirection: "row", alignItems: "center", gap: spacing.xs,
+    alignSelf: "flex-start", paddingHorizontal: spacing.md, paddingVertical: 5,
+    borderRadius: radius.pill, marginBottom: spacing.xs,
+  },
+  trainDayText: { fontFamily: fonts.semibold, ...type.caption },
 
   planDisclaimer: {
     flexDirection: "row", alignItems: "flex-start", gap: spacing.sm,

@@ -353,6 +353,58 @@ async def generate_nutrition_plan(user: dict = Depends(current_user)):
     return {"plan": plan, "modality": ctx["modality"], "generated_at": now, "disclaimer": PLAN_DISCLAIMER}
 
 
+# ── Meta do dia ajustada pela carga de treino ──────────────────
+
+@router.get("/today-target")
+async def today_target(user: dict = Depends(current_user)):
+    user_id = str(user["_id"])
+    today = today_str()
+
+    plan_doc = await db.nutrition_plans.find_one({"user_id": user_id})
+    plan = plan_doc.get("plan") if plan_doc else None
+    if plan:
+        base = {
+            "calories": plan.get("daily_calories") or 0,
+            "protein_g": plan.get("protein_g") or 0,
+            "carbs_g": plan.get("carbs_g") or 0,
+            "fat_g": plan.get("fat_g") or 0,
+        }
+        source = "plano"
+    else:
+        goals = user.get("goals") or Goals().model_dump()
+        base = {
+            "calories": goals.get("calories") or 0,
+            "protein_g": goals.get("protein") or 0,
+            "carbs_g": 0,
+            "fat_g": 0,
+        }
+        source = "metas"
+
+    today_tss = 0
+    async for a in db.activities.find(
+        {"user_id": user_id, "start_date_local": {"$regex": f"^{today}"}},
+        {"icu_training_load": 1},
+    ):
+        today_tss += a.get("icu_training_load") or 0
+    today_tss = round(today_tss)
+
+    is_training_day = today_tss >= 30
+    extra_kcal = min(round(today_tss * 6), 700) if is_training_day else 0
+
+    adjusted = dict(base)
+    adjusted["calories"] = base["calories"] + extra_kcal
+    if base["carbs_g"]:
+        adjusted["carbs_g"] = base["carbs_g"] + round(extra_kcal / 4)
+
+    return {
+        **adjusted,
+        "source": source,
+        "is_training_day": is_training_day,
+        "today_tss": today_tss,
+        "extra_kcal": extra_kcal,
+    }
+
+
 # ── Receitas fit com o que tem em casa (IA) ────────────────────
 
 def _json_from_ai(raw: str) -> dict:
