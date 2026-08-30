@@ -1,47 +1,65 @@
 import React, { useCallback, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator,
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { spacing, radius, fonts, type } from "@/src/theme";
+import ProgressRing from "@/src/components/ProgressRing";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
-import ProgressRing from "@/src/components/ProgressRing";
+import { fonts, radius, spacing, type } from "@/src/theme";
 
 function greetingLabel() {
-  const h = new Date().getHours();
-  if (h < 12) return "Bom dia";
-  if (h < 18) return "Boa tarde";
+  const hour = new Date().getHours();
+  if (hour < 12) return "Bom dia";
+  if (hour < 18) return "Boa tarde";
   return "Boa noite";
+}
+
+function clamp(value: number) {
+  return Math.max(0, Math.min(1, value));
 }
 
 export default function Home() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
   const [data, setData] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const tabBarPad = 64 + insets.bottom + spacing.lg;
 
   const load = useCallback(async () => {
     try {
-      const [d, p] = await Promise.all([
+      const [dashboard, activePlan] = await Promise.all([
         api.get("/dashboard"),
         api.get("/training/active"),
       ]);
-      setData(d);
-      setPlan(p?.plan || null);
-    } catch {}
-    setLoading(false);
+      setData(dashboard);
+      setPlan(activePlan?.plan || null);
+    } catch {
+      // Keep the last successfully loaded state visible.
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -51,370 +69,347 @@ export default function Home() {
 
   const patchHabit = async (patch: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setData((prev: any) => ({ ...prev, ...patch }));
+    setData((previous: any) => ({ ...previous, ...patch }));
+
     try {
       await api.put("/habits", { date: data?.date, ...patch });
       await load();
-    } catch {}
+    } catch {
+      await load();
+    }
   };
 
   if (loading || !data) {
     return (
-      <View style={[s.center, { backgroundColor: colors.bg }]}>
+      <View style={[styles.loading, { backgroundColor: colors.bg }]}>
         <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
 
-  const g = data.goals || {};
-  const water = data.water_ml || 0;
-  const scorePct = (data.discipline_score || 0) / 100;
-  const calPct = Math.min(1, (data.calories || 0) / Math.max(g.calories || 1, 1));
-  const waterPct = Math.min(1, water / Math.max(g.water_ml || 1, 1));
+  const goals = data.goals || {};
+  const score = Number(data.discipline_score || 0);
+  const scoreProgress = clamp(score / 100);
+  const water = Number(data.water_ml || 0);
+  const waterGoal = Math.max(Number(goals.water_ml || 2000), 1);
+  const activeMinutes = Number(data.active_minutes || 0);
+  const activeGoal = Math.max(Number(goals.active_minutes || 30), 1);
+  const calories = Number(data.calories || 0);
+  const caloriesGoal = Math.max(Number(goals.calories || 700), 1);
+  const firstName = String(data.name || "Atleta").split(" ")[0];
+  const weeklyWorkouts = Number(data.weekly_workouts || 0);
+  const weeklyKm = Number(data.weekly_km || 0);
+  const streak = Number(data.streak || 0);
+
+  const motivation =
+    scoreProgress >= 0.8
+      ? "Você está muito perto de fechar um dia excelente."
+      : scoreProgress >= 0.5
+        ? "Um bom dia já está em construção. Continue no ritmo."
+        : "Consistência começa no próximo pequeno passo.";
+
+  const riskLevel = data.overtraining?.risk_level || "indeterminado";
+  const riskCopy: Record<string, string> = {
+    baixo: "Carga estável",
+    moderado: "Atenção à recuperação",
+    alto: "Reduza intensidade",
+    critico: "Priorize descanso",
+    indeterminado: "Mais dados necessários",
+  };
 
   return (
-    <View style={[s.root, { backgroundColor: colors.bg }]}>
-      {/* ── Header ── */}
-      <View style={[s.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable
-          testID="settings-button"
-          onPress={() => router.push("/settings")}
-          style={[s.headerIcon, { borderColor: colors.border }]}
-        >
-          <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
-        </Pressable>
-        <View style={s.headerCenter}>
-          <Text style={[s.greetingText, { color: colors.text }]}>
-            {greetingLabel()}, {(data.name || "Atleta").split(" ")[0]}
-          </Text>
-        </View>
-        <Pressable
-          style={[s.headerIcon, { borderColor: colors.border }]}
-          onPress={() => router.push("/settings")}
-        >
-          <Ionicons name="notifications-outline" size={18} color={colors.textSecondary} />
-        </Pressable>
-      </View>
-
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: tabBarPad }}
+        contentContainerStyle={{
+          paddingTop: insets.top + spacing.lg,
+          paddingBottom: 92 + insets.bottom,
+        }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+          />
         }
       >
-        {/* ── Hero Progress Card ── */}
-        <View style={{ paddingHorizontal: spacing["2xl"] }}>
-          <View
-            style={[s.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            testID="discipline-score-card"
-          >
-            <View style={s.heroContent}>
-              <View style={s.heroLeft}>
-                <Text style={[s.heroLabel, { color: colors.textSecondary }]}>
-                  Seu progresso de hoje
-                </Text>
-                <View style={s.heroScoreRow}>
-                  <Text
-                    style={[s.heroScore, { color: colors.text }]}
-                    testID="discipline-score-value"
-                  >
-                    {data.discipline_score}
-                  </Text>
-                  <Text style={[s.heroPct, { color: colors.accent }]}>%</Text>
-                </View>
-                <Text style={[s.heroMotivation, { color: colors.textSecondary }]}>
-                  {scorePct >= 0.8
-                    ? "Excelente ritmo. Continue assim."
-                    : scorePct >= 0.5
-                      ? "Bom progresso. Quase lá."
-                      : "Cada passo conta. Vamos nessa."}
-                </Text>
-              </View>
-              <ProgressRing
-                size={100}
-                strokeWidth={10}
-                progress={scorePct}
-                color={colors.accent}
-                trackColor={colors.border}
-              />
-            </View>
-            {data.streak > 0 && (
-              <View style={[s.streakRow, { borderTopColor: colors.border }]}>
-                <Ionicons name="flame-outline" size={14} color={colors.accent} />
-                <Text style={[s.streakText, { color: colors.textSecondary }]}>
-                  {data.streak} dias seguidos
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
+        <View style={styles.page}>
+          <View style={styles.header}>
+            <Pressable
+              testID="settings-button"
+              onPress={() => router.push("/settings")}
+              style={[
+                styles.avatar,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Ionicons name="person" size={20} color={colors.text} />
+              <View style={[styles.onlineDot, { backgroundColor: colors.accent }]} />
+            </Pressable>
 
-        {/* ── Daily Goals ── */}
-        <View style={s.goalsSection}>
-          <View style={s.goalRow}>
-            <DailyGoalCard
+            <View style={styles.headerCopy}>
+              <Text style={[styles.eyebrow, { color: colors.textSecondary }]}>
+                {greetingLabel()},
+              </Text>
+              <Text style={[styles.name, { color: colors.text }]}>{firstName}</Text>
+            </View>
+
+            <Pressable
+              onPress={() => router.push("/settings")}
+              style={[
+                styles.iconButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+            >
+              <Ionicons name="notifications-outline" size={21} color={colors.text} />
+              <View style={[styles.notificationDot, { backgroundColor: colors.accent }]} />
+            </Pressable>
+          </View>
+
+          <LinearGradient
+            colors={[colors.surface, colors.elevated]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.hero, { borderColor: colors.border }]}
+          >
+            <View style={styles.heroTopRow}>
+              <View>
+                <Text style={[styles.kicker, { color: colors.accent }]}>IRONMIND SCORE</Text>
+                <Text style={[styles.heroTitle, { color: colors.text }]}>Seu dia, em equilíbrio.</Text>
+              </View>
+              {streak > 0 && (
+                <View style={[styles.streakBadge, { backgroundColor: colors.accentMuted }]}> 
+                  <Ionicons name="flame" size={14} color={colors.accent} />
+                  <Text style={[styles.streakText, { color: colors.accent }]}>{streak} dias</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.heroMain}>
+              <View style={styles.ringWrap} testID="discipline-score-card">
+                <ProgressRing
+                  size={154}
+                  strokeWidth={12}
+                  progress={scoreProgress}
+                  color={colors.accent}
+                  trackColor={colors.border}
+                />
+                <View style={styles.ringCenter} pointerEvents="none">
+                  <Text style={[styles.score, { color: colors.text }]} testID="discipline-score-value">
+                    {Math.round(score)}
+                    <Text style={[styles.scorePercent, { color: colors.text }]}>%</Text>
+                  </Text>
+                  <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>meta diária</Text>
+                </View>
+              </View>
+
+              <View style={styles.heroMessage}>
+                <Text style={[styles.motivation, { color: colors.text }]}>{motivation}</Text>
+                <View style={styles.primaryGoalRow}>
+                  <View style={[styles.goalIcon, { backgroundColor: colors.accentMuted }]}> 
+                    <Ionicons name="navigate" size={18} color={colors.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.miniLabel, { color: colors.accent }]}>FOCO DE HOJE</Text>
+                    <Text style={[styles.primaryGoal, { color: colors.text }]}>Mover com intenção</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <View style={[styles.weekStrip, { borderTopColor: colors.border }]}> 
+              {[
+                ["S", false],
+                ["T", false],
+                ["Q", false],
+                ["Q", true],
+                ["S", false],
+                ["S", false],
+                ["D", false],
+              ].map(([label, active], index) => (
+                <View
+                  key={`${label}-${index}`}
+                  style={[
+                    styles.dayBubble,
+                    active && { backgroundColor: colors.accent },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dayLabel,
+                      { color: active ? colors.onAccent : colors.textSecondary },
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </LinearGradient>
+
+          <SectionHeader title="Metas de hoje" action="Editar" colors={colors} />
+          <View style={styles.metricsRow}>
+            <MetricCard
               icon="water-outline"
               label="Água"
               value={`${(water / 1000).toFixed(1)}L`}
-              pct={waterPct}
+              sub={`de ${(waterGoal / 1000).toFixed(1)}L`}
+              progress={clamp(water / waterGoal)}
               colors={colors}
-              onPlus={() => patchHabit({ water_ml: water + 250 })}
+              onPress={() => patchHabit({ water_ml: water + 250 })}
             />
-            <DailyGoalCard
-              icon="time-outline"
-              label="Minutos ativos"
-              value={`${Math.round(data.active_minutes || 0)}`}
-              pct={Math.min(1, (data.active_minutes || 0) / Math.max(g.active_minutes || 30, 1))}
+            <MetricCard
+              icon="timer-outline"
+              label="Ativo"
+              value={`${Math.round(activeMinutes)}`}
+              sub={`de ${Math.round(activeGoal)} min`}
+              progress={clamp(activeMinutes / activeGoal)}
               colors={colors}
             />
-            <DailyGoalCard
+            <MetricCard
               icon="flame-outline"
               label="Calorias"
-              value={`${Math.round(data.calories || 0)}`}
-              pct={calPct}
+              value={`${Math.round(calories)}`}
+              sub={`de ${Math.round(caloriesGoal)}`}
+              progress={clamp(calories / caloriesGoal)}
               colors={colors}
             />
           </View>
-        </View>
 
-        {/* ── Training Load Risk ── */}
-        {data.overtraining && (
-          <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["2xl"] }}>
-            <TrainingLoadCard risk={data.overtraining} colors={colors} />
-          </View>
-        )}
+          {plan && plan.status !== "completed" && (
+            <>
+              <SectionHeader title="Próximo treino" colors={colors} />
+              <Pressable testID="training-plan-card" onPress={() => router.push("/session")}> 
+                <LinearGradient
+                  colors={[colors.elevated, colors.surface]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.workoutCard, { borderColor: colors.border }]}
+                >
+                  <View style={styles.workoutTop}>
+                    <View style={[styles.workoutIcon, { backgroundColor: colors.accentMuted }]}> 
+                      <Ionicons name="fitness-outline" size={24} color={colors.accent} />
+                    </View>
+                    <View style={styles.workoutCopy}>
+                      <Text style={[styles.miniLabel, { color: colors.accent }]}>TREINO RECOMENDADO</Text>
+                      <Text style={[styles.workoutTitle, { color: colors.text }]} numberOfLines={1}>
+                        {plan.program_name || "Sessão programada"}
+                      </Text>
+                      <Text style={[styles.workoutMeta, { color: colors.textSecondary }]}> 
+                        Sessão {plan.current_session} de {plan.total_sessions}
+                      </Text>
+                    </View>
+                    <View style={[styles.playButton, { backgroundColor: colors.accent }]}> 
+                      <Ionicons name="play" size={20} color={colors.onAccent} />
+                    </View>
+                  </View>
+                  <View style={[styles.workoutFooter, { borderTopColor: colors.border }]}> 
+                    <View style={styles.workoutFooterItem}>
+                      <Ionicons name="sparkles-outline" size={15} color={colors.textSecondary} />
+                      <Text style={[styles.workoutFooterText, { color: colors.textSecondary }]}>Adaptado ao seu momento</Text>
+                    </View>
+                    <Ionicons name="arrow-forward" size={17} color={colors.accent} />
+                  </View>
+                </LinearGradient>
+              </Pressable>
+            </>
+          )}
 
-        {/* ── Session Anomalies ── */}
-        {data.anomalies && data.anomalies.anomaly_count > 0 && (
-          <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["2xl"] }}>
-            <AnomalyCard anomalies={data.anomalies} colors={colors} />
-          </View>
-        )}
-
-        {/* ── Next Workout ── */}
-        {plan && plan.status !== "completed" && (
-          <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["2xl"] }}>
-            <Pressable
-              testID="training-plan-card"
-              style={[s.workoutCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => router.push("/session")}
-            >
-              <View style={s.workoutLeft}>
-                <Text style={[s.workoutKicker, { color: colors.textSecondary }]}>
-                  PRÓXIMO TREINO
-                </Text>
-                <Text style={[s.workoutName, { color: colors.text }]} numberOfLines={1}>
-                  {plan.program_name}
-                </Text>
-                <Text style={[s.workoutMeta, { color: colors.textSecondary }]}>
-                  Sessão {plan.current_session} de {plan.total_sessions}
-                </Text>
-              </View>
-              <View style={[s.workoutPlayBtn, { backgroundColor: colors.accent }]}>
-                <Ionicons name="play" size={18} color={colors.onAccent} />
-              </View>
-            </Pressable>
-          </View>
-        )}
-
-        {/* ── Explore / Editorial ── */}
-        <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["3xl"] }}>
-          <Text style={[s.sectionTitle, { color: colors.text }]}>Explorar</Text>
-          <View style={s.exploreGrid}>
-            <ExploreCard
-              title="Dica de nutrição"
-              subtitle={data.daily_challenge || "Alimente seu treino"}
+          <SectionHeader title="Seu momento" colors={colors} />
+          <View style={styles.insightGrid}>
+            <InsightCard
+              icon="pulse-outline"
+              label="Carga de treino"
+              value={riskCopy[riskLevel] || riskCopy.indeterminado}
+              supporting={data.overtraining?.recommendation || "Acompanhando sua resposta aos treinos."}
               colors={colors}
-              icon="nutrition-outline"
             />
-            <ExploreCard
-              title="Esta semana"
-              subtitle={`${data.weekly_workouts || 0} sessões · ${data.weekly_km || 0} km`}
+            <InsightCard
+              icon="analytics-outline"
+              label="Esta semana"
+              value={`${weeklyWorkouts} sessões`}
+              supporting={`${weeklyKm.toFixed(1)} km acumulados`}
               colors={colors}
-              icon="stats-chart-outline"
             />
           </View>
-        </View>
 
-        {/* ── Habits ── */}
-        <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["3xl"] }}>
-          <Text style={[s.sectionTitle, { color: colors.text }]}>Hábitos</Text>
-          <View style={s.habitRow}>
-            <HabitPill
-              testID="toggle-meditate"
+          <SectionHeader title="Pequenos hábitos" colors={colors} />
+          <View style={styles.habitRow}>
+            <HabitButton
               icon="leaf-outline"
               label="Meditar"
-              active={data.meditate}
-              onPress={() => patchHabit({ meditate: !data.meditate })}
+              active={Boolean(data.meditate)}
               colors={colors}
+              onPress={() => patchHabit({ meditate: !data.meditate })}
+              testID="toggle-meditate"
             />
-            <HabitPill
-              testID="toggle-read"
+            <HabitButton
               icon="book-outline"
               label="Ler"
-              active={data.read}
-              onPress={() => patchHabit({ read: !data.read })}
+              active={Boolean(data.read)}
               colors={colors}
+              onPress={() => patchHabit({ read: !data.read })}
+              testID="toggle-read"
             />
-            <HabitPill
-              testID="toggle-cold"
+            <HabitButton
               icon="snow-outline"
               label="Gelado"
-              active={data.cold_shower}
-              onPress={() => patchHabit({ cold_shower: !data.cold_shower })}
+              active={Boolean(data.cold_shower)}
               colors={colors}
+              onPress={() => patchHabit({ cold_shower: !data.cold_shower })}
+              testID="toggle-cold"
             />
           </View>
-        </View>
 
-        {/* ── Connect CTA ── */}
-        {!data.intervals_connected && (
-          <View style={{ paddingHorizontal: spacing["2xl"], marginTop: spacing["2xl"] }}>
+          {!data.intervals_connected && (
             <Pressable
               testID="connect-intervals-cta"
-              style={[s.connectCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={() => router.push("/settings")}
+              style={[styles.connectCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
             >
-              <Ionicons name="link-outline" size={16} color={colors.textSecondary} />
-              <Text style={[s.connectText, { color: colors.textSecondary }]}>
-                Conectar intervals.icu
-              </Text>
-              <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+              <View style={[styles.connectIcon, { backgroundColor: colors.accentMuted }]}> 
+                <Ionicons name="link-outline" size={19} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.connectTitle, { color: colors.text }]}>Conecte seu treino real</Text>
+                <Text style={[styles.connectSubtitle, { color: colors.textSecondary }]}>intervals.icu deixa seu painel ainda mais inteligente.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </Pressable>
-          </View>
-        )}
+          )}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-/* ── Sub-components ── */
-
-const RISK_META: Record<string, { label: string; key: "success" | "warning" | "error" | "textSecondary" }> = {
-  baixo: { label: "Baixo", key: "success" },
-  moderado: { label: "Moderado", key: "warning" },
-  alto: { label: "Alto", key: "error" },
-  critico: { label: "Crítico", key: "error" },
-  indeterminado: { label: "Sem dados", key: "textSecondary" },
-};
-
-function TrainingLoadCard({ risk, colors }: any) {
-  const meta = RISK_META[risk.risk_level] || RISK_META.indeterminado;
-  const tint = colors[meta.key];
-  const isIndeterminate = risk.risk_level === "indeterminado";
+function SectionHeader({ title, action, colors }: any) {
   return (
-    <View style={[s.loadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={s.loadHeader}>
-        <View style={s.loadTitleRow}>
-          <Ionicons name="pulse-outline" size={18} color={colors.textSecondary} />
-          <Text style={[s.loadTitle, { color: colors.text }]}>Carga de treino</Text>
-        </View>
-        <View style={[s.loadPill, { backgroundColor: tint + "22" }]}>
-          <View style={[s.loadDot, { backgroundColor: tint }]} />
-          <Text style={[s.loadPillText, { color: tint }]}>{meta.label}</Text>
-        </View>
-      </View>
-
-      {isIndeterminate ? (
-        <Text style={[s.loadRec, { color: colors.textSecondary }]}>
-          {risk.recommendation || "Registre treinos para estimar sua carga."}
-        </Text>
-      ) : (
-        <>
-          <View style={s.loadMetrics}>
-            {risk.acwr != null && (
-              <View style={s.loadMetric}>
-                <Text style={[s.loadMetricValue, { color: colors.text }]}>{risk.acwr}</Text>
-                <Text style={[s.loadMetricLabel, { color: colors.textSecondary }]}>ACWR</Text>
-              </View>
-            )}
-            {risk.risk_score != null && (
-              <View style={s.loadMetric}>
-                <Text style={[s.loadMetricValue, { color: colors.text }]}>{risk.risk_score}</Text>
-                <Text style={[s.loadMetricLabel, { color: colors.textSecondary }]}>Score</Text>
-              </View>
-            )}
-            {risk.monotony != null && (
-              <View style={s.loadMetric}>
-                <Text style={[s.loadMetricValue, { color: colors.text }]}>{risk.monotony}</Text>
-                <Text style={[s.loadMetricLabel, { color: colors.textSecondary }]}>Monotonia</Text>
-              </View>
-            )}
-          </View>
-          {risk.recommendation && (
-            <Text style={[s.loadRec, { color: colors.textSecondary }]}>{risk.recommendation}</Text>
-          )}
-        </>
-      )}
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+      {action ? <Text style={[styles.sectionAction, { color: colors.accent }]}>{action}</Text> : null}
     </View>
   );
 }
 
-const ANOMALY_CLASS: Record<string, { label: string; icon: string; key: "success" | "warning" | "error" }> = {
-  positiva: { label: "Positiva", icon: "trending-up-outline", key: "success" },
-  negativa: { label: "Negativa", icon: "trending-down-outline", key: "error" },
-  neutra: { label: "Neutra", icon: "swap-horizontal-outline", key: "warning" },
-};
-
-function AnomalyCard({ anomalies, colors }: any) {
-  const items: any[] = anomalies.anomalies || [];
-  const count = items.length;
-  return (
-    <View style={[s.loadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={s.loadHeader}>
-        <View style={s.loadTitleRow}>
-          <Ionicons name="analytics-outline" size={18} color={colors.textSecondary} />
-          <Text style={[s.loadTitle, { color: colors.text }]}>Sessões atípicas</Text>
-        </View>
-        <View style={[s.loadPill, { backgroundColor: colors.warning + "22" }]}>
-          <Text style={[s.loadPillText, { color: colors.warning }]}>{count}</Text>
-        </View>
-      </View>
-      {items.slice(0, 3).map((a: any, i: number) => {
-        const meta = ANOMALY_CLASS[a.classification] || ANOMALY_CLASS.neutra;
-        const tint = colors[meta.key];
-        return (
-          <View
-            key={a.icu_id || i}
-            style={[s.anomalyItem, { borderTopColor: colors.border }]}
-          >
-            <Ionicons name={meta.icon as any} size={16} color={tint} />
-            <View style={s.anomalyContent}>
-              <Text style={[s.anomalyName, { color: colors.text }]} numberOfLines={1}>
-                {a.activity_name || a.activity_type}
-              </Text>
-              <Text style={[s.anomalySummary, { color: colors.textSecondary }]} numberOfLines={2}>
-                {a.summary}
-              </Text>
-            </View>
-            <View style={[s.loadPill, { backgroundColor: tint + "22" }]}>
-              <Text style={[s.loadPillText, { color: tint }]}>{meta.label}</Text>
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-function DailyGoalCard({ icon, label, value, pct, colors, onPlus }: any) {
+function MetricCard({ icon, label, value, sub, progress, colors, onPress }: any) {
   return (
     <Pressable
-      style={[s.goalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-      onPress={onPlus}
+      onPress={onPress}
+      disabled={!onPress}
+      style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
     >
-      <Ionicons name={icon} size={18} color={colors.textSecondary} />
-      <Text style={[s.goalValue, { color: colors.text }]}>{value}</Text>
-      <Text style={[s.goalLabel, { color: colors.textSecondary }]}>{label}</Text>
-      <View style={[s.goalTrack, { backgroundColor: colors.border }]}>
+      <View style={[styles.metricIcon, { backgroundColor: colors.elevated }]}> 
+        <Ionicons name={icon} size={19} color={colors.accent} />
+      </View>
+      <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[styles.metricValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[styles.metricSub, { color: colors.textSecondary }]}>{sub}</Text>
+      <View style={[styles.progressTrack, { backgroundColor: colors.border }]}> 
         <View
           style={[
-            s.goalFill,
-            {
-              width: `${Math.round(Math.min(pct, 1) * 100)}%`,
-              backgroundColor: pct >= 1 ? colors.accent : colors.textSecondary,
-            },
+            styles.progressFill,
+            { width: `${Math.round(progress * 100)}%`, backgroundColor: colors.accent },
           ]}
         />
       </View>
@@ -422,27 +417,31 @@ function DailyGoalCard({ icon, label, value, pct, colors, onPlus }: any) {
   );
 }
 
-function ExploreCard({ title, subtitle, colors, icon }: any) {
+function InsightCard({ icon, label, value, supporting, colors }: any) {
   return (
-    <View style={[s.exploreCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={[s.exploreIconWrap, { backgroundColor: colors.elevated }]}>
-        <Ionicons name={icon} size={20} color={colors.textSecondary} />
+    <View style={[styles.insightCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+      <View style={styles.insightHeader}>
+        <View style={[styles.insightIcon, { backgroundColor: colors.elevated }]}> 
+          <Ionicons name={icon} size={18} color={colors.textSecondary} />
+        </View>
+        <Ionicons name="arrow-up-outline" size={16} color={colors.accent} />
       </View>
-      <Text style={[s.exploreTitle, { color: colors.text }]}>{title}</Text>
-      <Text style={[s.exploreSub, { color: colors.textSecondary }]} numberOfLines={2}>
-        {subtitle}
+      <Text style={[styles.insightLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <Text style={[styles.insightValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[styles.insightSupporting, { color: colors.textSecondary }]} numberOfLines={2}>
+        {supporting}
       </Text>
     </View>
   );
 }
 
-function HabitPill({ testID, icon, label, active, onPress, colors }: any) {
+function HabitButton({ icon, label, active, colors, onPress, testID }: any) {
   return (
     <Pressable
       testID={testID}
       onPress={onPress}
       style={[
-        s.habitChip,
+        styles.habitButton,
         {
           backgroundColor: active ? colors.accent : colors.surface,
           borderColor: active ? colors.accent : colors.border,
@@ -451,12 +450,12 @@ function HabitPill({ testID, icon, label, active, onPress, colors }: any) {
     >
       <Ionicons
         name={active ? icon.replace("-outline", "") : icon}
-        size={18}
+        size={19}
         color={active ? colors.onAccent : colors.textSecondary}
       />
       <Text
         style={[
-          s.habitLabel,
+          styles.habitText,
           { color: active ? colors.onAccent : colors.textSecondary },
         ]}
       >
@@ -466,269 +465,281 @@ function HabitPill({ testID, icon, label, active, onPress, colors }: any) {
   );
 }
 
-/* ── Styles ── */
-
-const s = StyleSheet.create({
+const styles = StyleSheet.create({
   root: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  loading: { flex: 1, alignItems: "center", justifyContent: "center" },
+  page: { paddingHorizontal: spacing.xl },
 
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing["2xl"],
-    paddingBottom: spacing.xl,
+    marginBottom: spacing.xl,
   },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerCenter: { flex: 1, alignItems: "center" },
-  greetingText: {
-    fontFamily: fonts.semibold,
-    ...type.body,
+  onlineDot: {
+    position: "absolute",
+    right: -1,
+    bottom: 2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: "#101011",
   },
-
-  // Hero
-  heroCard: {
-    borderRadius: radius.xl,
-    padding: spacing["2xl"],
-    borderWidth: 1,
-  },
-  heroContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  heroLeft: { flex: 1, marginRight: spacing.lg },
-  heroLabel: {
-    fontFamily: fonts.medium,
-    ...type.bodySmall,
-  },
-  heroScoreRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    marginTop: spacing.sm,
-  },
-  heroScore: {
-    fontFamily: fonts.bold,
-    fontSize: 56,
-    lineHeight: 60,
-    fontVariant: ["tabular-nums"],
-  },
-  heroPct: {
-    fontFamily: fonts.bold,
-    ...type.h2,
-    marginBottom: 8,
-    marginLeft: 2,
-  },
-  heroMotivation: {
-    fontFamily: fonts.text,
-    ...type.bodySmall,
-    marginTop: spacing.sm,
-  },
-  streakRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginTop: spacing.xl,
-    paddingTop: spacing.lg,
-    borderTopWidth: 1,
-  },
-  streakText: {
-    fontFamily: fonts.medium,
-    ...type.bodySmall,
-  },
-
-  // Goals
-  goalsSection: {
-    paddingHorizontal: spacing["2xl"],
-    marginTop: spacing["2xl"],
-  },
-  goalRow: { flexDirection: "row", gap: spacing.md },
-  goalCard: {
-    flex: 1,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    gap: spacing.xs,
-  },
-  goalValue: {
-    fontFamily: fonts.bold,
-    ...type.metric,
-    fontVariant: ["tabular-nums"],
-    marginTop: spacing.sm,
-  },
-  goalLabel: {
-    fontFamily: fonts.medium,
-    ...type.caption,
-  },
-  goalTrack: {
-    height: 3,
-    borderRadius: radius.pill,
-    width: "100%",
-    overflow: "hidden",
-    marginTop: spacing.sm,
-  },
-  goalFill: { height: 3, borderRadius: radius.pill },
-
-  // Training load
-  loadCard: {
-    borderRadius: radius.xl,
-    padding: spacing["2xl"],
-    borderWidth: 1,
-  },
-  loadHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  loadTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  loadTitle: { fontFamily: fonts.semibold, ...type.body },
-  loadPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  loadDot: { width: 8, height: 8, borderRadius: 4 },
-  loadPillText: { fontFamily: fonts.semibold, ...type.caption },
-  loadMetrics: { flexDirection: "row", gap: spacing["2xl"], marginTop: spacing.lg },
-  loadMetric: {},
-  loadMetricValue: {
-    fontFamily: fonts.bold,
-    ...type.metric,
-    fontVariant: ["tabular-nums"],
-  },
-  loadMetricLabel: { fontFamily: fonts.medium, ...type.caption, marginTop: 2 },
-  loadRec: {
-    fontFamily: fonts.text,
-    ...type.bodySmall,
-    marginTop: spacing.lg,
-    lineHeight: 20,
-  },
-
-  // Anomalies
-  anomalyItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingTop: spacing.lg,
-    marginTop: spacing.lg,
-    borderTopWidth: 1,
-  },
-  anomalyContent: { flex: 1 },
-  anomalyName: {
-    fontFamily: fonts.semibold,
-    ...type.bodySmall,
-  },
-  anomalySummary: {
-    fontFamily: fonts.text,
-    ...type.caption,
-    marginTop: 2,
-  },
-
-  // Workout
-  workoutCard: {
-    borderRadius: radius.xl,
-    padding: spacing["2xl"],
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  workoutLeft: { flex: 1 },
-  workoutKicker: {
-    fontFamily: fonts.semibold,
-    ...type.caption,
-    letterSpacing: 1.5,
-  },
-  workoutName: {
-    fontFamily: fonts.bold,
-    ...type.h2,
-    marginTop: spacing.xs,
-  },
-  workoutMeta: {
-    fontFamily: fonts.text,
-    ...type.bodySmall,
-    marginTop: spacing.xs,
-  },
-  workoutPlayBtn: {
+  headerCopy: { flex: 1, marginLeft: spacing.md },
+  eyebrow: { fontFamily: fonts.text, ...type.bodySmall },
+  name: { fontFamily: fonts.bold, fontSize: 28, lineHeight: 31, marginTop: -1 },
+  iconButton: {
     width: 44,
     height: 44,
-    borderRadius: radius.pill,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  // Section title
-  sectionTitle: {
-    fontFamily: fonts.bold,
-    ...type.h2,
-    marginBottom: spacing.lg,
-  },
-
-  // Explore
-  exploreGrid: { flexDirection: "row", gap: spacing.md },
-  exploreCard: {
-    flex: 1,
-    borderRadius: radius.lg,
-    padding: spacing.xl,
+    borderRadius: 22,
     borderWidth: 1,
-  },
-  exploreIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.lg,
   },
-  exploreTitle: {
+  notificationDot: {
+    position: "absolute",
+    top: 9,
+    right: 8,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+
+  hero: {
+    borderRadius: 28,
+    borderWidth: 1,
+    padding: spacing.xl,
+    overflow: "hidden",
+  },
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  kicker: {
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 1.5,
+  },
+  heroTitle: {
     fontFamily: fonts.semibold,
-    ...type.body,
-  },
-  exploreSub: {
-    fontFamily: fonts.text,
-    ...type.bodySmall,
+    fontSize: 20,
+    lineHeight: 26,
     marginTop: spacing.xs,
   },
+  streakBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+  },
+  streakText: { fontFamily: fonts.semibold, ...type.caption },
+  heroMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: spacing.xl,
+    gap: spacing.xl,
+  },
+  ringWrap: {
+    width: 154,
+    height: 154,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ringCenter: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  score: {
+    fontFamily: fonts.bold,
+    fontSize: 40,
+    lineHeight: 44,
+    fontVariant: ["tabular-nums"],
+  },
+  scorePercent: { fontSize: 22, lineHeight: 26 },
+  scoreLabel: { fontFamily: fonts.medium, ...type.caption, marginTop: 2 },
+  heroMessage: { flex: 1 },
+  motivation: { fontFamily: fonts.semibold, fontSize: 17, lineHeight: 23 },
+  primaryGoalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: spacing.xl,
+    gap: spacing.md,
+  },
+  goalIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  miniLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 1.15,
+  },
+  primaryGoal: { fontFamily: fonts.semibold, ...type.bodySmall, marginTop: 2 },
+  weekStrip: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 1,
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+  },
+  dayBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayLabel: { fontFamily: fonts.semibold, ...type.caption },
 
-  // Habits
-  habitRow: { flexDirection: "row", gap: spacing.md },
-  habitChip: {
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing["3xl"],
+    marginBottom: spacing.md,
+  },
+  sectionTitle: { fontFamily: fonts.bold, fontSize: 20, lineHeight: 25 },
+  sectionAction: { fontFamily: fonts.semibold, ...type.bodySmall },
+
+  metricsRow: { flexDirection: "row", gap: spacing.sm },
+  metricCard: {
     flex: 1,
+    minHeight: 156,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: spacing.md,
+  },
+  metricIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  metricLabel: { fontFamily: fonts.medium, ...type.caption },
+  metricValue: {
+    fontFamily: fonts.bold,
+    fontSize: 23,
+    lineHeight: 27,
+    marginTop: 3,
+    fontVariant: ["tabular-nums"],
+  },
+  metricSub: { fontFamily: fonts.text, fontSize: 10, lineHeight: 14, marginTop: 1 },
+  progressTrack: {
+    height: 4,
+    borderRadius: radius.pill,
+    overflow: "hidden",
+    marginTop: "auto",
+  },
+  progressFill: { height: 4, borderRadius: radius.pill },
+
+  workoutCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: spacing.lg,
+  },
+  workoutTop: { flexDirection: "row", alignItems: "center" },
+  workoutIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workoutCopy: { flex: 1, marginLeft: spacing.md, marginRight: spacing.md },
+  workoutTitle: { fontFamily: fonts.bold, ...type.body, marginTop: 3 },
+  workoutMeta: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
+  playButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workoutFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    paddingTop: spacing.md,
+    marginTop: spacing.lg,
+  },
+  workoutFooterItem: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1 },
+  workoutFooterText: { fontFamily: fonts.medium, ...type.caption },
+
+  insightGrid: { flexDirection: "row", gap: spacing.md },
+  insightCard: {
+    flex: 1,
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: spacing.lg,
+    minHeight: 172,
+  },
+  insightHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  insightIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  insightLabel: { fontFamily: fonts.medium, ...type.caption, marginTop: spacing.lg },
+  insightValue: { fontFamily: fonts.bold, ...type.body, marginTop: spacing.xs },
+  insightSupporting: { fontFamily: fonts.text, ...type.caption, marginTop: spacing.sm },
+
+  habitRow: { flexDirection: "row", gap: spacing.sm },
+  habitButton: {
+    flex: 1,
+    height: 58,
+    borderRadius: 18,
+    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
-    paddingVertical: spacing.lg,
-    borderRadius: radius.lg,
-    borderWidth: 1,
   },
-  habitLabel: {
-    fontFamily: fonts.semibold,
-    ...type.bodySmall,
-  },
+  habitText: { fontFamily: fonts.semibold, ...type.bodySmall },
 
-  // Connect
   connectCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    borderRadius: radius.lg,
+    borderRadius: 22,
     borderWidth: 1,
+    padding: spacing.lg,
+    marginTop: spacing["3xl"],
   },
-  connectText: {
-    flex: 1,
-    fontFamily: fonts.medium,
-    ...type.bodySmall,
+  connectIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
+  connectTitle: { fontFamily: fonts.semibold, ...type.bodySmall },
+  connectSubtitle: { fontFamily: fonts.text, ...type.caption, marginTop: 2, lineHeight: 16 },
 });
