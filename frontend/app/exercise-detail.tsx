@@ -44,6 +44,19 @@ const PATTERN_LABEL: Record<string, string> = {
   mobility: "Mobilidade", warmup: "Aquecimento",
 };
 
+// Placeholder visual por padrão de movimento até termos mídia real por
+// exercício (ver referência Hevy). Cada padrão ganha um ícone consistente.
+type IconName = keyof typeof Ionicons.glyphMap;
+const PATTERN_ICON: Record<string, IconName> = {
+  squat: "barbell", hinge: "body", lunge: "walk",
+  push_horizontal: "arrow-forward-circle", push_vertical: "arrow-up-circle",
+  pull_horizontal: "arrow-back-circle", pull_vertical: "arrow-down-circle",
+  anti_rotation: "sync-circle", anti_extension: "shield",
+  anti_lateral_flexion: "shield-half",
+  carry: "briefcase", calf: "footsteps", hip_stability: "accessibility",
+  mobility: "refresh-circle", warmup: "flame",
+};
+
 type Exercise = {
   id: string;
   name: string;
@@ -108,13 +121,29 @@ export default function ExerciseDetail() {
         contentContainerStyle={{ padding: spacing.xl, paddingTop: spacing.md, paddingBottom: insets.bottom + spacing.xl }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Muscle map illustration */}
+        {/* Placeholder visual por padrão de movimento + mapa muscular */}
         <View style={[s.illustrationArea, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <MuscleMap
-            primary={exercise.primary_muscles as any[]}
-            secondary={exercise.secondary_muscles as any[]}
-            size={100}
-          />
+          <View style={s.patternCol}>
+            <View style={[s.patternBadge, { backgroundColor: colors.accentMuted }]}>
+              <Ionicons
+                name={PATTERN_ICON[exercise.movement_pattern] || "fitness"}
+                size={44}
+                color={colors.accent}
+              />
+            </View>
+            <Text style={[s.patternCaption, { color: colors.textSecondary }]}>
+              {PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern}
+            </Text>
+          </View>
+          {(exercise.primary_muscles.length > 0 || exercise.secondary_muscles.length > 0) && (
+            <View style={s.mapWrap}>
+              <MuscleMap
+                primary={exercise.primary_muscles as any[]}
+                secondary={exercise.secondary_muscles as any[]}
+                size={92}
+              />
+            </View>
+          )}
         </View>
 
         {/* Badges */}
@@ -210,6 +239,16 @@ const s = StyleSheet.create({
     gap: spacing.lg, marginBottom: spacing.xl, paddingVertical: spacing.xl,
     borderRadius: radius.cardLarge, borderWidth: 1, minHeight: 200,
   },
+  patternCol: { alignItems: "center", gap: spacing.sm },
+  patternBadge: {
+    width: 88, height: 88, borderRadius: 44,
+    alignItems: "center", justifyContent: "center",
+  },
+  patternCaption: {
+    fontFamily: fonts.semibold, ...type.caption,
+    textTransform: "uppercase", letterSpacing: 1,
+  },
+  mapWrap: { alignItems: "center", justifyContent: "center" },
 
   badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
 
