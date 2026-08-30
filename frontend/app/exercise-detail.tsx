@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, ActivityIndicator, Linking, Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -155,6 +155,20 @@ export default function ExerciseDetail() {
           ))}
         </View>
 
+        {/* Vídeo demonstrativo: link curado se houver, senão busca no YouTube. */}
+        <Pressable
+          onPress={() => {
+            const url = exercise.video_url
+              || `https://www.youtube.com/results?search_query=${encodeURIComponent(`${exercise.name} exercício técnica execução`)}`;
+            Linking.openURL(url).catch(() => {});
+          }}
+          style={[s.videoBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
+          <Ionicons name="logo-youtube" size={20} color="#FF0000" />
+          <Text style={[s.videoBtnText, { color: colors.text }]}>Ver como fazer no YouTube</Text>
+          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+        </Pressable>
+
         {/* Muscles */}
         {(exercise.primary_muscles.length > 0 || exercise.secondary_muscles.length > 0) && (
           <View style={s.section}>
@@ -251,6 +265,13 @@ const s = StyleSheet.create({
   mapWrap: { alignItems: "center", justifyContent: "center" },
 
   badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
+  videoBtn: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    borderRadius: radius.card, borderWidth: 1,
+    paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  videoBtnText: { flex: 1, fontFamily: fonts.semibold, ...type.body },
 
   section: { marginBottom: spacing["2xl"] },
   sectionTitle: { marginBottom: spacing.md },
