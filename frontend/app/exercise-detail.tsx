@@ -74,7 +74,15 @@ export default function ExerciseDetail() {
     if (!id) return;
     try {
       const d = await api.get(`/exercises/${id}`);
-      setExercise(d);
+      // Alguns exercícios (ex.: variações de peso corporal) vêm sem os arrays
+      // de músculos/equipamento; normalizamos para não quebrar a renderização.
+      setExercise({
+        ...d,
+        primary_muscles: d.primary_muscles ?? [],
+        secondary_muscles: d.secondary_muscles ?? [],
+        equipment: d.equipment ?? [],
+        alternatives: d.alternatives ?? [],
+      });
     } catch {}
     setLoading(false);
   }, [id]);
