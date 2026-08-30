@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 
-import { spacing, radius, fonts, type } from "@/src/theme";
+import { spacing, radius, fonts, type, controlHeight } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import DonutChart from "@/src/components/DonutChart";
@@ -78,6 +78,7 @@ export default function Nutrition() {
   const [manualInitial, setManualInitial] = useState<any>(null);
   const [scanner, setScanner] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
+  const [foodSearch, setFoodSearch] = useState(false);
   const [editModal, setEditModal] = useState<any>(null);
   const [favModal, setFavModal] = useState(false);
   const [recipeModal, setRecipeModal] = useState(false);
@@ -308,6 +309,10 @@ export default function Nutrition() {
               <Ionicons name="barcode-outline" size={22} color={colors.text} />
               <Text style={[s.sheetBtnText, { color: colors.text }]}>Escanear código de barras</Text>
             </Pressable>
+            <Pressable testID="search-food-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setFoodSearch(true); }}>
+              <Ionicons name="search-outline" size={22} color={colors.text} />
+              <Text style={[s.sheetBtnText, { color: colors.text }]}>Buscar alimento</Text>
+            </Pressable>
             <Pressable testID="manual-entry-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setManualInitial(null); setManualModal(true); }}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
               <Text style={[s.sheetBtnText, { color: colors.text }]}>Entrada manual</Text>
@@ -335,6 +340,18 @@ export default function Nutrition() {
         visible={scanner}
         onClose={() => setScanner(false)}
         onDetected={handleBarcode}
+        insets={insets}
+        colors={colors}
+      />
+
+      <FoodSearchModal
+        visible={foodSearch}
+        onClose={() => setFoodSearch(false)}
+        onPick={(item: any) => {
+          setFoodSearch(false);
+          setManualInitial({ title: item.name, items: [item] });
+          setManualModal(true);
+        }}
         insets={insets}
         colors={colors}
       />
@@ -900,6 +917,86 @@ function RecipeModal({ visible, onClose, onSave, colors, insets }: any) {
   );
 }
 
+// ─── Food Search ───────────────────────────────────────────────
+
+function FoodSearchModal({ visible, onClose, onPick, insets, colors }: any) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  useEffect(() => {
+    if (!visible) { setQ(""); setResults([]); setSearched(false); return; }
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const term = q.trim();
+    if (term.length < 2) { setResults([]); setSearched(false); return; }
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const d = await api.get(`/nutrition/search?q=${encodeURIComponent(term)}`);
+        setResults(d.results || []);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+        setSearched(true);
+      }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [q, visible]);
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Screen>
+        <ScreenHeader title="Buscar alimento" onBack={onClose} />
+        <View style={{ paddingHorizontal: spacing.xl }}>
+          <View style={[s.searchBar, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+            <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+            <TextInput
+              autoFocus
+              style={[s.searchInput, { color: colors.text }]}
+              placeholder="Ex: arroz, frango, aveia..."
+              placeholderTextColor={colors.textSecondary}
+              value={q}
+              onChangeText={setQ}
+              autoCapitalize="none"
+            />
+            {loading ? <ActivityIndicator color={colors.accent} /> : null}
+          </View>
+        </View>
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.xl, paddingTop: spacing.md, paddingBottom: insets.bottom + spacing["3xl"], gap: spacing.sm }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {results.map((item, i) => (
+            <Pressable
+              key={i}
+              onPress={() => onPick(item)}
+              style={({ pressed }) => [s.searchRow, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.85 }]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[s.searchName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
+                <Text style={[s.searchMacro, { color: colors.textSecondary }]}>
+                  {item.calories} kcal · P{item.protein_g} C{item.carbs_g} G{item.fat_g} <Text style={{ color: colors.textSecondary }}>/ 100g</Text>
+                </Text>
+              </View>
+              <Ionicons name="add-circle" size={24} color={colors.accent} />
+            </Pressable>
+          ))}
+          {!loading && searched && results.length === 0 ? (
+            <Text style={[s.searchEmpty, { color: colors.textSecondary }]}>
+              Nenhum resultado. Tente outro termo ou use o código de barras.
+            </Text>
+          ) : null}
+        </ScrollView>
+      </Screen>
+    </Modal>
+  );
+}
+
 // ─── Barcode Scanner ───────────────────────────────────────────
 
 function BarcodeScannerModal({ visible, onClose, onDetected, insets, colors }: any) {
@@ -1048,6 +1145,19 @@ const s = StyleSheet.create({
 
   analyzeOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   analyzeText: { fontFamily: fonts.bold, ...type.body },
+
+  searchBar: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    height: controlHeight, borderRadius: radius.lg, borderWidth: 1, paddingHorizontal: spacing.lg,
+  },
+  searchInput: { flex: 1, fontFamily: fonts.text, ...type.body },
+  searchRow: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    borderRadius: radius.card, borderWidth: 1, padding: spacing.lg,
+  },
+  searchName: { fontFamily: fonts.semibold, ...type.body },
+  searchMacro: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
+  searchEmpty: { fontFamily: fonts.text, ...type.body, textAlign: "center", marginTop: spacing["3xl"] },
 
   scanClose: {
     position: "absolute", left: spacing.xl,

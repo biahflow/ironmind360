@@ -178,6 +178,66 @@ async def barcode_lookup(code: str, _user: dict = Depends(current_user)):
     return {"found": True, "code": code, "item": item}
 
 
+def _product_to_item(product: dict) -> dict | None:
+    nutriments = product.get("nutriments") or {}
+    calories = _num(nutriments, "energy-kcal_100g")
+    name = product.get("product_name_pt") or product.get("product_name")
+    if isinstance(name, list):
+        name = name[0] if name else None
+    if not isinstance(name, str) or not name.strip() or calories <= 0:
+        return None
+    name = name.strip()
+    brands = product.get("brands")
+    if isinstance(brands, list):
+        brand = (brands[0] if brands else "")
+    else:
+        brand = str(brands or "").split(",")[0]
+    brand = brand.strip()
+    return {
+        "name": f"{name} ({brand})" if brand else name,
+        "quantity": 100,
+        "unit": "g",
+        "calories": calories,
+        "protein_g": _num(nutriments, "proteins_100g"),
+        "carbs_g": _num(nutriments, "carbohydrates_100g"),
+        "fat_g": _num(nutriments, "fat_100g"),
+        "fiber_g": _num(nutriments, "fiber_100g"),
+        "sodium_mg": round(_num(nutriments, "sodium_100g") * 1000, 1),
+        "sugar_g": _num(nutriments, "sugars_100g"),
+    }
+
+
+@router.get("/search", dependencies=[Depends(rate_limit("food_search", 30, 60))])
+async def food_search(q: str = Query(..., min_length=2, max_length=80), _user: dict = Depends(current_user)):
+    def fetch():
+        # Serviço de busca novo (Elasticsearch) — mais estável que o cgi/search.pl.
+        return requests.get(
+            "https://search.openfoodfacts.org/search",
+            params={
+                "q": q,
+                "page_size": 15,
+                "fields": "product_name,product_name_pt,brands,nutriments",
+            },
+            headers={"User-Agent": "IronMind360/1.0 (nutrition)"},
+            timeout=12,
+        )
+
+    try:
+        resp = await run_in_threadpool(fetch)
+    except Exception as exc:
+        raise HTTPException(502, "Falha ao buscar alimentos") from exc
+
+    products: list = []
+    if resp.status_code == 200:
+        try:
+            products = resp.json().get("hits", []) or []
+        except ValueError:
+            products = []
+
+    items = [i for i in (_product_to_item(p) for p in products) if i]
+    return {"query": q, "results": items[:20]}
+
+
 # ── Manual entry ────────────────────────────────────────────────
 
 
