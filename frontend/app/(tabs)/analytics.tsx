@@ -37,22 +37,42 @@ export default function Analytics() {
   );
 }
 
+function buildDailySeries(rows: any[], days: number): { date: string; value: number }[] {
+  const byDate: Record<string, number> = {};
+  for (const r of rows || []) {
+    const key = String(r._id || r.date || "").slice(0, 10);
+    if (key) byDate[key] = Math.round(r.total_tss || r.value || 0);
+  }
+  const out: { date: string; value: number }[] = [];
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    out.push({ date: key, value: byDate[key] || 0 });
+  }
+  return out;
+}
+
 function OverviewTab() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [consistency, setConsistency] = useState<any>(null);
   const [correlations, setCorrelations] = useState<any>(null);
+  const [loadSeries, setLoadSeries] = useState<{ date: string; value: number }[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, cor] = await Promise.all([
+      const [c, cor, ld] = await Promise.all([
         api.get("/analytics/consistency?days=28"),
         api.get("/analytics/correlations?days=28"),
+        api.get("/analytics/load?days=28"),
       ]);
       setConsistency(c);
       setCorrelations(cor);
+      setLoadSeries(buildDailySeries(ld?.data || [], 28));
     } catch {} finally {
       setLoading(false);
     }
@@ -62,8 +82,24 @@ function OverviewTab() {
 
   if (loading) return <LoadingState />;
 
+  const loadTotal = loadSeries.reduce((s2, p) => s2 + p.value, 0);
+  const loadPeak = loadSeries.reduce((m, p) => Math.max(m, p.value), 0);
+
   return (
     <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
+      {loadTotal > 0 && (
+        <Card>
+          <View style={s.trendHead}>
+            <Overline color={colors.accent}>Carga de treino · 28 dias</Overline>
+            <Text style={[s.trendPeak, { color: colors.textSecondary }]}>pico {loadPeak}</Text>
+          </View>
+          <TrendBars points={loadSeries} colors={colors} />
+          <Text style={[s.trendTotal, { color: colors.text }]}>
+            {loadTotal} <Text style={[s.trendUnit, { color: colors.textSecondary }]}>TSS acumulado</Text>
+          </Text>
+        </Card>
+      )}
+
       {consistency && (
         <Card>
           <Overline color={colors.accent}>Consistência · 28 dias</Overline>
@@ -102,6 +138,42 @@ function OverviewTab() {
         </Card>
       )}
     </ScrollView>
+  );
+}
+
+function TrendBars({ points, colors }: { points: { date: string; value: number }[]; colors: any }) {
+  const max = Math.max(...points.map((p) => p.value), 1);
+  const fmt = (iso: string) => {
+    const d = new Date(iso + "T12:00:00");
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  };
+  return (
+    <View style={{ marginTop: spacing.md }}>
+      <View style={s.trendChart}>
+        {points.map((p, i) => {
+          const active = p.value > 0;
+          return (
+            <View
+              key={i}
+              style={{
+                flex: 1,
+                height: `${active ? Math.max((p.value / max) * 100, 6) : 100}%`,
+                backgroundColor: active ? colors.accent : colors.border,
+                opacity: active ? 1 : 0.35,
+                borderTopLeftRadius: 2,
+                borderTopRightRadius: 2,
+                minHeight: active ? 4 : 1,
+                alignSelf: "flex-end",
+              }}
+            />
+          );
+        })}
+      </View>
+      <View style={s.trendLabels}>
+        <Text style={[s.trendLabel, { color: colors.textSecondary }]}>{fmt(points[0]?.date)}</Text>
+        <Text style={[s.trendLabel, { color: colors.textSecondary }]}>{fmt(points[points.length - 1]?.date)}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -404,6 +476,14 @@ const s = StyleSheet.create({
   },
   pickText: { fontFamily: fonts.semibold, ...type.bodySmall },
   raceError: { fontFamily: fonts.text, ...type.bodySmall },
+
+  trendHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  trendPeak: { fontFamily: fonts.medium, ...type.caption },
+  trendChart: { flexDirection: "row", alignItems: "flex-end", height: 96, gap: 2 },
+  trendLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm },
+  trendLabel: { fontFamily: fonts.text, ...type.caption },
+  trendTotal: { fontFamily: fonts.bold, ...type.metric, marginTop: spacing.md, fontVariant: ["tabular-nums"] },
+  trendUnit: { fontFamily: fonts.text, ...type.bodySmall },
 
   statsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
   statItem: { alignItems: "center", flex: 1 },
