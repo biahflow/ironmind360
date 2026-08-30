@@ -15,6 +15,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ProgressRing from "@/src/components/ProgressRing";
+import { HeroCard, MetricCard, SectionHeader, StatTile } from "@/src/components/ui";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import { fonts, radius, spacing, type } from "@/src/theme";
@@ -166,12 +167,7 @@ export default function Home() {
             </Pressable>
           </View>
 
-          <LinearGradient
-            colors={[colors.surface, colors.elevated]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.hero, { borderColor: colors.border }]}
-          >
+          <HeroCard>
             <View style={styles.heroTopRow}>
               <View>
                 <Text style={[styles.kicker, { color: colors.accent }]}>IRONMIND SCORE</Text>
@@ -245,9 +241,9 @@ export default function Home() {
                 </View>
               ))}
             </View>
-          </LinearGradient>
+          </HeroCard>
 
-          <SectionHeader title="Metas de hoje" action="Editar" colors={colors} />
+          <SectionHeader title="Metas de hoje" action="Editar" />
           <View style={styles.metricsRow}>
             <MetricCard
               icon="water-outline"
@@ -255,7 +251,6 @@ export default function Home() {
               value={`${(water / 1000).toFixed(1)}L`}
               sub={`de ${(waterGoal / 1000).toFixed(1)}L`}
               progress={clamp(water / waterGoal)}
-              colors={colors}
               onPress={() => patchHabit({ water_ml: water + 250 })}
             />
             <MetricCard
@@ -264,7 +259,6 @@ export default function Home() {
               value={`${Math.round(activeMinutes)}`}
               sub={`de ${Math.round(activeGoal)} min`}
               progress={clamp(activeMinutes / activeGoal)}
-              colors={colors}
             />
             <MetricCard
               icon="flame-outline"
@@ -272,13 +266,12 @@ export default function Home() {
               value={`${Math.round(calories)}`}
               sub={`de ${Math.round(caloriesGoal)}`}
               progress={clamp(calories / caloriesGoal)}
-              colors={colors}
             />
           </View>
 
           {plan && plan.status !== "completed" && (
             <>
-              <SectionHeader title="Próximo treino" colors={colors} />
+              <SectionHeader title="Próximo treino" />
               <Pressable testID="training-plan-card" onPress={() => router.push("/session")}> 
                 <LinearGradient
                   colors={[colors.elevated, colors.surface]}
@@ -315,25 +308,25 @@ export default function Home() {
             </>
           )}
 
-          <SectionHeader title="Seu momento" colors={colors} />
+          <SectionHeader title="Seu momento" />
           <View style={styles.insightGrid}>
-            <InsightCard
+            <StatTile
               icon="pulse-outline"
               label="Carga de treino"
               value={riskCopy[riskLevel] || riskCopy.indeterminado}
               supporting={data.overtraining?.recommendation || "Acompanhando sua resposta aos treinos."}
-              colors={colors}
+              trend="arrow-up-outline"
             />
-            <InsightCard
+            <StatTile
               icon="analytics-outline"
               label="Esta semana"
               value={`${weeklyWorkouts} sessões`}
               supporting={`${weeklyKm.toFixed(1)} km acumulados`}
-              colors={colors}
+              trend="arrow-up-outline"
             />
           </View>
 
-          <SectionHeader title="Pequenos hábitos" colors={colors} />
+          <SectionHeader title="Pequenos hábitos" />
           <View style={styles.habitRow}>
             <HabitButton
               icon="leaf-outline"
@@ -379,58 +372,6 @@ export default function Home() {
           )}
         </View>
       </ScrollView>
-    </View>
-  );
-}
-
-function SectionHeader({ title, action, colors }: any) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
-      {action ? <Text style={[styles.sectionAction, { color: colors.accent }]}>{action}</Text> : null}
-    </View>
-  );
-}
-
-function MetricCard({ icon, label, value, sub, progress, colors, onPress }: any) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-    >
-      <View style={[styles.metricIcon, { backgroundColor: colors.elevated }]}> 
-        <Ionicons name={icon} size={19} color={colors.accent} />
-      </View>
-      <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{label}</Text>
-      <Text style={[styles.metricValue, { color: colors.text }]}>{value}</Text>
-      <Text style={[styles.metricSub, { color: colors.textSecondary }]}>{sub}</Text>
-      <View style={[styles.progressTrack, { backgroundColor: colors.border }]}> 
-        <View
-          style={[
-            styles.progressFill,
-            { width: `${Math.round(progress * 100)}%`, backgroundColor: colors.accent },
-          ]}
-        />
-      </View>
-    </Pressable>
-  );
-}
-
-function InsightCard({ icon, label, value, supporting, colors }: any) {
-  return (
-    <View style={[styles.insightCard, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-      <View style={styles.insightHeader}>
-        <View style={[styles.insightIcon, { backgroundColor: colors.elevated }]}> 
-          <Ionicons name={icon} size={18} color={colors.textSecondary} />
-        </View>
-        <Ionicons name="arrow-up-outline" size={16} color={colors.accent} />
-      </View>
-      <Text style={[styles.insightLabel, { color: colors.textSecondary }]}>{label}</Text>
-      <Text style={[styles.insightValue, { color: colors.text }]}>{value}</Text>
-      <Text style={[styles.insightSupporting, { color: colors.textSecondary }]} numberOfLines={2}>
-        {supporting}
-      </Text>
     </View>
   );
 }
@@ -513,12 +454,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
 
-  hero: {
-    borderRadius: 28,
-    borderWidth: 1,
-    padding: spacing.xl,
-    overflow: "hidden",
-  },
   heroTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -614,48 +549,7 @@ const styles = StyleSheet.create({
   },
   dayLabel: { fontFamily: fonts.semibold, ...type.caption },
 
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: spacing["3xl"],
-    marginBottom: spacing.md,
-  },
-  sectionTitle: { fontFamily: fonts.bold, fontSize: 20, lineHeight: 25 },
-  sectionAction: { fontFamily: fonts.semibold, ...type.bodySmall },
-
   metricsRow: { flexDirection: "row", gap: spacing.sm },
-  metricCard: {
-    flex: 1,
-    minHeight: 156,
-    borderRadius: 20,
-    borderWidth: 1,
-    padding: spacing.md,
-  },
-  metricIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.md,
-  },
-  metricLabel: { fontFamily: fonts.medium, ...type.caption },
-  metricValue: {
-    fontFamily: fonts.bold,
-    fontSize: 23,
-    lineHeight: 27,
-    marginTop: 3,
-    fontVariant: ["tabular-nums"],
-  },
-  metricSub: { fontFamily: fonts.text, fontSize: 10, lineHeight: 14, marginTop: 1 },
-  progressTrack: {
-    height: 4,
-    borderRadius: radius.pill,
-    overflow: "hidden",
-    marginTop: "auto",
-  },
-  progressFill: { height: 4, borderRadius: radius.pill },
 
   workoutCard: {
     borderRadius: 24,
@@ -692,24 +586,6 @@ const styles = StyleSheet.create({
   workoutFooterText: { fontFamily: fonts.medium, ...type.caption },
 
   insightGrid: { flexDirection: "row", gap: spacing.md },
-  insightCard: {
-    flex: 1,
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: spacing.lg,
-    minHeight: 172,
-  },
-  insightHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  insightIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  insightLabel: { fontFamily: fonts.medium, ...type.caption, marginTop: spacing.lg },
-  insightValue: { fontFamily: fonts.bold, ...type.body, marginTop: spacing.xs },
-  insightSupporting: { fontFamily: fonts.text, ...type.caption, marginTop: spacing.sm },
 
   habitRow: { flexDirection: "row", gap: spacing.sm },
   habitButton: {

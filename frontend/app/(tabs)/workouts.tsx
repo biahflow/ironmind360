@@ -202,16 +202,18 @@ export default function Workouts() {
             </ProgressRing>
           </View>
 
-          <View style={s.planStats}>
-            <View style={[s.planStat, { backgroundColor: colors.elevated }]}>
+          <View style={[s.planStats, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+            <View style={s.planStat}>
               <Text style={[s.planStatValue, { color: colors.text }]}>{plan.completed_sessions}</Text>
               <Text style={[s.planStatLabel, { color: colors.textSecondary }]}>Concluídas</Text>
             </View>
-            <View style={[s.planStat, { backgroundColor: colors.elevated }]}>
+            <View style={[s.planStatDivider, { backgroundColor: colors.border }]} />
+            <View style={s.planStat}>
               <Text style={[s.planStatValue, { color: colors.text }]}>{remaining}</Text>
               <Text style={[s.planStatLabel, { color: colors.textSecondary }]}>Restantes</Text>
             </View>
-            <View style={[s.planStat, { backgroundColor: colors.elevated }]}>
+            <View style={[s.planStatDivider, { backgroundColor: colors.border }]} />
+            <View style={s.planStat}>
               <Text style={[s.planStatValue, { color: colors.text }]}>{plan.current_session}</Text>
               <Text style={[s.planStatLabel, { color: colors.textSecondary }]}>Próxima</Text>
             </View>
@@ -226,7 +228,7 @@ export default function Workouts() {
           )}
 
           {plan.status === "completed" && (
-            <View style={[s.completedBanner, { backgroundColor: colors.elevated }]}>
+            <View style={[s.completedBanner, { backgroundColor: colors.successMuted }]}>
               <Ionicons name="trophy" size={20} color={colors.success} />
               <Text style={[s.completedText, { color: colors.success }]}>Programa concluído</Text>
             </View>
@@ -434,11 +436,13 @@ const s = StyleSheet.create({
   ringNum: { fontFamily: fonts.bold, ...type.h2 },
   ringPct: { fontFamily: fonts.medium, ...type.bodySmall },
 
-  planStats: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.xl },
-  planStat: {
-    flex: 1, borderRadius: radius.lg,
-    paddingVertical: spacing.lg, alignItems: "center",
+  planStats: {
+    flexDirection: "row", alignItems: "center",
+    borderTopWidth: 1, borderBottomWidth: 1,
+    paddingVertical: spacing.lg, marginBottom: spacing.xl,
   },
+  planStat: { flex: 1, alignItems: "center" },
+  planStatDivider: { width: 1, height: 32 },
   planStatValue: { fontFamily: fonts.bold, ...type.metric, fontVariant: ["tabular-nums"] },
   planStatLabel: {
     fontFamily: fonts.medium, ...type.caption, letterSpacing: 1, marginTop: 2,

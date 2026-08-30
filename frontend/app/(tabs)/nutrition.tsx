@@ -14,9 +14,7 @@ import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import DonutChart from "@/src/components/DonutChart";
-import { EmptyState } from "@/src/components/ui";
-
-const MACRO_COLORS = { protein: "#4ECDC4", carbs: "#FFD93D", fat: "#FF6B6B" };
+import { Screen, ScreenHeader, EmptyState, layout } from "@/src/components/ui";
 
 type SubTab = "today" | "week" | "favorites" | "recipes";
 
@@ -79,7 +77,7 @@ export default function Nutrition() {
   const [editModal, setEditModal] = useState<any>(null);
   const [favModal, setFavModal] = useState(false);
   const [recipeModal, setRecipeModal] = useState(false);
-  const tabBarPad = 64 + insets.bottom + 90;
+  const tabBarPad = layout.tabBarPad(insets.bottom) + 72;
 
   const loadToday = useCallback(async () => {
     try {
@@ -204,9 +202,9 @@ export default function Nutrition() {
   const fatG = Math.round(totals.fat_g || 0);
   const totalMacroG = protG + carbG + fatG || 1;
   const segments = [
-    { value: protG, color: MACRO_COLORS.protein, label: "Proteína" },
-    { value: carbG, color: MACRO_COLORS.carbs, label: "Carboidrato" },
-    { value: fatG, color: MACRO_COLORS.fat, label: "Gordura" },
+    { value: protG, color: colors.macroProtein, label: "Proteína" },
+    { value: carbG, color: colors.macroCarbs, label: "Carboidrato" },
+    { value: fatG, color: colors.macroFat, label: "Gordura" },
   ];
 
   const SUB_TABS: { key: SubTab; label: string; icon: string }[] = [
@@ -217,37 +215,35 @@ export default function Nutrition() {
   ];
 
   return (
-    <View style={[s.root, { backgroundColor: colors.bg }]}>
-      <View style={[s.header, { paddingTop: insets.top + spacing.md, backgroundColor: colors.bg }]}>
-        <Text style={[s.title, { color: colors.text }]}>Nutrição</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
-          {SUB_TABS.map((t) => {
-            const active = tab === t.key;
-            return (
-              <Pressable
-                key={t.key}
-                onPress={() => setTab(t.key)}
-                style={[
-                  s.subTab,
-                  {
-                    backgroundColor: active ? colors.accent : colors.surface,
-                    borderColor: active ? colors.accent : colors.border,
-                  },
-                ]}
-              >
-                <Ionicons name={t.icon as any} size={16} color={active ? colors.onAccent : colors.textSecondary} />
-                <Text style={[s.subTabText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+    <Screen>
+      <ScreenHeader title="Nutrição" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
+        {SUB_TABS.map((t) => {
+          const active = tab === t.key;
+          return (
+            <Pressable
+              key={t.key}
+              onPress={() => setTab(t.key)}
+              style={[
+                s.subTab,
+                {
+                  backgroundColor: active ? colors.accent : colors.surface,
+                  borderColor: active ? colors.accent : colors.border,
+                },
+              ]}
+            >
+              <Ionicons name={t.icon as any} size={16} color={active ? colors.onAccent : colors.textSecondary} />
+              <Text style={[s.subTabText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {loading ? (
         <View style={s.center}><ActivityIndicator color={colors.accent} /></View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: tabBarPad }}
+          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: tabBarPad }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={false} onRefresh={loadAll} tintColor={colors.accent} />}
         >
@@ -271,7 +267,7 @@ export default function Nutrition() {
 
       {/* Add meal picker */}
       <Modal visible={picker} transparent animationType="slide" onRequestClose={() => setPicker(false)}>
-        <Pressable style={s.backdrop} onPress={() => setPicker(false)}>
+        <Pressable style={[s.backdrop, { backgroundColor: colors.overlay }]} onPress={() => setPicker(false)}>
           <View style={[s.sheet, { paddingBottom: insets.bottom + spacing.lg, backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[s.sheetHandle, { backgroundColor: colors.border }]} />
             <Text style={[s.sheetTitle, { color: colors.textSecondary }]}>REGISTRAR REFEIÇÃO</Text>
@@ -355,7 +351,7 @@ export default function Nutrition() {
           <Text style={[s.analyzeText, { color: colors.text }]}>Analisando seu prato...</Text>
         </View>
       )}
-    </View>
+    </Screen>
   );
 }
 
@@ -367,9 +363,9 @@ function TodayView({ meals, totals, goals, segments, protG, carbG, fatG, totalMa
       <View style={[s.donutSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <DonutChart size={180} strokeWidth={16} segments={segments} centerValue={`${Math.round(totals.calories || 0)}`} centerLabel="kcal" />
         <View style={s.macroLegend}>
-          <MacroChip label="Proteína" value={`${protG}g`} pct={Math.round((protG / totalMacroG) * 100)} color={MACRO_COLORS.protein} textColor={colors.text} subColor={colors.textSecondary} />
-          <MacroChip label="Carbo" value={`${carbG}g`} pct={Math.round((carbG / totalMacroG) * 100)} color={MACRO_COLORS.carbs} textColor={colors.text} subColor={colors.textSecondary} />
-          <MacroChip label="Gordura" value={`${fatG}g`} pct={Math.round((fatG / totalMacroG) * 100)} color={MACRO_COLORS.fat} textColor={colors.text} subColor={colors.textSecondary} />
+          <MacroChip label="Proteína" value={`${protG}g`} pct={Math.round((protG / totalMacroG) * 100)} color={colors.macroProtein} textColor={colors.text} subColor={colors.textSecondary} />
+          <MacroChip label="Carbo" value={`${carbG}g`} pct={Math.round((carbG / totalMacroG) * 100)} color={colors.macroCarbs} textColor={colors.text} subColor={colors.textSecondary} />
+          <MacroChip label="Gordura" value={`${fatG}g`} pct={Math.round((fatG / totalMacroG) * 100)} color={colors.macroFat} textColor={colors.text} subColor={colors.textSecondary} />
         </View>
         {(totals.fiber_g > 0 || totals.sodium_mg > 0) && (
           <View style={[s.microRow, { borderTopColor: colors.border }]}>
@@ -729,7 +725,7 @@ function EditMealModal({ meal, onClose, onSave, colors, insets }: any) {
           <ItemEditor items={items} setItems={setItems} colors={colors} />
 
           {meal.ai_failed && (
-            <View style={[s.aiWarning, { backgroundColor: "rgba(245,166,35,0.15)" }]}>
+            <View style={[s.aiWarning, { backgroundColor: colors.warningMuted }]}>
               <Ionicons name="warning" size={18} color={colors.warning} />
               <Text style={[s.aiWarningText, { color: colors.warning }]}>A IA não conseguiu analisar esta foto. Preencha os itens manualmente.</Text>
             </View>
@@ -857,21 +853,19 @@ function MacroChip({ label, value, pct, color, textColor, subColor }: any) {
 // ─── Styles ────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: {
-    paddingHorizontal: spacing.lg, paddingBottom: spacing.sm,
+  tabRow: {
+    flexDirection: "row", gap: spacing.sm,
+    paddingHorizontal: spacing.xl, paddingBottom: spacing.md,
   },
-  title: { fontFamily: fonts.bold, ...type.h1 },
-  tabRow: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.md },
   subTab: {
     flexDirection: "row", alignItems: "center", gap: spacing.xs,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg, height: 44,
     borderRadius: radius.pill, borderWidth: 1,
   },
   subTabText: { fontFamily: fonts.semibold, ...type.bodySmall },
 
-  donutSection: { borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1 },
+  donutSection: { borderRadius: radius.cardLarge, padding: spacing.xl, alignItems: "center", borderWidth: 1 },
   macroLegend: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.lg },
   macroChip: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   macroDot: { width: 10, height: 10, borderRadius: 5 },
@@ -896,7 +890,7 @@ const s = StyleSheet.create({
   },
 
   meal: {
-    flexDirection: "row", gap: spacing.lg, borderRadius: radius.lg,
+    flexDirection: "row", gap: spacing.lg, borderRadius: radius.card,
     padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 1,
   },
   mealImg: { width: 80, height: 80, borderRadius: radius.md },
@@ -912,9 +906,9 @@ const s = StyleSheet.create({
     position: "absolute", right: spacing.xl, width: 64, height: 64, borderRadius: radius.pill,
     alignItems: "center", justifyContent: "center",
   },
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  backdrop: { flex: 1, justifyContent: "flex-end" },
   sheet: {
-    borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+    borderTopLeftRadius: radius.hero, borderTopRightRadius: radius.hero,
     padding: spacing.xl, gap: spacing.md, borderWidth: 1,
   },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: spacing.sm },
@@ -936,7 +930,7 @@ const s = StyleSheet.create({
   // Week
   weekRow: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
-    padding: spacing.lg, borderRadius: radius.lg, marginBottom: spacing.sm, borderWidth: 1,
+    padding: spacing.lg, borderRadius: radius.card, marginBottom: spacing.sm, borderWidth: 1,
   },
   weekDay: { fontFamily: fonts.semibold, ...type.bodySmall, width: 50 },
   weekBarBg: { flex: 1, height: 8, borderRadius: 4, overflow: "hidden" },
@@ -949,7 +943,7 @@ const s = StyleSheet.create({
   // Favorites/Recipes
   favCard: {
     flexDirection: "row", gap: spacing.lg, padding: spacing.xl,
-    borderRadius: radius.lg, marginBottom: spacing.md, borderWidth: 1,
+    borderRadius: radius.card, marginBottom: spacing.md, borderWidth: 1,
   },
   favName: { fontFamily: fonts.semibold, ...type.body },
   favMacro: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },

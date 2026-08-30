@@ -21,6 +21,17 @@ export const palette = {
   warning: "#F5A623",
   error: "#E74C3C",
   info: "#3498DB",
+
+  // Semantic translucent surfaces (dark) — replaces ad-hoc rgba(...) in screens
+  successMuted: "rgba(46,204,113,0.14)",
+  warningMuted: "rgba(245,166,35,0.16)",
+  errorMuted: "rgba(231,76,60,0.14)",
+  infoMuted: "rgba(52,152,219,0.14)",
+
+  // Data-viz palette (macros / segmented charts) — tokenized, no hardcoded hex in screens
+  macroProtein: "#4ECDC4",
+  macroCarbs: "#F5C542",
+  macroFat: "#F08A6B",
 };
 
 export type ThemeMode = "dark" | "light";
@@ -39,6 +50,13 @@ type ColorScheme = {
   warning: string;
   error: string;
   info: string;
+  successMuted: string;
+  warningMuted: string;
+  errorMuted: string;
+  infoMuted: string;
+  macroProtein: string;
+  macroCarbs: string;
+  macroFat: string;
   overlay: string;
   tabBar: string;
   tabBarBorder: string;
@@ -81,6 +99,13 @@ const darkColors: ColorScheme = {
   warning: palette.warning,
   error: palette.error,
   info: palette.info,
+  successMuted: palette.successMuted,
+  warningMuted: palette.warningMuted,
+  errorMuted: palette.errorMuted,
+  infoMuted: palette.infoMuted,
+  macroProtein: palette.macroProtein,
+  macroCarbs: palette.macroCarbs,
+  macroFat: palette.macroFat,
   overlay: "rgba(0,0,0,0.6)",
   tabBar: palette.surface,
   tabBarBorder: palette.borderDark,
@@ -123,6 +148,13 @@ const lightColors: ColorScheme = {
   warning: palette.warning,
   error: palette.error,
   info: palette.info,
+  successMuted: "rgba(46,204,113,0.10)",
+  warningMuted: "rgba(245,166,35,0.12)",
+  errorMuted: "rgba(231,76,60,0.10)",
+  infoMuted: "rgba(52,152,219,0.10)",
+  macroProtein: palette.macroProtein,
+  macroCarbs: palette.macroCarbs,
+  macroFat: palette.macroFat,
   overlay: "rgba(0,0,0,0.4)",
   tabBar: palette.lightSurface,
   tabBarBorder: palette.lightBorder,
@@ -172,8 +204,15 @@ export const radius = {
   md: 12,
   lg: 16,
   xl: 22,
+  // Golden-reference (Home) card radii
+  card: 20,
+  cardLarge: 24,
+  hero: 28,
   pill: 999,
 };
+
+// Single source of truth for form control height (kills the 44/48/56 drift)
+export const controlHeight = 56;
 
 export const shadow = {
   sm: {
