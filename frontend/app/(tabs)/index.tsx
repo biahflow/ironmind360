@@ -18,7 +18,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import ProgressRing from "@/src/components/ProgressRing";
 import { LineTrend } from "@/src/components/LineTrend";
-import { HeroCard, MetricCard, SectionHeader, StatTile, ErrorState, ProgressBar } from "@/src/components/ui";
+import {
+  HeroCard, MetricCard, SectionHeader, StatTile, ErrorState, ProgressBar,
+  FadeInView, SkeletonCard, Skeleton, PressableScale,
+} from "@/src/components/ui";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import { fonts, radius, spacing, type } from "@/src/theme";
@@ -63,6 +66,53 @@ function sleepTone(hours: number | null | undefined, colors: any): string {
   return colors.warning; // 6–7h ou dormir demais (>9h): só alerta, nunca vermelho
 }
 
+// Dias até a data (>= 0). null se inválida/passada.
+function daysUntil(iso?: string): number | null {
+  if (!iso) return null;
+  const target = new Date(iso + (iso.length <= 10 ? "T00:00:00" : ""));
+  if (isNaN(target.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.ceil((target.getTime() - today.getTime()) / 86400000);
+  return diff < 0 ? null : diff;
+}
+
+// Escolhe a próxima prova-alvo: prioridade A futura mais próxima; senão,
+// qualquer prova futura mais próxima.
+function pickTargetRace(races: any[]): any | null {
+  const future = (races || [])
+    .map((r) => ({ r, d: daysUntil(r.date) }))
+    .filter((x) => x.d != null)
+    .sort((a, b) => (a.d as number) - (b.d as number));
+  if (future.length === 0) return null;
+  const aRace = future.find((x) => x.r.priority === "A");
+  return (aRace || future[0]).r;
+}
+
+// Deriva um alerta proativo do Comandante a partir de readiness / overtraining.
+function proactiveInsight(data: any): { title: string; body: string; tone: "warning" | "error" } | null {
+  const risk = data?.overtraining?.risk_level;
+  if (risk === "critico" || risk === "alto") {
+    return {
+      title: "O Comandante notou sua carga subindo",
+      body: risk === "critico"
+        ? "Sinais de sobrecarga. Priorize descanso hoje — vamos ajustar o plano?"
+        : "Recuperação pedindo atenção. Bora revisar a intensidade da semana?",
+      tone: risk === "critico" ? "error" : "warning",
+    };
+  }
+  const rd = data?.readiness;
+  if (rd?.level === "red") {
+    const f = rd.factors?.find((x: any) => x.impact === "red") || rd.factors?.[0];
+    return {
+      title: "Sua prontidão está baixa hoje",
+      body: f?.detail ? `${f.detail} Quer conversar sobre como ajustar o dia?` : "Quer conversar sobre como ajustar o dia?",
+      tone: "error",
+    };
+  }
+  return null;
+}
+
 export default function Home() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -72,6 +122,8 @@ export default function Home() {
   const [plan, setPlan] = useState<any>(null);
   const [wearable, setWearable] = useState<any>(null);
   const [habitsWeek, setHabitsWeek] = useState<any>(null);
+  const [races, setRaces] = useState<any[]>([]);
+  const [factorsOpen, setFactorsOpen] = useState(false);
   const [chart, setChart] = useState<null | {
     metric: "resting_hr" | "sleep";
     loading: boolean;
@@ -84,18 +136,20 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const [dashboard, activePlan, wearableSummary, week] = await Promise.all([
+      const [dashboard, activePlan, wearableSummary, week, raceList] = await Promise.all([
         api.get("/dashboard"),
         api.get("/training/active"),
         // Best-effort: sem wearable conectado o endpoint pode falhar; não deve
         // derrubar o carregamento do painel.
         api.get("/wearable-summary").catch(() => null),
         api.get("/habits/week").catch(() => null),
+        api.get("/races").catch(() => null),
       ]);
       setData(dashboard);
       setPlan(activePlan?.plan || null);
       setWearable(wearableSummary);
       setHabitsWeek(week);
+      setRaces(Array.isArray(raceList) ? raceList : raceList?.races || []);
       setImageHeaders(await authHeaders());
       setFailed(false);
     } catch {
@@ -181,8 +235,23 @@ export default function Home() {
 
   if (loading || !data) {
     return (
-      <View style={[styles.loading, { backgroundColor: colors.bg }]}>
-        <ActivityIndicator color={colors.accent} />
+      <View style={[styles.root, { backgroundColor: colors.bg }]}>
+        <View style={[styles.page, { paddingTop: insets.top + spacing.lg, gap: spacing.lg }]}>
+          <View style={styles.header}>
+            <Skeleton width={46} height={46} radius={23} />
+            <View style={{ flex: 1, marginLeft: spacing.md, gap: 6 }}>
+              <Skeleton width="40%" height={12} />
+              <Skeleton width="55%" height={22} />
+            </View>
+          </View>
+          <SkeletonCard lines={4} />
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <SkeletonCard lines={2} style={{ flex: 1 }} />
+            <SkeletonCard lines={2} style={{ flex: 1 }} />
+            <SkeletonCard lines={2} style={{ flex: 1 }} />
+          </View>
+          <SkeletonCard lines={3} />
+        </View>
       </View>
     );
   }
@@ -216,6 +285,21 @@ export default function Home() {
     critico: "Priorize descanso",
     indeterminado: "Mais dados necessários",
   };
+
+  // Semana real: cada dia "conta" na corrente se algum hábito foi cumprido.
+  const weekDays: string[] = habitsWeek?.days || [];
+  const chainDays: boolean[] = weekDays.map((_, i) =>
+    (habitsWeek?.habits || []).some((h: any) => h.week?.[i]),
+  );
+  const dayLetters = ["D", "S", "T", "Q", "Q", "S", "S"];
+  const todayIdx = weekDays.length - 1;
+
+  // Prova-alvo + contagem regressiva.
+  const targetRace = pickTargetRace(races);
+  const raceDays = targetRace ? daysUntil(targetRace.date) : null;
+
+  // Alerta proativo do Comandante.
+  const insight = proactiveInsight(data);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
@@ -324,35 +408,99 @@ export default function Home() {
               </View>
             </View>
 
-            <View style={[styles.weekStrip, { borderTopColor: colors.border }]}> 
-              {[
-                ["S", false],
-                ["T", false],
-                ["Q", false],
-                ["Q", true],
-                ["S", false],
-                ["S", false],
-                ["D", false],
-              ].map(([label, active], index) => (
-                <View
-                  key={`${label}-${index}`}
-                  style={[
-                    styles.dayBubble,
-                    active && { backgroundColor: colors.accent },
-                  ]}
-                >
-                  <Text
+            <View style={[styles.weekStrip, { borderTopColor: colors.border }]}>
+              {(weekDays.length ? weekDays : [0, 1, 2, 3, 4, 5, 6]).map((val, index) => {
+                const isToday = index === todayIdx;
+                const kept = chainDays[index];
+                const letter = weekDays.length
+                  ? dayLetters[new Date(String(val) + "T00:00:00").getDay()]
+                  : dayLetters[index];
+                return (
+                  <View
+                    key={`${val}-${index}`}
                     style={[
-                      styles.dayLabel,
-                      { color: active ? colors.onAccent : colors.textSecondary },
+                      styles.dayBubble,
+                      kept && { backgroundColor: colors.accent },
+                      isToday && !kept && { borderWidth: 1.5, borderColor: colors.accent },
                     ]}
                   >
-                    {label}
+                    <Text
+                      style={[
+                        styles.dayLabel,
+                        { color: kept ? colors.onAccent : isToday ? colors.accent : colors.textSecondary },
+                      ]}
+                    >
+                      {letter}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+            {streak > 0 && (
+              <Text style={[styles.chainHint, { color: colors.textSecondary }]}>
+                🔥 {streak} {streak === 1 ? "dia" : "dias"} em sequência — não quebre a corrente.
+              </Text>
+            )}
+          </HeroCard>
+
+          {insight && (
+            <FadeInView delay={60}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push({ pathname: "/(tabs)/coach", params: { prompt: insight.body } });
+                }}
+                style={[
+                  styles.insightCard,
+                  {
+                    backgroundColor: insight.tone === "error" ? colors.errorMuted : colors.warningMuted,
+                    borderColor: insight.tone === "error" ? colors.error : colors.warning,
+                  },
+                ]}
+              >
+                <View style={[styles.insightIcon, { backgroundColor: colors.surface }]}>
+                  <Ionicons name="sparkles" size={18} color={insight.tone === "error" ? colors.error : colors.warning} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.insightTitle, { color: colors.text }]}>{insight.title}</Text>
+                  <Text style={[styles.insightBody, { color: colors.textSecondary }]} numberOfLines={3}>{insight.body}</Text>
+                  <Text style={[styles.insightCta, { color: insight.tone === "error" ? colors.error : colors.warning }]}>
+                    Falar com o Comandante ›
                   </Text>
                 </View>
-              ))}
-            </View>
-          </HeroCard>
+              </Pressable>
+            </FadeInView>
+          )}
+
+          {targetRace && raceDays != null && (
+            <FadeInView delay={90}>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({
+                    pathname: "/race-detail",
+                    params: { id: targetRace.id, name: targetRace.name, type: targetRace.race_type, date: targetRace.date },
+                  });
+                }}
+                style={[styles.raceCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                <View style={[styles.raceCountBox, { backgroundColor: colors.accentMuted }]}>
+                  <Text style={[styles.raceCountNum, { color: colors.accent }]}>{raceDays}</Text>
+                  <Text style={[styles.raceCountUnit, { color: colors.accent }]}>{raceDays === 1 ? "dia" : "dias"}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.miniLabel, { color: colors.accent }]}>
+                    {targetRace.priority === "A" ? "PROVA-ALVO" : "PRÓXIMA PROVA"}
+                  </Text>
+                  <Text style={[styles.raceCardName, { color: colors.text }]} numberOfLines={1}>{targetRace.name}</Text>
+                  <Text style={[styles.raceCardMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {fmtShortDate(targetRace.date)}{targetRace.goal ? ` · ${targetRace.goal}` : ""}
+                  </Text>
+                </View>
+                <Ionicons name="flag" size={18} color={colors.textSecondary} />
+              </Pressable>
+            </FadeInView>
+          )}
 
           {data.readiness && (() => {
             const rd = data.readiness;
@@ -362,7 +510,13 @@ export default function Home() {
             return (
               <>
                 <SectionHeader title="Prontidão de hoje" />
-                <View style={[styles.readinessCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setFactorsOpen(true);
+                  }}
+                  style={[styles.readinessCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                >
                   <View style={styles.readinessTop}>
                     <View style={{ flex: 1, marginRight: spacing.md }}>
                       <Text style={[styles.readinessLevel, { color: tone }]}>{label}</Text>
@@ -374,7 +528,11 @@ export default function Home() {
                     </Text>
                   </View>
                   <ProgressBar progress={clamp(rd.score / 100)} color={tone} style={{ marginTop: spacing.lg }} />
-                </View>
+                  <View style={styles.readinessWhy}>
+                    <Ionicons name="help-circle-outline" size={14} color={colors.textSecondary} />
+                    <Text style={[styles.readinessWhyText, { color: colors.textSecondary }]}>Por que este score?</Text>
+                  </View>
+                </Pressable>
               </>
             );
           })()}
@@ -470,7 +628,7 @@ export default function Home() {
               <SectionHeader title="Saúde" />
               <View style={styles.insightGrid}>
                 {wearable?.resting_hr ? (
-                  <Pressable style={{ flex: 1 }} onPress={() => openChart("resting_hr")}>
+                  <PressableScale style={{ flex: 1 }} onPress={() => openChart("resting_hr")}>
                     <StatTile
                       icon="heart-outline"
                       label="FC repouso"
@@ -479,10 +637,10 @@ export default function Home() {
                       trend="chevron-forward-outline"
                       iconColor={restingHrTone(wearable.resting_hr.value?.bpm, colors)}
                     />
-                  </Pressable>
+                  </PressableScale>
                 ) : null}
                 {wearable?.last_sleep ? (
-                  <Pressable style={{ flex: 1 }} onPress={() => openChart("sleep")}>
+                  <PressableScale style={{ flex: 1 }} onPress={() => openChart("sleep")}>
                     <StatTile
                       icon="moon-outline"
                       label="Sono"
@@ -491,7 +649,7 @@ export default function Home() {
                       trend="chevron-forward-outline"
                       iconColor={sleepTone(wearable.last_sleep.value?.hours, colors)}
                     />
-                  </Pressable>
+                  </PressableScale>
                 ) : null}
               </View>
             </>
@@ -600,6 +758,58 @@ export default function Home() {
                 </>
               );
             })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={factorsOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setFactorsOpen(false)}
+      >
+        <Pressable style={styles.sheetOverlay} onPress={() => setFactorsOpen(false)}>
+          <Pressable
+            style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.xl }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.miniLabel, { color: colors.accent }]}>TRANSPARÊNCIA</Text>
+                <Text style={[styles.sheetTitle, { color: colors.text }]}>Por que este score?</Text>
+              </View>
+              <Pressable
+                onPress={() => setFactorsOpen(false)}
+                style={[styles.iconButton, { backgroundColor: colors.elevated, borderColor: colors.border }]}
+              >
+                <Ionicons name="close" size={20} color={colors.text} />
+              </Pressable>
+            </View>
+
+            <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
+              {(data.readiness?.factors || []).length === 0 ? (
+                <Text style={[styles.sheetEmptyText, { color: colors.textSecondary }]}>
+                  Sem fatores relevantes hoje — nada puxando seu score pra baixo. Continue registrando check-ins para mais detalhes.
+                </Text>
+              ) : (
+                (data.readiness.factors || []).map((f: any, i: number) => {
+                  const c = f.impact === "red" ? colors.error : f.impact === "yellow" ? colors.warning : colors.accent;
+                  return (
+                    <View key={i} style={[styles.factorRow, { borderColor: colors.border }]}>
+                      <View style={[styles.factorDot, { backgroundColor: c }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.factorArea, { color: colors.text }]}>{String(f.area || "").toUpperCase()}</Text>
+                        <Text style={[styles.factorDetail, { color: colors.textSecondary }]}>{f.detail}</Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+              <Text style={[styles.factorDisclaimer, { color: colors.textSecondary }]}>
+                Estimativa de prontidão, não um diagnóstico. Sempre uma leitura de risco, nunca uma certeza.
+              </Text>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -799,6 +1009,42 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dayLabel: { fontFamily: fonts.semibold, ...type.caption },
+  chainHint: { fontFamily: fonts.medium, ...type.caption, marginTop: spacing.md, textAlign: "center" },
+
+  insightCard: {
+    flexDirection: "row",
+    gap: spacing.md,
+    alignItems: "flex-start",
+    borderRadius: radius.card,
+    borderWidth: 1,
+    padding: spacing.lg,
+    marginTop: spacing.lg,
+  },
+  insightIcon: {
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: "center", justifyContent: "center",
+  },
+  insightTitle: { fontFamily: fonts.bold, ...type.body },
+  insightBody: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 3, lineHeight: 19 },
+  insightCta: { fontFamily: fonts.semibold, ...type.bodySmall, marginTop: spacing.sm },
+
+  raceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    padding: spacing.md,
+    marginTop: spacing.lg,
+  },
+  raceCountBox: {
+    width: 62, height: 62, borderRadius: 18,
+    alignItems: "center", justifyContent: "center",
+  },
+  raceCountNum: { fontFamily: fonts.bold, fontSize: 24, lineHeight: 26, fontVariant: ["tabular-nums"] },
+  raceCountUnit: { fontFamily: fonts.semibold, ...type.caption, marginTop: -1 },
+  raceCardName: { fontFamily: fonts.bold, ...type.body, marginTop: 3 },
+  raceCardMeta: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
 
   readinessCard: {
     borderRadius: radius.card,
@@ -810,6 +1056,14 @@ const styles = StyleSheet.create({
   readinessDetail: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 3 },
   readinessScore: { fontFamily: fonts.bold, fontSize: 30, lineHeight: 32, fontVariant: ["tabular-nums"] },
   readinessUnit: { fontFamily: fonts.text, ...type.bodySmall },
+  readinessWhy: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: spacing.md },
+  readinessWhyText: { fontFamily: fonts.medium, ...type.caption },
+
+  factorRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, paddingVertical: spacing.sm },
+  factorDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
+  factorArea: { fontFamily: fonts.bold, fontSize: 10, lineHeight: 13, letterSpacing: 1 },
+  factorDetail: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2, lineHeight: 19 },
+  factorDisclaimer: { fontFamily: fonts.text, ...type.caption, fontStyle: "italic", marginTop: spacing.md, lineHeight: 16 },
 
   metricsRow: { flexDirection: "row", gap: spacing.sm },
 

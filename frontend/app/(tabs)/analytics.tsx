@@ -22,10 +22,10 @@ export default function Analytics() {
 
   return (
     <Screen>
-      <ScreenHeader title="Analytics" />
+      <ScreenHeader title="Insights" />
       <PillTabs
         tabs={[
-          { key: "overview" as Tab, label: "Geral" },
+          { key: "overview" as Tab, label: "Semana" },
           { key: "body" as Tab, label: "Corpo" },
           { key: "records" as Tab, label: "Recordes" },
           { key: "races" as Tab, label: "Provas" },
@@ -58,30 +58,72 @@ function buildDailySeries(rows: any[], days: number): { date: string; value: num
   return out;
 }
 
+// Chip de variação vs semana anterior (verde sobe / vermelho desce).
+function DeltaChip({ cur, prev, unit, colors, higherIsBetter = true }: {
+  cur: number | null; prev: number | null; unit?: string; colors: any; higherIsBetter?: boolean;
+}) {
+  if (cur == null || prev == null) return null;
+  const diff = Math.round((cur - prev) * 10) / 10;
+  if (diff === 0) return <Text style={[s.deltaFlat, { color: colors.textSecondary }]}>=</Text>;
+  const up = diff > 0;
+  const good = higherIsBetter ? up : !up;
+  const color = good ? colors.success : colors.warning;
+  return (
+    <Text style={[s.delta, { color }]}>
+      {up ? "▲" : "▼"} {Math.abs(diff)}{unit || ""}
+    </Text>
+  );
+}
+
+function overviewInsight(dashboard: any): { title: string; body: string } | null {
+  const risk = dashboard?.overtraining?.risk_level;
+  if (risk === "critico" || risk === "alto") {
+    return {
+      title: "Carga de treino pedindo atenção",
+      body: risk === "critico"
+        ? "Sinais de sobrecarga esta semana. Priorize recuperação e fale com o Comandante."
+        : "Sua carga subiu. Considere aliviar a intensidade nos próximos dias.",
+    };
+  }
+  const rd = dashboard?.readiness;
+  if (rd?.level === "red" || rd?.level === "yellow") {
+    const f = rd.factors?.[0];
+    return {
+      title: rd.level === "red" ? "Prontidão baixa hoje" : "Prontidão moderada",
+      body: f?.detail || "Cheque seus fatores de prontidão na Home.",
+    };
+  }
+  return null;
+}
+
 function OverviewTab() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [consistency, setConsistency] = useState<any>(null);
   const [correlations, setCorrelations] = useState<any>(null);
   const [loadSeries, setLoadSeries] = useState<{ date: string; value: number }[]>([]);
   const [summary, setSummary] = useState<any>(null);
+  const [dashboard, setDashboard] = useState<any>(null);
   const [exporting, setExporting] = useState(false);
   const [exportErr, setExportErr] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, cor, ld, sum] = await Promise.all([
+      const [c, cor, ld, sum, dash] = await Promise.all([
         api.get("/analytics/consistency?days=28"),
         api.get("/analytics/correlations?days=28"),
         api.get("/analytics/load?days=28"),
         api.get("/analytics/weekly-summary"),
+        api.get("/dashboard").catch(() => null),
       ]);
       setConsistency(c);
       setCorrelations(cor);
       setLoadSeries(buildDailySeries(ld?.data || [], 28));
       setSummary(sum);
+      setDashboard(dash);
     } catch {} finally {
       setLoading(false);
     }
@@ -93,23 +135,56 @@ function OverviewTab() {
 
   const loadTotal = loadSeries.reduce((s2, p) => s2 + p.value, 0);
   const loadPeak = loadSeries.reduce((m, p) => Math.max(m, p.value), 0);
+  const prev = summary?.previous || {};
+  const insight = overviewInsight(dashboard);
+
+  // Destaques com comparação vs semana anterior.
+  const highlightTiles = summary ? [
+    { label: "Treinos", value: `${summary.sessions}`, cur: summary.sessions, prev: prev.sessions, unit: "", better: true },
+    { label: "Distância", value: `${summary.km} km`, cur: summary.km, prev: prev.km, unit: "km", better: true },
+    { label: "Carga", value: `${summary.tss} TSS`, cur: summary.tss, prev: prev.tss, unit: "", better: true },
+    { label: "Sono médio", value: summary.avg_sleep ? `${summary.avg_sleep}h` : "—", cur: summary.avg_sleep, prev: prev.avg_sleep, unit: "h", better: true },
+  ] : [];
 
   const sumTiles = summary ? [
-    { label: "Treinos", value: `${summary.sessions}` },
-    { label: "Distância", value: `${summary.km} km` },
-    { label: "Carga", value: `${summary.tss} TSS` },
     { label: "Dias c/ refeição", value: `${summary.meal_days}/7` },
     { label: "Kcal médio", value: summary.avg_calories ? `${summary.avg_calories}` : "—" },
     { label: "Check-ins", value: `${summary.checkins}/7` },
-    { label: "Sono médio", value: summary.avg_sleep ? `${summary.avg_sleep}h` : "—" },
     { label: "Peso (7d)", value: summary.weight_delta != null ? `${summary.weight_delta > 0 ? "+" : ""}${summary.weight_delta}kg` : "—" },
   ] : [];
 
   return (
     <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
+      {insight && (
+        <Card onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          router.push({ pathname: "/(tabs)/coach", params: { prompt: insight.body } });
+        }}>
+          <View style={s.insightHead}>
+            <Ionicons name="sparkles" size={16} color={colors.accent} />
+            <Overline color={colors.accent}>Comandante sugere</Overline>
+          </View>
+          <Text style={[s.insightTitle, { color: colors.text }]}>{insight.title}</Text>
+          <Text style={[s.insightBody, { color: colors.textSecondary }]}>{insight.body}</Text>
+          <Text style={[s.insightCta, { color: colors.accent }]}>Conversar ›</Text>
+        </Card>
+      )}
+
       {summary && (
         <Card>
-          <Overline color={colors.accent}>Resumo da semana</Overline>
+          <Overline color={colors.accent}>Sua semana em números</Overline>
+          <View style={s.hlGrid}>
+            {highlightTiles.map((t) => (
+              <View key={t.label} style={s.hlTile}>
+                <Text style={[s.hlValue, { color: colors.text }]}>{t.value}</Text>
+                <View style={s.hlDeltaRow}>
+                  <DeltaChip cur={t.cur} prev={t.prev} unit={t.unit} colors={colors} higherIsBetter={t.better} />
+                </View>
+                <Text style={[s.hlLabel, { color: colors.textSecondary }]}>{t.label}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={[s.sumDivider, { borderTopColor: colors.border }]} />
           <View style={s.sumGrid}>
             {sumTiles.map((t) => (
               <View key={t.label} style={s.sumTile}>
@@ -118,6 +193,7 @@ function OverviewTab() {
               </View>
             ))}
           </View>
+          <Text style={[s.vsHint, { color: colors.textSecondary }]}>Variações comparadas à semana anterior.</Text>
         </Card>
       )}
 
@@ -625,6 +701,21 @@ const s = StyleSheet.create({
   sumTile: { width: "25%", paddingVertical: spacing.sm, alignItems: "center" },
   sumValue: { fontFamily: fonts.bold, ...type.body, fontVariant: ["tabular-nums"] },
   sumLabel: { fontFamily: fonts.text, fontSize: 10, lineHeight: 13, marginTop: 2, textAlign: "center" },
+
+  insightHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs },
+  insightTitle: { fontFamily: fonts.bold, ...type.body, marginTop: spacing.xs },
+  insightBody: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2, lineHeight: 19 },
+  insightCta: { fontFamily: fonts.semibold, ...type.bodySmall, marginTop: spacing.sm },
+
+  hlGrid: { flexDirection: "row", marginTop: spacing.md },
+  hlTile: { flex: 1, alignItems: "center" },
+  hlValue: { fontFamily: fonts.bold, ...type.h2, fontVariant: ["tabular-nums"] },
+  hlDeltaRow: { height: 16, justifyContent: "center", marginTop: 1 },
+  hlLabel: { fontFamily: fonts.text, fontSize: 10, lineHeight: 13, marginTop: 2, textAlign: "center" },
+  delta: { fontFamily: fonts.semibold, fontSize: 11, lineHeight: 14, fontVariant: ["tabular-nums"] },
+  deltaFlat: { fontFamily: fonts.medium, fontSize: 11, lineHeight: 14 },
+  sumDivider: { borderTopWidth: 1, marginTop: spacing.md, paddingTop: spacing.xs },
+  vsHint: { fontFamily: fonts.text, ...type.caption, fontStyle: "italic", marginTop: spacing.sm },
 
   statsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
   statItem: { alignItems: "center", flex: 1 },

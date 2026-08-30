@@ -34,7 +34,8 @@ export const palette = {
   macroFat: "#F08A6B",
 };
 
-export type ThemeMode = "dark" | "light";
+export type ThemeMode = "dark" | "light" | "system";
+export type ResolvedScheme = "dark" | "light";
 
 type ColorScheme = {
   bg: string;

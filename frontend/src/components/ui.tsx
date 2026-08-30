@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View, Text, StyleSheet, Pressable, ActivityIndicator, TextInput,
-  ViewStyle, StyleProp, TextStyle, TextInputProps,
+  ViewStyle, StyleProp, TextStyle, TextInputProps, Animated, Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -565,6 +565,117 @@ export function ErrorState({
           <PrimaryButton label="Tentar de novo" icon="refresh" onPress={onRetry} />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+// ── Micro-interações (press-scale + entrada) ─────────────────
+// Pressable que encolhe suavemente ao toque. Dá sensação premium/tátil aos
+// tiles sem depender de Reanimated/config de babel.
+export function PressableScale({
+  children, onPress, style, scaleTo = 0.96, disabled, testID, accessibilityLabel,
+}: {
+  children: React.ReactNode;
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
+  scaleTo?: number;
+  disabled?: boolean;
+  testID?: string;
+  accessibilityLabel?: string;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const to = (v: number) =>
+    Animated.spring(scale, { toValue: v, useNativeDriver: true, speed: 40, bounciness: 6 }).start();
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      disabled={disabled}
+      onPress={onPress}
+      onPressIn={() => to(scaleTo)}
+      onPressOut={() => to(1)}
+      style={style}
+    >
+      <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>
+    </Pressable>
+  );
+}
+
+// Entrada com fade + leve deslize para cima. `delay` escalona seções.
+export function FadeInView({
+  children, delay = 0, offset = 12, style,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  offset?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1, duration: 380, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    }).start();
+  }, [anim, delay]);
+  return (
+    <Animated.View
+      style={[
+        {
+          opacity: anim,
+          transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [offset, 0] }) }],
+        },
+        style,
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+// ── Skeleton (loading placeholder) ───────────────────────────
+// Bloco pulsante usado no lugar de spinners enquanto dados de intervals/ML
+// carregam. Usa Animated (sem dependência de config de babel).
+export function Skeleton({
+  width, height = 16, radius: r = radius.sm, style,
+}: {
+  width?: number | `${number}%`;
+  height?: number;
+  radius?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { colors } = useTheme();
+  const pulse = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.4, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  return (
+    <Animated.View
+      style={[
+        { width: width as any, height, borderRadius: r, backgroundColor: colors.skeleton, opacity: pulse },
+        style,
+      ]}
+    />
+  );
+}
+
+// Skeleton no formato de um card (para telas inteiras carregando).
+export function SkeletonCard({ lines = 3, style }: { lines?: number; style?: StyleProp<ViewStyle> }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.card, padding: spacing.lg, gap: spacing.md }, style]}>
+      <Skeleton width="40%" height={12} />
+      {Array.from({ length: lines }).map((_, i) => (
+        <Skeleton key={i} width={i === lines - 1 ? "70%" : "100%"} height={14} />
+      ))}
     </View>
   );
 }

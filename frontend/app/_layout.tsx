@@ -10,6 +10,7 @@ import { useFonts } from "expo-font";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { usePushRegistration } from "@/src/hooks/use-push-registration";
+import { useDailyReminder } from "@/src/hooks/use-daily-reminder";
 import { useAutoSync } from "@/src/hooks/use-auto-sync";
 import { AuthProvider, useAuth } from "@/src/context/AuthContext";
 import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
@@ -37,6 +38,7 @@ function ThemedApp() {
   const { user } = useAuth();
   useAuthGate();
   usePushRegistration(!!user);
+  useDailyReminder(!!user);
   useAutoSync(!!user);
 
   return (

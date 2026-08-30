@@ -1,10 +1,10 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, TextInput, Pressable, FlatList, ActivityIndicator,
   ScrollView, Modal, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -91,6 +91,16 @@ function ChatTab() {
   const [tone, setTone] = useState("balanced");
   const [showTonePicker, setShowTonePicker] = useState(false);
   const listRef = useRef<FlatList>(null);
+  // Pré-preenche a mensagem quando o coach é aberto via card proativo da Home.
+  const params = useLocalSearchParams<{ prompt?: string }>();
+  const prefilledRef = useRef<string | null>(null);
+  useEffect(() => {
+    const p = typeof params.prompt === "string" ? params.prompt : undefined;
+    if (p && prefilledRef.current !== p) {
+      prefilledRef.current = p;
+      setInput(p);
+    }
+  }, [params.prompt]);
 
   const loadSettings = useCallback(async () => {
     try {

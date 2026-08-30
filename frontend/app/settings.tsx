@@ -26,7 +26,7 @@ type WearableSummary = {
 };
 
 export default function Settings() {
-  const { colors, isDark, setMode } = useTheme();
+  const { colors, mode, setMode } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { logout, refreshUser } = useAuth();
@@ -255,34 +255,30 @@ export default function Settings() {
           <View style={s.themeInner}>
             <Text style={[s.themeLabel, { color: colors.text }]}>Tema</Text>
             <View style={s.themeChips}>
-              <Pressable
-                testID="theme-dark"
-                style={[
-                  s.themeChip,
-                  {
-                    backgroundColor: isDark ? colors.accent : colors.surface,
-                    borderColor: isDark ? colors.accent : colors.border,
-                  },
-                ]}
-                onPress={() => setMode("dark")}
-              >
-                <Ionicons name="moon" size={14} color={isDark ? colors.onAccent : colors.textSecondary} />
-                <Text style={[s.themeChipText, { color: isDark ? colors.onAccent : colors.textSecondary }]}>Escuro</Text>
-              </Pressable>
-              <Pressable
-                testID="theme-light"
-                style={[
-                  s.themeChip,
-                  {
-                    backgroundColor: !isDark ? colors.accent : colors.surface,
-                    borderColor: !isDark ? colors.accent : colors.border,
-                  },
-                ]}
-                onPress={() => setMode("light")}
-              >
-                <Ionicons name="sunny" size={14} color={!isDark ? colors.onAccent : colors.textSecondary} />
-                <Text style={[s.themeChipText, { color: !isDark ? colors.onAccent : colors.textSecondary }]}>Claro</Text>
-              </Pressable>
+              {([
+                { key: "dark", label: "Escuro", icon: "moon" },
+                { key: "light", label: "Claro", icon: "sunny" },
+                { key: "system", label: "Auto", icon: "phone-portrait" },
+              ] as const).map((opt) => {
+                const active = mode === opt.key;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    testID={`theme-${opt.key}`}
+                    style={[
+                      s.themeChip,
+                      {
+                        backgroundColor: active ? colors.accent : colors.surface,
+                        borderColor: active ? colors.accent : colors.border,
+                      },
+                    ]}
+                    onPress={() => setMode(opt.key)}
+                  >
+                    <Ionicons name={opt.icon} size={14} color={active ? colors.onAccent : colors.textSecondary} />
+                    <Text style={[s.themeChipText, { color: active ? colors.onAccent : colors.textSecondary }]}>{opt.label}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         </View>

@@ -163,10 +163,36 @@ async def nutrition_trends(
 # Resumo semanal consolidado
 # ---------------------------------------------------------------------------
 
+async def _training_window(user_id: str, since: str, until: str | None):
+    """Agrega treino/sono de uma janela [since, until) — reutilizado para
+    comparar a semana atual com a anterior."""
+    act_query: dict = {"user_id": user_id, "start_date_local": {"$gte": since}}
+    hab_query: dict = {"user_id": user_id, "date": {"$gte": since}}
+    if until is not None:
+        act_query["start_date_local"]["$lt"] = until
+        hab_query["date"]["$lt"] = until
+
+    activities = await db.activities.find(
+        act_query, {"distance": 1, "icu_training_load": 1},
+    ).to_list(200)
+    habits = await db.habits.find(
+        hab_query, {"sleep_hours": 1},
+    ).to_list(20)
+    sleeps = [h["sleep_hours"] for h in habits if h.get("sleep_hours") is not None]
+
+    return {
+        "sessions": len(activities),
+        "km": round(sum((a.get("distance") or 0) for a in activities) / 1000, 1),
+        "tss": round(sum((a.get("icu_training_load") or 0) for a in activities)),
+        "avg_sleep": round(sum(sleeps) / len(sleeps), 1) if sleeps else None,
+    }
+
+
 @router.get("/weekly-summary")
 async def weekly_summary(user: dict = Depends(current_user)):
     user_id = str(user["_id"])
     since = (now_utc() - timedelta(days=7)).strftime("%Y-%m-%d")
+    prev_since = (now_utc() - timedelta(days=14)).strftime("%Y-%m-%d")
 
     activities = await db.activities.find(
         {"user_id": user_id, "start_date_local": {"$gte": since}},
@@ -201,11 +227,15 @@ async def weekly_summary(user: dict = Depends(current_user)):
         weight_series.append(h["weight_kg"])
     weight_delta = round(weight_series[-1] - weight_series[0], 1) if len(weight_series) >= 2 else None
 
+    # Semana anterior (dias 8–14) para comparação "vs semana passada".
+    previous = await _training_window(user_id, prev_since, since)
+
     return {
         "sessions": sessions, "km": km, "tss": tss,
         "meal_days": meal_days, "avg_calories": avg_calories,
         "checkins": checkins, "avg_sleep": avg("sleep_hours"), "avg_mood": avg("mood"),
         "weight_delta": weight_delta,
+        "previous": previous,
     }
 
 

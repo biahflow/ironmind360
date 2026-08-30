@@ -1,11 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { themes, type ThemeMode } from "@/src/theme";
+import { useColorScheme } from "react-native";
+import { themes, type ResolvedScheme, type ThemeMode } from "@/src/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const THEME_KEY = "ironmind_theme";
 
 type ThemeState = {
-  mode: ThemeMode;
+  mode: ThemeMode; // preferência do usuário: dark | light | system
+  scheme: ResolvedScheme; // esquema efetivamente aplicado
   colors: typeof themes.dark;
   toggle: () => void;
   setMode: (m: ThemeMode) => void;
@@ -14,6 +16,7 @@ type ThemeState = {
 
 const ThemeContext = createContext<ThemeState>({
   mode: "dark",
+  scheme: "dark",
   colors: themes.dark,
   toggle: () => {},
   setMode: () => {},
@@ -21,12 +24,13 @@ const ThemeContext = createContext<ThemeState>({
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>("dark");
+  const systemScheme = useColorScheme(); // "light" | "dark" | null (segue o SO)
+  const [mode, setModeState] = useState<ThemeMode>("system");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_KEY).then((saved) => {
-      if (saved === "light" || saved === "dark") {
+      if (saved === "light" || saved === "dark" || saved === "system") {
         setModeState(saved);
       }
       setReady(true);
@@ -38,9 +42,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(THEME_KEY, m);
   }, []);
 
+  // Modo "system" resolve para o esquema do SO (fallback: dark).
+  const scheme: ResolvedScheme =
+    mode === "system" ? (systemScheme === "light" ? "light" : "dark") : mode;
+
   const toggle = useCallback(() => {
-    setMode(mode === "dark" ? "light" : "dark");
-  }, [mode, setMode]);
+    // Alterna apenas entre claro/escuro explícitos (sai do modo automático).
+    setMode(scheme === "dark" ? "light" : "dark");
+  }, [scheme, setMode]);
 
   if (!ready) return null;
 
@@ -48,10 +57,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     <ThemeContext.Provider
       value={{
         mode,
-        colors: themes[mode],
+        scheme,
+        colors: themes[scheme],
         toggle,
         setMode,
-        isDark: mode === "dark",
+        isDark: scheme === "dark",
       }}
     >
       {children}
