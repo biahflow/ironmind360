@@ -7,7 +7,8 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { colors, spacing, radius, fonts, type as tp } from "@/src/theme";
+import { spacing, radius, fonts, type as tp, shadow } from "@/src/theme";
+import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 
 const LEVEL_LABEL: Record<string, string> = {
@@ -16,11 +17,6 @@ const LEVEL_LABEL: Record<string, string> = {
   advanced: "Avançado",
 };
 const ENV_LABEL: Record<string, string> = { home: "Casa", gym: "Academia" };
-const LEVEL_COLOR: Record<string, string> = {
-  beginner: colors.success,
-  intermediate: colors.warning,
-  advanced: colors.error,
-};
 
 type Program = {
   id: string;
@@ -33,11 +29,18 @@ type Program = {
 };
 
 export default function ProgramSelect() {
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState<string | null>(null);
+
+  const LEVEL_COLOR: Record<string, string> = {
+    beginner: colors.success,
+    intermediate: colors.warning,
+    advanced: colors.error,
+  };
 
   const load = useCallback(async () => {
     try {
@@ -67,47 +70,47 @@ export default function ProgramSelect() {
     const active = starting === item.id;
     return (
       <Pressable
-        style={styles.card}
+        style={[s.card, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.md) }]}
         onPress={() => startProgram(item)}
         disabled={!!starting}
       >
-        <View style={styles.cardHeader}>
-          <View style={[styles.levelBadge, { backgroundColor: LEVEL_COLOR[item.level] || colors.brandPrimary }]}>
-            <Text style={styles.levelText}>{LEVEL_LABEL[item.level]?.toUpperCase()}</Text>
+        <View style={s.cardHeader}>
+          <View style={[s.levelBadge, { backgroundColor: LEVEL_COLOR[item.level] || colors.brandPrimary }]}>
+            <Text style={s.levelText}>{LEVEL_LABEL[item.level]?.toUpperCase()}</Text>
           </View>
-          <View style={styles.envBadge}>
+          <View style={[s.envBadge, { backgroundColor: colors.surfaceTertiary }]}>
             <Ionicons
               name={item.environment === "home" ? "home" : "barbell"}
               size={14}
               color={colors.onSurfaceSecondary}
             />
-            <Text style={styles.envText}>{ENV_LABEL[item.environment]}</Text>
+            <Text style={[s.envText, { color: colors.onSurfaceSecondary }]}>{ENV_LABEL[item.environment]}</Text>
           </View>
         </View>
 
-        <Text style={styles.cardTitle}>{item.name}</Text>
-        <Text style={styles.cardDesc} numberOfLines={3}>{item.description}</Text>
+        <Text style={[s.cardTitle, { color: colors.onSurface }]}>{item.name}</Text>
+        <Text style={[s.cardDesc, { color: colors.onSurfaceSecondary }]} numberOfLines={3}>{item.description}</Text>
 
-        <View style={styles.cardMeta}>
-          <View style={styles.metaItem}>
+        <View style={s.cardMeta}>
+          <View style={s.metaItem}>
             <Ionicons name="calendar-outline" size={14} color={colors.onSurfaceSecondary} />
-            <Text style={styles.metaText}>{item.weeks} semanas</Text>
+            <Text style={[s.metaText, { color: colors.onSurfaceSecondary }]}>{item.weeks} semanas</Text>
           </View>
-          <View style={styles.metaItem}>
+          <View style={s.metaItem}>
             <Ionicons name="repeat" size={14} color={colors.onSurfaceSecondary} />
-            <Text style={styles.metaText}>{item.sessions_per_week}x/semana</Text>
+            <Text style={[s.metaText, { color: colors.onSurfaceSecondary }]}>{item.sessions_per_week}x/semana</Text>
           </View>
-          <View style={styles.metaItem}>
+          <View style={s.metaItem}>
             <Ionicons name="flash" size={14} color={colors.onSurfaceSecondary} />
-            <Text style={styles.metaText}>{item.weeks * item.sessions_per_week} sessões</Text>
+            <Text style={[s.metaText, { color: colors.onSurfaceSecondary }]}>{item.weeks * item.sessions_per_week} sessões</Text>
           </View>
         </View>
 
-        <View style={[styles.startBtn, active && styles.startBtnDisabled]}>
+        <View style={[s.startBtn, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }, active && s.startBtnDisabled]}>
           {active ? (
             <ActivityIndicator color={colors.onBrandPrimary} size="small" />
           ) : (
-            <Text style={styles.startBtnText}>INICIAR PROGRAMA</Text>
+            <Text style={[s.startBtnText, { color: colors.onBrandPrimary }]}>Iniciar programa</Text>
           )}
         </View>
       </Pressable>
@@ -115,19 +118,19 @@ export default function ProgramSelect() {
   };
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+    <View style={[s.root, { backgroundColor: colors.surface }]}>
+      <View style={[s.header, { paddingTop: insets.top + spacing.md, borderBottomColor: colors.divider }]}>
+        <Pressable onPress={() => router.back()} style={[s.backBtn, { backgroundColor: colors.surfaceSecondary }]}>
           <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.kicker}>PREPARAÇÃO FÍSICA</Text>
-          <Text style={styles.title}>PROGRAMAS</Text>
+          <Text style={[s.kicker, { color: colors.brandPrimary }]}>Treino</Text>
+          <Text style={[s.title, { color: colors.onSurface }]}>Programas</Text>
         </View>
       </View>
 
       {loading ? (
-        <View style={styles.center}>
+        <View style={s.center}>
           <ActivityIndicator color={colors.brandPrimary} />
         </View>
       ) : (
@@ -148,53 +151,51 @@ export default function ProgramSelect() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
+const s = StyleSheet.create({
+  root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   header: {
     flexDirection: "row", alignItems: "flex-end", gap: spacing.sm,
     paddingHorizontal: spacing.lg, paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: {
-    width: 40, height: 40, borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: colors.border,
+    width: 44, height: 44, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center",
   },
-  kicker: { fontFamily: fonts.medium, fontSize: tp.sm, color: colors.brandSecondary, letterSpacing: 2 },
-  title: { fontFamily: fonts.display, fontSize: tp["3xl"], color: colors.onSurface, letterSpacing: 1 },
+  kicker: { fontFamily: fonts.medium, fontSize: tp.sm, letterSpacing: 2 },
+  title: { fontFamily: fonts.display, fontSize: tp["3xl"], letterSpacing: 1 },
 
   card: {
-    backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg,
-    padding: spacing.lg, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
   },
   cardHeader: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   levelBadge: {
-    paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm,
+    paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill,
   },
   levelText: { fontFamily: fonts.bold, fontSize: 10, color: "#fff", letterSpacing: 1 },
   envBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm,
-    backgroundColor: colors.surfaceTertiary,
+    paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill,
   },
-  envText: { fontFamily: fonts.medium, fontSize: 10, color: colors.onSurfaceSecondary, letterSpacing: 1 },
+  envText: { fontFamily: fonts.medium, fontSize: 10, letterSpacing: 1 },
 
-  cardTitle: { fontFamily: fonts.display, fontSize: tp["2xl"], color: colors.onSurface, letterSpacing: 1 },
+  cardTitle: { fontFamily: fonts.display, fontSize: tp["2xl"], letterSpacing: 1 },
   cardDesc: {
-    fontFamily: fonts.text, fontSize: tp.base, color: colors.onSurfaceSecondary,
+    fontFamily: fonts.text, fontSize: tp.base,
     lineHeight: 20, marginTop: spacing.xs,
   },
 
   cardMeta: { flexDirection: "row", gap: spacing.lg, marginTop: spacing.md },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaText: { fontFamily: fonts.mono, fontSize: tp.sm, color: colors.onSurfaceSecondary },
+  metaText: { fontFamily: fonts.mono, fontSize: tp.sm },
 
   startBtn: {
-    backgroundColor: colors.brandPrimary, height: 48, borderRadius: radius.md,
-    alignItems: "center", justifyContent: "center", marginTop: spacing.lg,
+    height: 52, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center", marginTop: spacing.xl,
   },
   startBtnDisabled: { opacity: 0.6 },
-  startBtnText: { fontFamily: fonts.bold, fontSize: tp.base, color: colors.onBrandPrimary, letterSpacing: 1 },
+  startBtnText: { fontFamily: fonts.bold, fontSize: tp.base, letterSpacing: 1 },
 });

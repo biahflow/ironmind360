@@ -2,9 +2,11 @@ import { useEffect } from "react";
 import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
-import { colors, fonts } from "@/src/theme";
+import { spacing, fonts, type, shadow } from "@/src/theme";
+import { useTheme } from "@/src/context/ThemeContext";
 
 export default function Index() {
+  const { colors, isDark } = useTheme();
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -15,18 +17,21 @@ export default function Index() {
   }, [user, loading, router]);
 
   return (
-    <View style={styles.container} testID="splash-screen">
-      <Text style={styles.logo}>IRONMIND</Text>
-      <Text style={styles.tag}>360 · STAY HARD</Text>
-      <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 24 }} />
-      <Text style={styles.init}>INICIANDO PROTOCOLO...</Text>
+    <View style={[s.container, { backgroundColor: colors.surface }]} testID="splash-screen">
+      <View style={[s.logoWrap, { ...(isDark ? {} : shadow.glow(colors.brandPrimary)) }]}>
+        <Text style={[s.logo, { color: colors.onSurface }]}>IRONMIND</Text>
+        <Text style={[s.tag, { color: colors.brandPrimary }]}>360</Text>
+      </View>
+      <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing["2xl"] }} />
+      <Text style={[s.init, { color: colors.onSurfaceSecondary }]}>Carregando...</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  logo: { fontFamily: fonts.display, fontSize: 64, color: colors.onSurface, letterSpacing: 2 },
-  tag: { fontFamily: fonts.medium, fontSize: 14, color: colors.brandPrimary, letterSpacing: 4, marginTop: -8 },
-  init: { fontFamily: fonts.mono, fontSize: 11, color: colors.onSurfaceSecondary, marginTop: 12, letterSpacing: 1 },
+const s = StyleSheet.create({
+  container: { flex: 1, alignItems: "center", justifyContent: "center" },
+  logoWrap: { alignItems: "center" },
+  logo: { fontFamily: fonts.display, fontSize: 72, letterSpacing: 3 },
+  tag: { fontFamily: fonts.bold, fontSize: type.xl, letterSpacing: 8, marginTop: -4 },
+  init: { fontFamily: fonts.medium, fontSize: type.sm, marginTop: spacing.lg, letterSpacing: 1 },
 });

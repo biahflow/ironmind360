@@ -6,10 +6,12 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { colors, spacing, radius, fonts, type } from "@/src/theme";
+import { spacing, radius, fonts, type, shadow } from "@/src/theme";
+import { useTheme } from "@/src/context/ThemeContext";
 import { useAuth } from "@/src/context/AuthContext";
 
 export default function Register() {
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { register } = useAuth();
@@ -38,39 +40,53 @@ export default function Register() {
     }
   };
 
+  const inputStyle = [
+    s.inputWrap,
+    {
+      backgroundColor: colors.inputBackground,
+      ...(isDark ? {} : shadow.sm),
+    },
+  ];
+
   return (
-    <View style={styles.root}>
+    <View style={[s.root, { backgroundColor: colors.surface }]}>
       <KeyboardAwareScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xl }}
+        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + spacing["2xl"], paddingBottom: insets.bottom + spacing["2xl"] }}
         bottomOffset={20}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
-          <Pressable testID="back-button" onPress={() => router.back()} style={styles.back}>
-            <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
+        <View style={s.content}>
+          <Pressable testID="back-button" onPress={() => router.back()} style={[s.back, { backgroundColor: colors.surfaceTertiary }]}>
+            <Ionicons name="chevron-back" size={22} color={colors.onSurface} />
           </Pressable>
 
-          <Text style={styles.kicker}>DIA 1 DE 40% RESTANTES</Text>
-          <Text style={styles.title}>CRIE SUA{"\n"}CONTA</Text>
-          <Text style={styles.sub}>Comprometa-se. Ninguém vai fazer isso por você.</Text>
+          <View style={s.brandArea}>
+            <Text style={[s.kicker, { color: colors.brandPrimary }]}>Vamos começar</Text>
+            <Text style={[s.title, { color: colors.onSurface }]}>CRIE SUA{"\n"}CONTA</Text>
+            <Text style={[s.sub, { color: colors.onSurfaceSecondary }]}>Crie sua conta e comece a acompanhar seu desempenho.</Text>
+          </View>
 
-          <View style={styles.form}>
-            <View style={styles.inputWrap}>
-              <Ionicons name="person-outline" size={18} color={colors.onSurfaceSecondary} />
+          <View style={s.form}>
+            <View style={inputStyle}>
+              <View style={[s.iconWrap, { backgroundColor: colors.brandPrimary + "18" }]}>
+                <Ionicons name="person-outline" size={18} color={colors.brandPrimary} />
+              </View>
               <TextInput
                 testID="register-name-input"
-                style={styles.input}
+                style={[s.input, { color: colors.onSurface }]}
                 placeholder="Como devo te chamar"
                 placeholderTextColor={colors.onSurfaceSecondary}
                 value={name}
                 onChangeText={setName}
               />
             </View>
-            <View style={styles.inputWrap}>
-              <Ionicons name="mail-outline" size={18} color={colors.onSurfaceSecondary} />
+            <View style={inputStyle}>
+              <View style={[s.iconWrap, { backgroundColor: colors.brandPrimary + "18" }]}>
+                <Ionicons name="mail-outline" size={18} color={colors.brandPrimary} />
+              </View>
               <TextInput
                 testID="register-email-input"
-                style={styles.input}
+                style={[s.input, { color: colors.onSurface }]}
                 placeholder="Email"
                 placeholderTextColor={colors.onSurfaceSecondary}
                 autoCapitalize="none"
@@ -79,11 +95,13 @@ export default function Register() {
                 onChangeText={setEmail}
               />
             </View>
-            <View style={styles.inputWrap}>
-              <Ionicons name="lock-closed-outline" size={18} color={colors.onSurfaceSecondary} />
+            <View style={inputStyle}>
+              <View style={[s.iconWrap, { backgroundColor: colors.brandPrimary + "18" }]}>
+                <Ionicons name="lock-closed-outline" size={18} color={colors.brandPrimary} />
+              </View>
               <TextInput
                 testID="register-password-input"
-                style={styles.input}
+                style={[s.input, { color: colors.onSurface }]}
                 placeholder="Senha (mín. 6)"
                 placeholderTextColor={colors.onSurfaceSecondary}
                 secureTextEntry
@@ -92,15 +110,20 @@ export default function Register() {
               />
             </View>
 
-            {error ? <Text style={styles.error} testID="register-error">{error}</Text> : null}
+            {error ? <Text style={[s.error, { color: colors.error }]} testID="register-error">{error}</Text> : null}
 
-            <Pressable testID="register-submit-button" style={styles.btn} onPress={submit} disabled={busy}>
-              {busy ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Text style={styles.btnText}>ACEITAR O DESAFIO</Text>}
+            <Pressable
+              testID="register-submit-button"
+              style={[s.btn, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }]}
+              onPress={submit}
+              disabled={busy}
+            >
+              {busy ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Text style={[s.btnText, { color: colors.onBrandPrimary }]}>Criar conta</Text>}
             </Pressable>
 
-            <Pressable testID="go-login-button" onPress={() => router.replace("/login")} style={styles.linkRow}>
-              <Text style={styles.linkMuted}>Já tem conta? </Text>
-              <Text style={styles.link}>Entrar</Text>
+            <Pressable testID="go-login-button" onPress={() => router.replace("/login")} style={s.linkRow}>
+              <Text style={[s.linkMuted, { color: colors.onSurfaceSecondary }]}>Já tem conta? </Text>
+              <Text style={[s.link, { color: colors.brandPrimary }]}>Entrar</Text>
             </Pressable>
           </View>
         </View>
@@ -109,27 +132,34 @@ export default function Register() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
+const s = StyleSheet.create({
+  root: { flex: 1 },
   content: { flex: 1, paddingHorizontal: spacing.xl },
-  back: { width: 40, height: 40, justifyContent: "center", marginBottom: spacing.lg },
-  kicker: { fontFamily: fonts.semibold, fontSize: type.sm, color: colors.brandSecondary, letterSpacing: 2 },
-  title: { fontFamily: fonts.display, fontSize: type["4xl"], color: colors.onSurface, lineHeight: type["4xl"] * 0.95, marginTop: spacing.xs },
-  sub: { fontFamily: fonts.text, fontSize: type.base, color: colors.onSurfaceSecondary, marginTop: spacing.sm, marginBottom: spacing.xl },
-  form: { gap: spacing.md },
-  inputWrap: {
-    flexDirection: "row", alignItems: "center", gap: spacing.sm,
-    backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, paddingHorizontal: spacing.lg, height: 54,
+  back: {
+    width: 44, height: 44, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center", marginBottom: spacing.xl,
   },
-  input: { flex: 1, color: colors.onSurface, fontFamily: fonts.text, fontSize: type.lg },
-  error: { color: colors.brandSecondary, fontFamily: fonts.medium, fontSize: type.base },
+  brandArea: { marginBottom: spacing["2xl"] },
+  kicker: { fontFamily: fonts.bold, fontSize: type.sm, letterSpacing: 2, textTransform: "uppercase" },
+  title: { fontFamily: fonts.display, fontSize: type["4xl"], lineHeight: type["4xl"] * 0.95, marginTop: spacing.xs },
+  sub: { fontFamily: fonts.medium, fontSize: type.base, marginTop: spacing.md, lineHeight: 22 },
+  form: { gap: spacing.lg },
+  inputWrap: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    borderRadius: radius.lg, paddingHorizontal: spacing.lg, height: 56,
+  },
+  iconWrap: {
+    width: 36, height: 36, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center",
+  },
+  input: { flex: 1, fontFamily: fonts.medium, fontSize: type.lg },
+  error: { fontFamily: fonts.medium, fontSize: type.base },
   btn: {
-    backgroundColor: colors.brandPrimary, height: 56, borderRadius: radius.md,
+    height: 56, borderRadius: radius.pill,
     alignItems: "center", justifyContent: "center", marginTop: spacing.sm,
   },
-  btnText: { color: colors.onBrandPrimary, fontFamily: fonts.bold, fontSize: type.lg, letterSpacing: 1 },
+  btnText: { fontFamily: fonts.bold, fontSize: type.lg, letterSpacing: 1 },
   linkRow: { flexDirection: "row", justifyContent: "center", marginTop: spacing.md },
-  linkMuted: { color: colors.onSurfaceSecondary, fontFamily: fonts.text, fontSize: type.base },
-  link: { color: colors.brandSecondary, fontFamily: fonts.bold, fontSize: type.base },
+  linkMuted: { fontFamily: fonts.medium, fontSize: type.base },
+  link: { fontFamily: fonts.bold, fontSize: type.base },
 });

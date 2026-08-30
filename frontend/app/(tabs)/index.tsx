@@ -7,21 +7,22 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { colors, spacing, radius, fonts, type } from "@/src/theme";
+import { spacing, radius, fonts, type, shadow } from "@/src/theme";
+import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import ProgressRing from "@/src/components/ProgressRing";
 
 const MOODS = ["😣", "😕", "😐", "🙂", "🔥"];
 
-function scoreLabel(s: number) {
-  if (s >= 80) return "IMPARÁVEL";
-  if (s >= 60) return "NO CAMINHO";
-  if (s >= 40) return "MORNO";
-  if (s >= 20) return "FRACO";
-  return "COMECE JÁ";
+function greetingLabel() {
+  const h = new Date().getHours();
+  if (h < 12) return "Bom dia";
+  if (h < 18) return "Boa tarde";
+  return "Boa noite";
 }
 
-export default function CommandCenter() {
+export default function Home() {
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
@@ -52,7 +53,6 @@ export default function CommandCenter() {
 
   const patchHabit = async (patch: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // optimistic
     setData((prev: any) => ({ ...prev, ...patch }));
     try {
       await api.put("/habits", { date: data?.date, ...patch });
@@ -62,7 +62,7 @@ export default function CommandCenter() {
 
   if (loading || !data) {
     return (
-      <View style={styles.center}>
+      <View style={[s.center, { backgroundColor: colors.surface }]}>
         <ActivityIndicator color={colors.brandPrimary} />
       </View>
     );
@@ -70,161 +70,235 @@ export default function CommandCenter() {
 
   const g = data.goals || {};
   const water = data.water_ml || 0;
+  const scorePct = (data.discipline_score || 0) / 100;
+  const calPct = Math.min(1, (data.calories || 0) / Math.max(g.calories || 1, 1));
+  const waterPct = Math.min(1, water / Math.max(g.water_ml || 1, 1));
+  const sleepPct = Math.min(1, (data.sleep_hours || 0) / Math.max(g.sleep_hours || 1, 1));
+
+  const cardStyle = [
+    s.card,
+    {
+      backgroundColor: colors.cardBackground,
+      ...(isDark ? {} : shadow.sm),
+    },
+  ];
 
   return (
-    <View style={styles.root}>
-      {/* Sticky header */}
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <View>
-          <Text style={styles.hello}>OPERADOR</Text>
-          <Text style={styles.name}>{data.name?.toUpperCase()}</Text>
+    <View style={[s.root, { backgroundColor: colors.surface }]}>
+      {/* Header */}
+      <View style={[s.header, { paddingTop: insets.top + spacing.md }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.greeting, { color: colors.onSurfaceSecondary }]}>{greetingLabel()} 👋</Text>
+          <Text style={[s.name, { color: colors.onSurface }]}>{data.name || "Atleta"}</Text>
         </View>
-        <Pressable testID="settings-button" onPress={() => router.push("/settings")} style={styles.iconBtn}>
-          <Ionicons name="settings-outline" size={22} color={colors.onSurface} />
+        <Pressable
+          testID="settings-button"
+          onPress={() => router.push("/settings")}
+          style={[s.avatarBtn, { backgroundColor: colors.brandTertiary }]}
+        >
+          <Ionicons name="person" size={20} color={colors.brandPrimary} />
         </Pressable>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: tabBarPad }}
+        contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: tabBarPad, paddingTop: spacing.lg }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brandPrimary} />}
       >
-        {/* Discipline Score */}
-        <View style={styles.scoreCard} testID="discipline-score-card">
-          <ProgressRing size={200} strokeWidth={16} progress={data.discipline_score / 100}>
-            <Text style={styles.scoreNum} testID="discipline-score-value">{data.discipline_score}</Text>
-            <Text style={styles.scoreLabel}>{scoreLabel(data.discipline_score)}</Text>
-          </ProgressRing>
-          <View style={styles.streakRow}>
-            <Ionicons name="flame" size={18} color={colors.brandPrimary} />
-            <Text style={styles.streakText}>{data.streak} DIAS DE OFENSIVA</Text>
+        {/* Hero score card */}
+        <View
+          style={[
+            s.heroCard,
+            {
+              backgroundColor: colors.cardBackground,
+              ...(isDark ? {} : shadow.md),
+            },
+          ]}
+          testID="discipline-score-card"
+        >
+          <View style={s.heroContent}>
+            <View style={s.heroLeft}>
+              <Text style={[s.heroLabel, { color: colors.onSurfaceSecondary }]}>Seu progresso de hoje</Text>
+              <View style={s.heroScoreRow}>
+                <Text style={[s.heroScore, { color: colors.onSurface }]} testID="discipline-score-value">{data.discipline_score}</Text>
+                <Text style={[s.heroPct, { color: colors.brandPrimary }]}>%</Text>
+              </View>
+              <Text style={[s.heroSub, { color: colors.onSurfaceSecondary }]}>Score de disciplina</Text>
+              <View style={[s.streakPill, { backgroundColor: colors.brandTertiary }]}>
+                <Ionicons name="flame" size={14} color={colors.brandPrimary} />
+                <Text style={[s.streakText, { color: colors.brandPrimary }]}>{data.streak} dias seguidos</Text>
+              </View>
+            </View>
+            <ProgressRing size={120} strokeWidth={12} progress={scorePct}>
+              <Ionicons name="trophy" size={28} color={colors.brandPrimary} />
+            </ProgressRing>
           </View>
-          <Text style={styles.scoreCaption}>Score de Disciplina · Hoje</Text>
         </View>
 
-        {/* Training plan progress */}
+        {/* Daily goals */}
+        <Text style={[s.section, { color: colors.onSurface }]}>Metas do dia</Text>
+        <View style={s.goalRow}>
+          <GoalCard
+            icon="water"
+            iconColor="#4ECDC4"
+            label="Água"
+            value={`${(water / 1000).toFixed(1)}L`}
+            pct={waterPct}
+            colors={colors}
+            isDark={isDark}
+          />
+          <GoalCard
+            icon="flame"
+            iconColor="#FF6B6B"
+            label="Calorias"
+            value={`${Math.round(data.calories || 0)}`}
+            pct={calPct}
+            colors={colors}
+            isDark={isDark}
+          />
+          <GoalCard
+            icon="moon"
+            iconColor="#9B59B6"
+            label="Sono"
+            value={`${(data.sleep_hours || 0).toFixed(1)}h`}
+            pct={sleepPct}
+            colors={colors}
+            isDark={isDark}
+          />
+        </View>
+
+        {/* Next workout */}
         {plan && plan.status !== "completed" && (
           <Pressable
             testID="training-plan-card"
-            style={styles.trainingCard}
+            style={[
+              s.workoutCard,
+              {
+                backgroundColor: colors.brandPrimary,
+                ...shadow.glow(colors.brandPrimary),
+              },
+            ]}
             onPress={() => router.push("/session")}
           >
-            <View style={styles.trainingLeft}>
-              <Text style={styles.trainingKicker}>PREPARAÇÃO FÍSICA</Text>
-              <Text style={styles.trainingName} numberOfLines={1}>{plan.program_name}</Text>
-              <Text style={styles.trainingMeta}>
+            <View style={s.workoutLeft}>
+              <Text style={[s.workoutKicker, { color: "rgba(0,0,0,0.5)" }]}>PRÓXIMO TREINO</Text>
+              <Text style={[s.workoutName, { color: colors.onBrandPrimary }]} numberOfLines={1}>{plan.program_name}</Text>
+              <Text style={[s.workoutMeta, { color: "rgba(0,0,0,0.6)" }]}>
                 Sessão {plan.current_session} de {plan.total_sessions}
               </Text>
             </View>
-            <View style={styles.trainingRight}>
-              <ProgressRing size={56} strokeWidth={5} progress={plan.completed_sessions / plan.total_sessions}>
-                <Text style={styles.trainingPct}>
-                  {Math.round((plan.completed_sessions / plan.total_sessions) * 100)}%
-                </Text>
-              </ProgressRing>
+            <View style={[s.workoutPlayBtn, { backgroundColor: "rgba(0,0,0,0.15)" }]}>
+              <Ionicons name="play" size={24} color={colors.onBrandPrimary} />
             </View>
           </Pressable>
         )}
 
-        {/* Daily Challenge */}
-        <View style={styles.challengeCard} testID="daily-challenge-card">
-          <Text style={styles.challengeKicker}>DESAFIO DO DIA</Text>
-          <Text style={styles.challengeText}>{data.daily_challenge}</Text>
+        {/* Challenge */}
+        <View style={cardStyle} testID="daily-challenge-card">
+          <View style={s.challengeRow}>
+            <View style={[s.challengeIconWrap, { backgroundColor: colors.brandTertiary }]}>
+              <Ionicons name="trophy" size={20} color={colors.brandPrimary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.challengeLabel, { color: colors.brandPrimary }]}>Desafio do dia</Text>
+              <Text style={[s.challengeText, { color: colors.onSurface }]}>{data.daily_challenge}</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Weekly training stats */}
-        <Text style={styles.sectionTitle}>TREINO · 7 DIAS</Text>
-        <View style={styles.statRow}>
-          <Stat value={data.weekly_workouts} label="SESSÕES" />
-          <Stat value={`${data.weekly_km}`} label="KM" />
-          <Stat value={data.weekly_load} label="CARGA" />
+        {/* Weekly stats */}
+        <Text style={[s.section, { color: colors.onSurface }]}>Esta semana</Text>
+        <View style={s.statRow}>
+          <StatPill icon="barbell" value={data.weekly_workouts} label="Sessões" colors={colors} isDark={isDark} />
+          <StatPill icon="navigate" value={`${data.weekly_km}`} label="Km" colors={colors} isDark={isDark} />
+          <StatPill icon="trending-up" value={data.weekly_load} label="Carga" colors={colors} isDark={isDark} />
         </View>
         {!data.intervals_connected && (
-          <Pressable testID="connect-intervals-cta" style={styles.connectCta} onPress={() => router.push("/settings")}>
-            <Ionicons name="link-outline" size={16} color={colors.brandSecondary} />
-            <Text style={styles.connectText}>Conecte o intervals.icu para importar treinos</Text>
+          <Pressable testID="connect-intervals-cta" style={[s.connectCard, cardStyle]} onPress={() => router.push("/settings")}>
+            <View style={[s.connectIconWrap, { backgroundColor: colors.brandTertiary }]}>
+              <Ionicons name="link" size={18} color={colors.brandPrimary} />
+            </View>
+            <Text style={[s.connectText, { color: colors.onSurface }]}>Conectar intervals.icu</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceSecondary} />
           </Pressable>
         )}
 
-        {/* Nutrition summary */}
-        <Text style={styles.sectionTitle}>COMBUSTÍVEL · HOJE</Text>
-        <View style={styles.fuelCard}>
-          <FuelBar label="Calorias" value={data.calories} goal={g.calories} unit="kcal" />
-          <FuelBar label="Proteína" value={data.protein} goal={g.protein} unit="g" />
-          <Pressable testID="log-meal-cta" style={styles.smallBtn} onPress={() => router.push("/(tabs)/nutrition")}>
-            <Ionicons name="camera" size={16} color={colors.onBrandPrimary} />
-            <Text style={styles.smallBtnText}>Registrar refeição</Text>
-          </Pressable>
+        {/* Quick controls: water + sleep */}
+        <Text style={[s.section, { color: colors.onSurface }]}>Registro rápido</Text>
+        <View style={cardStyle}>
+          <QuickRow
+            icon="water"
+            iconColor="#4ECDC4"
+            label="Água"
+            value={`${(water / 1000).toFixed(1)}`}
+            unit="L"
+            onMinus={() => patchHabit({ water_ml: Math.max(0, water - 250) })}
+            onPlus={() => patchHabit({ water_ml: water + 250 })}
+            minusTestID="water-minus"
+            plusTestID="water-plus"
+            colors={colors}
+          />
+          <View style={[s.separator, { backgroundColor: colors.divider }]} />
+          <QuickRow
+            icon="moon"
+            iconColor="#9B59B6"
+            label="Sono"
+            value={`${(data.sleep_hours || 0).toFixed(1)}`}
+            unit="h"
+            onMinus={() => patchHabit({ sleep_hours: Math.max(0, (data.sleep_hours || 0) - 0.5) })}
+            onPlus={() => patchHabit({ sleep_hours: (data.sleep_hours || 0) + 0.5 })}
+            minusTestID="sleep-minus"
+            plusTestID="sleep-plus"
+            colors={colors}
+          />
         </View>
 
-        {/* Water */}
-        <Text style={styles.sectionTitle}>HIDRATAÇÃO</Text>
-        <View style={styles.waterCard}>
-          <View>
-            <Text style={styles.waterNum}>{(water / 1000).toFixed(1)}<Text style={styles.waterUnit}>L</Text></Text>
-            <Text style={styles.waterGoal}>meta {(g.water_ml / 1000).toFixed(1)}L</Text>
-          </View>
-          <View style={styles.waterBtns}>
-            <Pressable testID="water-minus" style={styles.waterBtn} onPress={() => patchHabit({ water_ml: Math.max(0, water - 250) })}>
-              <Ionicons name="remove" size={22} color={colors.onSurface} />
-            </Pressable>
-            <Pressable testID="water-plus" style={[styles.waterBtn, styles.waterBtnPrimary]} onPress={() => patchHabit({ water_ml: water + 250 })}>
-              <Ionicons name="add" size={22} color={colors.onBrandPrimary} />
-            </Pressable>
-          </View>
+        {/* Habits */}
+        <Text style={[s.section, { color: colors.onSurface }]}>Hábitos diários</Text>
+        <View style={s.habitRow}>
+          <HabitChip testID="toggle-meditate" icon="leaf" label="Meditar" active={data.meditate} onPress={() => patchHabit({ meditate: !data.meditate })} colors={colors} />
+          <HabitChip testID="toggle-read" icon="book" label="Ler" active={data.read} onPress={() => patchHabit({ read: !data.read })} colors={colors} />
+          <HabitChip testID="toggle-cold" icon="snow" label="Gelado" active={data.cold_shower} onPress={() => patchHabit({ cold_shower: !data.cold_shower })} colors={colors} />
         </View>
 
-        {/* Sleep */}
-        <Text style={styles.sectionTitle}>SONO</Text>
-        <View style={styles.waterCard}>
-          <View>
-            <Text style={styles.waterNum}>{data.sleep_hours ? Number(data.sleep_hours).toFixed(1) : "0.0"}<Text style={styles.waterUnit}>h</Text></Text>
-            <Text style={styles.waterGoal}>meta {g.sleep_hours}h</Text>
-          </View>
-          <View style={styles.waterBtns}>
-            <Pressable testID="sleep-minus" style={styles.waterBtn} onPress={() => patchHabit({ sleep_hours: Math.max(0, (data.sleep_hours || 0) - 0.5) })}>
-              <Ionicons name="remove" size={22} color={colors.onSurface} />
-            </Pressable>
-            <Pressable testID="sleep-plus" style={[styles.waterBtn, styles.waterBtnPrimary]} onPress={() => patchHabit({ sleep_hours: (data.sleep_hours || 0) + 0.5 })}>
-              <Ionicons name="add" size={22} color={colors.onBrandPrimary} />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Discipline toggles */}
-        <Text style={styles.sectionTitle}>DISCIPLINA DIÁRIA</Text>
-        <View style={styles.toggleGrid}>
-          <Toggle testID="toggle-meditate" icon="leaf" label="Meditar" active={data.meditate} onPress={() => patchHabit({ meditate: !data.meditate })} />
-          <Toggle testID="toggle-read" icon="book" label="Ler" active={data.read} onPress={() => patchHabit({ read: !data.read })} />
-          <Toggle testID="toggle-cold" icon="snow" label="Banho gelado" active={data.cold_shower} onPress={() => patchHabit({ cold_shower: !data.cold_shower })} />
-        </View>
-
-        {/* Mood + anxiety */}
-        <Text style={styles.sectionTitle}>ESTADO MENTAL</Text>
-        <View style={styles.moodCard}>
-          <Text style={styles.moodLabel}>Humor</Text>
-          <View style={styles.moodRow}>
+        {/* Mood */}
+        <Text style={[s.section, { color: colors.onSurface }]}>Como você está?</Text>
+        <View style={cardStyle}>
+          <Text style={[s.moodLabel, { color: colors.onSurfaceSecondary }]}>Humor</Text>
+          <View style={s.moodRow}>
             {MOODS.map((m, i) => (
               <Pressable
                 key={i}
                 testID={`mood-${i + 1}`}
-                style={[styles.moodChip, data.mood === i + 1 && styles.moodChipActive]}
+                style={[
+                  s.moodChip,
+                  {
+                    backgroundColor: data.mood === i + 1 ? colors.brandTertiary : colors.surfaceTertiary,
+                    borderColor: data.mood === i + 1 ? colors.brandPrimary : "transparent",
+                    borderWidth: data.mood === i + 1 ? 2 : 0,
+                  },
+                ]}
                 onPress={() => patchHabit({ mood: i + 1 })}
               >
-                <Text style={styles.moodEmoji}>{m}</Text>
+                <Text style={s.moodEmoji}>{m}</Text>
               </Pressable>
             ))}
           </View>
-          <Text style={[styles.moodLabel, { marginTop: spacing.lg }]}>Ansiedade</Text>
-          <View style={styles.moodRow}>
+          <Text style={[s.moodLabel, { marginTop: spacing.xl, color: colors.onSurfaceSecondary }]}>Nível de ansiedade</Text>
+          <View style={s.moodRow}>
             {[1, 2, 3, 4, 5].map((n) => (
               <Pressable
                 key={n}
                 testID={`anxiety-${n}`}
-                style={[styles.anxChip, data.anxiety === n && styles.anxChipActive]}
+                style={[
+                  s.anxChip,
+                  {
+                    backgroundColor: data.anxiety === n ? colors.brandPrimary : colors.surfaceTertiary,
+                  },
+                ]}
                 onPress={() => patchHabit({ anxiety: n })}
               >
-                <Text style={[styles.anxText, data.anxiety === n && styles.anxTextActive]}>{n}</Text>
+                <Text style={[s.anxText, { color: data.anxiety === n ? colors.onBrandPrimary : colors.onSurfaceSecondary }]}>{n}</Text>
               </Pressable>
             ))}
           </View>
@@ -234,116 +308,204 @@ export default function CommandCenter() {
   );
 }
 
-function Stat({ value, label }: { value: any; label: string }) {
+function GoalCard({ icon, iconColor, label, value, pct, colors, isDark }: any) {
   return (
-    <View style={styles.stat}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={[s.goalCard, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
+      <View style={[s.goalIconWrap, { backgroundColor: iconColor + "18" }]}>
+        <Ionicons name={icon} size={20} color={iconColor} />
+      </View>
+      <Text style={[s.goalValue, { color: colors.onSurface }]}>{value}</Text>
+      <Text style={[s.goalLabel, { color: colors.onSurfaceSecondary }]}>{label}</Text>
+      <View style={[s.goalTrack, { backgroundColor: colors.surfaceTertiary }]}>
+        <View style={[s.goalFill, { width: `${Math.round(pct * 100)}%`, backgroundColor: iconColor }]} />
+      </View>
+      <Text style={[s.goalPctText, { color: colors.onSurfaceSecondary }]}>{Math.round(pct * 100)}%</Text>
     </View>
   );
 }
 
-function FuelBar({ label, value, goal, unit }: { label: string; value: number; goal: number; unit: string }) {
-  const pct = Math.min(1, (value || 0) / Math.max(goal || 1, 1));
+function StatPill({ icon, value, label, colors, isDark }: any) {
   return (
-    <View style={{ marginBottom: spacing.md }}>
-      <View style={styles.fuelHead}>
-        <Text style={styles.fuelLabel}>{label}</Text>
-        <Text style={styles.fuelVal}>{Math.round(value || 0)} / {goal} {unit}</Text>
+    <View style={[s.statPill, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
+      <Ionicons name={icon} size={16} color={colors.brandPrimary} />
+      <Text style={[s.statValue, { color: colors.onSurface }]}>{value}</Text>
+      <Text style={[s.statLabel, { color: colors.onSurfaceSecondary }]}>{label}</Text>
+    </View>
+  );
+}
+
+function QuickRow({ icon, iconColor, label, value, unit, onMinus, onPlus, minusTestID, plusTestID, colors }: any) {
+  return (
+    <View style={s.quickRow}>
+      <View style={[s.quickIconWrap, { backgroundColor: iconColor + "18" }]}>
+        <Ionicons name={icon} size={20} color={iconColor} />
       </View>
-      <View style={styles.fuelTrack}>
-        <View style={[styles.fuelFill, { width: `${pct * 100}%` }]} />
+      <View style={{ flex: 1 }}>
+        <Text style={[s.quickLabel, { color: colors.onSurfaceSecondary }]}>{label}</Text>
+        <Text style={[s.quickValue, { color: colors.onSurface }]}>{value}<Text style={[s.quickUnit, { color: colors.onSurfaceSecondary }]}> {unit}</Text></Text>
+      </View>
+      <View style={s.quickBtns}>
+        <Pressable testID={minusTestID} style={[s.qBtn, { backgroundColor: colors.surfaceTertiary }]} onPress={onMinus}>
+          <Ionicons name="remove" size={18} color={colors.onSurface} />
+        </Pressable>
+        <Pressable testID={plusTestID} style={[s.qBtn, s.qBtnPrimary, { backgroundColor: colors.brandPrimary }]} onPress={onPlus}>
+          <Ionicons name="add" size={18} color={colors.onBrandPrimary} />
+        </Pressable>
       </View>
     </View>
   );
 }
 
-function Toggle({ testID, icon, label, active, onPress }: any) {
+function HabitChip({ testID, icon, label, active, onPress, colors }: any) {
   return (
-    <Pressable testID={testID} onPress={onPress} style={[styles.toggle, active && styles.toggleActive]}>
-      <Ionicons name={icon} size={22} color={active ? colors.onBrandPrimary : colors.onSurfaceSecondary} />
-      <Text style={[styles.toggleText, active && styles.toggleTextActive]}>{label}</Text>
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      style={[
+        s.habitChip,
+        {
+          backgroundColor: active ? colors.brandPrimary : colors.cardBackground,
+          ...(active ? shadow.glow(colors.brandPrimary) : {}),
+        },
+      ]}
+    >
+      <Ionicons name={icon} size={24} color={active ? colors.onBrandPrimary : colors.onSurfaceSecondary} />
+      <Text style={[s.habitLabel, { color: active ? colors.onBrandPrimary : colors.onSurfaceSecondary }]}>{label}</Text>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
-  center: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+const s = StyleSheet.create({
+  root: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+
   header: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end",
-    paddingHorizontal: spacing.lg, paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider,
-    backgroundColor: colors.surface,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: spacing.xl, paddingBottom: spacing.lg,
   },
-  hello: { fontFamily: fonts.medium, fontSize: type.sm, color: colors.brandSecondary, letterSpacing: 3 },
-  name: { fontFamily: fonts.display, fontSize: type["3xl"], color: colors.onSurface, letterSpacing: 1 },
-  iconBtn: { width: 42, height: 42, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
+  greeting: { fontFamily: fonts.medium, fontSize: type.lg },
+  name: { fontFamily: fonts.bold, fontSize: type["2xl"], marginTop: 2 },
+  avatarBtn: {
+    width: 48, height: 48, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center",
+  },
 
-  scoreCard: { alignItems: "center", paddingVertical: spacing.xl, marginTop: spacing.sm },
-  scoreNum: { fontFamily: fonts.display, fontSize: 88, color: colors.onSurface, lineHeight: 92, fontVariant: ["tabular-nums"] },
-  scoreLabel: { fontFamily: fonts.bold, fontSize: type.base, color: colors.brandPrimary, letterSpacing: 2, marginTop: -6 },
-  streakRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.lg },
-  streakText: { fontFamily: fonts.semibold, fontSize: type.base, color: colors.onSurface, letterSpacing: 1 },
-  scoreCaption: { fontFamily: fonts.text, fontSize: type.sm, color: colors.onSurfaceSecondary, marginTop: spacing.xs },
+  // Hero
+  heroCard: { borderRadius: radius.xl, padding: spacing.xl, marginBottom: spacing.xl },
+  heroContent: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  heroLeft: { flex: 1, marginRight: spacing.lg },
+  heroLabel: { fontFamily: fonts.medium, fontSize: type.sm },
+  heroScoreRow: { flexDirection: "row", alignItems: "flex-end", marginTop: spacing.xs },
+  heroScore: { fontFamily: fonts.display, fontSize: 64, lineHeight: 68, fontVariant: ["tabular-nums"] },
+  heroPct: { fontFamily: fonts.display, fontSize: type["2xl"], marginBottom: 8, marginLeft: 2 },
+  heroSub: { fontFamily: fonts.text, fontSize: type.sm, marginTop: 2 },
+  streakPill: {
+    flexDirection: "row", alignItems: "center", alignSelf: "flex-start",
+    gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radius.pill, marginTop: spacing.md,
+  },
+  streakText: { fontFamily: fonts.semibold, fontSize: type.sm },
 
-  challengeCard: { backgroundColor: colors.brandTertiary, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.brandPrimary },
-  challengeKicker: { fontFamily: fonts.bold, fontSize: type.sm, color: colors.brandSecondary, letterSpacing: 2, marginBottom: spacing.xs },
-  challengeText: { fontFamily: fonts.medium, fontSize: type.lg, color: colors.onSurface, lineHeight: 24 },
+  // Section
+  section: { fontFamily: fonts.bold, fontSize: type.lg, marginTop: spacing["2xl"], marginBottom: spacing.lg },
 
-  sectionTitle: { fontFamily: fonts.bold, fontSize: type.sm, color: colors.onSurfaceSecondary, letterSpacing: 2, marginTop: spacing.xl, marginBottom: spacing.md },
+  // Goal cards
+  goalRow: { flexDirection: "row", gap: spacing.md },
+  goalCard: {
+    flex: 1, borderRadius: radius.lg, padding: spacing.lg,
+    alignItems: "center", gap: spacing.xs,
+  },
+  goalIconWrap: {
+    width: 40, height: 40, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center", marginBottom: spacing.xs,
+  },
+  goalValue: { fontFamily: fonts.bold, fontSize: type.xl, fontVariant: ["tabular-nums"] },
+  goalLabel: { fontFamily: fonts.medium, fontSize: type.xs },
+  goalTrack: { height: 4, borderRadius: radius.pill, width: "100%", overflow: "hidden", marginTop: spacing.sm },
+  goalFill: { height: 4, borderRadius: radius.pill },
+  goalPctText: { fontFamily: fonts.medium, fontSize: type.xs, marginTop: 2 },
 
+  // Workout CTA
+  workoutCard: {
+    borderRadius: radius.xl, padding: spacing.xl, marginTop: spacing.xl,
+    flexDirection: "row", alignItems: "center",
+  },
+  workoutLeft: { flex: 1 },
+  workoutKicker: { fontFamily: fonts.bold, fontSize: type.xs, letterSpacing: 1 },
+  workoutName: { fontFamily: fonts.bold, fontSize: type.xl, marginTop: 4 },
+  workoutMeta: { fontFamily: fonts.medium, fontSize: type.sm, marginTop: 2 },
+  workoutPlayBtn: {
+    width: 52, height: 52, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center",
+  },
+
+  // Card base
+  card: { borderRadius: radius.lg, padding: spacing.xl, marginTop: spacing.md },
+
+  // Challenge
+  challengeRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.lg },
+  challengeIconWrap: {
+    width: 44, height: 44, borderRadius: radius.md,
+    alignItems: "center", justifyContent: "center",
+  },
+  challengeLabel: { fontFamily: fonts.bold, fontSize: type.xs, letterSpacing: 1, textTransform: "uppercase" },
+  challengeText: { fontFamily: fonts.medium, fontSize: type.base, lineHeight: 22, marginTop: spacing.xs },
+
+  // Stats
   statRow: { flexDirection: "row", gap: spacing.md },
-  stat: { flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, paddingVertical: spacing.lg, alignItems: "center", borderWidth: 1, borderColor: colors.border },
-  statValue: { fontFamily: fonts.display, fontSize: type["3xl"], color: colors.onSurface, fontVariant: ["tabular-nums"] },
-  statLabel: { fontFamily: fonts.medium, fontSize: 10, color: colors.onSurfaceSecondary, letterSpacing: 1, marginTop: 2 },
-
-  connectCta: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, borderStyle: "dashed" },
-  connectText: { fontFamily: fonts.medium, fontSize: type.base, color: colors.brandSecondary },
-
-  fuelCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
-  fuelHead: { flexDirection: "row", justifyContent: "space-between", marginBottom: spacing.sm },
-  fuelLabel: { fontFamily: fonts.semibold, fontSize: type.base, color: colors.onSurface },
-  fuelVal: { fontFamily: fonts.mono, fontSize: type.sm, color: colors.onSurfaceSecondary },
-  fuelTrack: { height: 8, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary, overflow: "hidden" },
-  fuelFill: { height: 8, borderRadius: radius.pill, backgroundColor: colors.brandPrimary },
-  smallBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.brandPrimary, height: 44, borderRadius: radius.md, marginTop: spacing.sm },
-  smallBtnText: { fontFamily: fonts.bold, fontSize: type.base, color: colors.onBrandPrimary },
-
-  waterCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  waterNum: { fontFamily: fonts.display, fontSize: type["4xl"], color: colors.onSurface, fontVariant: ["tabular-nums"] },
-  waterUnit: { fontFamily: fonts.display, fontSize: type.xl, color: colors.onSurfaceSecondary },
-  waterGoal: { fontFamily: fonts.text, fontSize: type.sm, color: colors.onSurfaceSecondary },
-  waterBtns: { flexDirection: "row", gap: spacing.sm },
-  waterBtn: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  waterBtnPrimary: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
-
-  toggleGrid: { flexDirection: "row", gap: spacing.md },
-  toggle: { flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, paddingVertical: spacing.lg, alignItems: "center", gap: spacing.sm, borderWidth: 1, borderColor: colors.border },
-  toggleActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
-  toggleText: { fontFamily: fonts.semibold, fontSize: type.sm, color: colors.onSurfaceSecondary },
-  toggleTextActive: { color: colors.onBrandPrimary },
-
-  moodCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
-  moodLabel: { fontFamily: fonts.semibold, fontSize: type.base, color: colors.onSurface, marginBottom: spacing.md },
-  moodRow: { flexDirection: "row", gap: spacing.sm, justifyContent: "space-between" },
-  moodChip: { flex: 1, aspectRatio: 1, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  moodChipActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
-  moodEmoji: { fontSize: 24 },
-  anxChip: { flex: 1, height: 44, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  anxChipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
-  anxText: { fontFamily: fonts.bold, fontSize: type.lg, color: colors.onSurfaceSecondary },
-  anxTextActive: { color: colors.onBrandPrimary },
-
-  trainingCard: {
-    flexDirection: "row", alignItems: "center", backgroundColor: colors.brandTertiary,
-    borderRadius: radius.md, padding: spacing.lg, marginBottom: spacing.md,
-    borderWidth: 1, borderColor: colors.brandPrimary,
+  statPill: {
+    flex: 1, borderRadius: radius.lg, paddingVertical: spacing.lg,
+    alignItems: "center", gap: spacing.xs,
   },
-  trainingLeft: { flex: 1 },
-  trainingKicker: { fontFamily: fonts.bold, fontSize: 10, color: colors.brandSecondary, letterSpacing: 2 },
-  trainingName: { fontFamily: fonts.display, fontSize: type.xl, color: colors.onSurface, letterSpacing: 1, marginTop: 2 },
-  trainingMeta: { fontFamily: fonts.mono, fontSize: type.sm, color: colors.onSurfaceSecondary, marginTop: 2 },
-  trainingRight: { marginLeft: spacing.md },
-  trainingPct: { fontFamily: fonts.display, fontSize: type.base, color: colors.onSurface },
+  statValue: { fontFamily: fonts.bold, fontSize: type["2xl"], fontVariant: ["tabular-nums"] },
+  statLabel: { fontFamily: fonts.medium, fontSize: type.xs },
+
+  // Connect CTA
+  connectCard: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+  },
+  connectIconWrap: {
+    width: 40, height: 40, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center",
+  },
+  connectText: { flex: 1, fontFamily: fonts.medium, fontSize: type.base },
+
+  // Quick controls
+  quickRow: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md },
+  quickIconWrap: {
+    width: 44, height: 44, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center", marginRight: spacing.lg,
+  },
+  quickLabel: { fontFamily: fonts.medium, fontSize: type.sm },
+  quickValue: { fontFamily: fonts.bold, fontSize: type.xl, fontVariant: ["tabular-nums"] },
+  quickUnit: { fontFamily: fonts.medium, fontSize: type.base },
+  quickBtns: { flexDirection: "row", gap: spacing.sm },
+  qBtn: {
+    width: 44, height: 44, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center",
+  },
+  qBtnPrimary: {},
+  separator: { height: 1, marginVertical: spacing.sm },
+
+  // Habits
+  habitRow: { flexDirection: "row", gap: spacing.md },
+  habitChip: {
+    flex: 1, borderRadius: radius.lg, paddingVertical: spacing.xl,
+    alignItems: "center", gap: spacing.sm,
+  },
+  habitLabel: { fontFamily: fonts.semibold, fontSize: type.sm },
+
+  // Mood
+  moodLabel: { fontFamily: fonts.semibold, fontSize: type.sm, marginBottom: spacing.md },
+  moodRow: { flexDirection: "row", gap: spacing.sm },
+  moodChip: {
+    flex: 1, aspectRatio: 1, borderRadius: radius.md,
+    alignItems: "center", justifyContent: "center",
+  },
+  moodEmoji: { fontSize: 26 },
+  anxChip: {
+    flex: 1, height: 48, borderRadius: radius.md,
+    alignItems: "center", justifyContent: "center",
+  },
+  anxText: { fontFamily: fonts.bold, fontSize: type.lg },
 });

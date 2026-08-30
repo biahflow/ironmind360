@@ -17,6 +17,18 @@ from app.models.profile import (
     SelfAssessment,
     SportProfileIn,
 )
+from app.models.meal_plan import (
+    MealPlanCreateIn,
+    MealPlanReviewIn,
+    NutritionScreeningIn,
+)
+from app.models.nutrition import (
+    FavoriteIn,
+    ManualMealIn,
+    MealEditIn,
+    MealItemIn,
+    RecipeIn,
+)
 from app.models.wellness import (
     CustomHabitIn,
     CustomHabitLogIn,
@@ -40,6 +52,14 @@ __all__ = [
     "SelfAssessment",
     "SettingsIn",
     "SportProfileIn",
+    "MealPlanCreateIn",
+    "MealPlanReviewIn",
+    "NutritionScreeningIn",
+    "FavoriteIn",
+    "ManualMealIn",
+    "MealEditIn",
+    "MealItemIn",
+    "RecipeIn",
     "CustomHabitIn",
     "CustomHabitLogIn",
     "PainCheckIn",

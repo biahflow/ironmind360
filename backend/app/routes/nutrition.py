@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
@@ -6,12 +8,33 @@ from app.adapters.legacy_storage import legacy_storage
 from app.database import db
 from app.dependencies import current_user
 from app.models import Goals
+from app.models.nutrition import (
+    FavoriteIn,
+    ManualMealIn,
+    MealEditIn,
+    RecipeIn,
+)
 from app.rate_limit import rate_limit
 from app.services.files import create_file, delete_file, ensure_legacy_meal_file
 from app.utils.time import now_utc, today_str
 
-
 router = APIRouter(prefix="/nutrition", tags=["nutrition"])
+
+
+def _sum_items(items: list[dict]) -> dict:
+    keys = ["calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sodium_mg", "sugar_g"]
+    return {k: sum(i.get(k, 0) or 0 for i in items) for k in keys}
+
+
+def _serialize_meal(meal: dict, file_document: dict | None = None) -> dict:
+    meal["id"] = str(meal.pop("_id"))
+    meal["photo_url"] = (
+        f"/api/v1/files/{file_document['_id']}" if file_document else None
+    )
+    return meal
+
+
+# ── Photo analysis (existing) ──────────────────────────────────
 
 
 @router.post("/analyze", dependencies=[Depends(rate_limit("upload", 12, 60))])
@@ -27,26 +50,61 @@ async def analyze_meal(
         raise HTTPException(415, "Formato de imagem nao permitido")
     if not content or len(content) > 10 * 1024 * 1024:
         raise HTTPException(413, "Imagem vazia ou maior que 10 MB")
-    analysis = await analyze_food_image(content)
+
+    try:
+        analysis = await analyze_food_image(content)
+    except Exception:
+        analysis = None
+
     stored_file = await create_file(
         owner_user_id=user_id,
         data=content,
         content_type=content_type,
         original_name=file.filename,
     )
+
+    items_raw = analysis.get("items", []) if analysis else []
+    items = []
+    for item in items_raw:
+        if isinstance(item, str):
+            items.append({"name": item, "quantity": 1, "unit": "porcao",
+                          "calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0,
+                          "fiber_g": 0, "sodium_mg": 0, "sugar_g": 0})
+        elif isinstance(item, dict):
+            items.append({
+                "name": item.get("name", item.get("item", "Item")),
+                "quantity": item.get("quantity", 1),
+                "unit": item.get("unit", "porcao"),
+                "calories": item.get("calories", 0),
+                "protein_g": item.get("protein_g", 0),
+                "carbs_g": item.get("carbs_g", 0),
+                "fat_g": item.get("fat_g", 0),
+                "fiber_g": item.get("fiber_g", 0),
+                "sodium_mg": item.get("sodium_mg", 0),
+                "sugar_g": item.get("sugar_g", 0),
+            })
+
+    totals = _sum_items(items) if items else {}
+
     meal = {
         "user_id": user_id,
         "date": today_str(),
         "meal_type": meal_type,
+        "source": "photo",
         "photo_file_id": stored_file["_id"],
-        "title": analysis.get("title", "Refeicao"),
-        "items": analysis.get("items", []),
-        "calories": analysis.get("calories", 0),
-        "protein_g": analysis.get("protein_g", 0),
-        "carbs_g": analysis.get("carbs_g", 0),
-        "fat_g": analysis.get("fat_g", 0),
-        "health_score": analysis.get("health_score", 0),
-        "coach_note": analysis.get("coach_note", ""),
+        "title": (analysis or {}).get("title", "Refeição"),
+        "items": items,
+        "calories": totals.get("calories", analysis.get("calories", 0) if analysis else 0),
+        "protein_g": totals.get("protein_g", analysis.get("protein_g", 0) if analysis else 0),
+        "carbs_g": totals.get("carbs_g", analysis.get("carbs_g", 0) if analysis else 0),
+        "fat_g": totals.get("fat_g", analysis.get("fat_g", 0) if analysis else 0),
+        "fiber_g": totals.get("fiber_g", 0),
+        "sodium_mg": totals.get("sodium_mg", 0),
+        "sugar_g": totals.get("sugar_g", 0),
+        "health_score": (analysis or {}).get("health_score", 0),
+        "coach_note": (analysis or {}).get("coach_note", ""),
+        "ai_failed": analysis is None,
+        "notes": "",
         "created_at": now_utc(),
         "deleted_at": None,
     }
@@ -55,9 +113,85 @@ async def analyze_meal(
     except Exception:
         await delete_file(stored_file)
         raise
+    meal.pop("_id", None)
     meal["id"] = str(result.inserted_id)
     meal["photo_url"] = f"/api/v1/files/{stored_file['_id']}"
     return meal
+
+
+# ── Manual entry ────────────────────────────────────────────────
+
+
+@router.post("/manual")
+async def create_manual_meal(
+    data: ManualMealIn,
+    user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    items = [i.model_dump() for i in data.items]
+    totals = _sum_items(items)
+    meal = {
+        "user_id": user_id,
+        "date": today_str(),
+        "meal_type": data.meal_type,
+        "source": "manual",
+        "photo_file_id": None,
+        "title": data.title,
+        "items": items,
+        **totals,
+        "health_score": 0,
+        "coach_note": "",
+        "ai_failed": False,
+        "notes": data.notes,
+        "created_at": now_utc(),
+        "deleted_at": None,
+    }
+    result = await db.meals.insert_one(meal)
+    meal.pop("_id", None)
+    meal["id"] = str(result.inserted_id)
+    meal["photo_url"] = None
+    return meal
+
+
+# ── Edit meal (AI or manual) ───────────────────────────────────
+
+
+@router.put("/{meal_id}")
+async def edit_meal(
+    meal_id: str,
+    data: MealEditIn,
+    user: dict = Depends(current_user),
+):
+    if not ObjectId.is_valid(meal_id):
+        raise HTTPException(404, "Refeicao nao encontrada")
+    meal = await db.meals.find_one(
+        {"_id": ObjectId(meal_id), "user_id": str(user["_id"]), "deleted_at": None}
+    )
+    if not meal:
+        raise HTTPException(404, "Refeicao nao encontrada")
+
+    update: dict = {"updated_at": now_utc()}
+    if data.title is not None:
+        update["title"] = data.title
+    if data.meal_type is not None:
+        update["meal_type"] = data.meal_type
+    if data.notes is not None:
+        update["notes"] = data.notes
+    if data.items is not None:
+        items = [i.model_dump() for i in data.items]
+        update["items"] = items
+        totals = _sum_items(items)
+        update.update(totals)
+
+    await db.meals.update_one({"_id": meal["_id"]}, {"$set": update})
+    updated = await db.meals.find_one({"_id": meal["_id"]})
+    if not updated:
+        raise HTTPException(404, "Refeicao nao encontrada")
+    file_document = await ensure_legacy_meal_file(updated)
+    return _serialize_meal(updated, file_document)
+
+
+# ── List meals (single day) ────────────────────────────────────
 
 
 @router.get("")
@@ -76,13 +210,11 @@ async def list_meals(
         .sort("created_at", 1)
         .to_list(100)
     )
-    totals = {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}
+    macro_keys = ["calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sodium_mg", "sugar_g"]
+    totals = {k: 0 for k in macro_keys}
     for meal in meals:
         file_document = await ensure_legacy_meal_file(meal)
-        meal["id"] = str(meal.pop("_id"))
-        meal["photo_url"] = (
-            f"/api/v1/files/{file_document['_id']}" if file_document else None
-        )
+        _serialize_meal(meal, file_document)
         for key in totals:
             totals[key] += meal.get(key, 0) or 0
     return {
@@ -91,6 +223,61 @@ async def list_meals(
         "date": target_date,
         "goals": user.get("goals", Goals().model_dump()),
     }
+
+
+# ── Weekly history ──────────────────────────────────────────────
+
+
+@router.get("/weekly")
+async def weekly_history(
+    start: str | None = Query(None),
+    user: dict = Depends(current_user),
+):
+    from datetime import datetime
+
+    if start:
+        try:
+            base = datetime.strptime(start, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(400, "Formato de data invalido (YYYY-MM-DD)")
+    else:
+        base = now_utc()
+
+    dates = [(base - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+    user_id = str(user["_id"])
+
+    pipeline: list[dict[str, object]] = [
+        {"$match": {"user_id": user_id, "date": {"$in": dates}, "deleted_at": None}},
+        {"$group": {
+            "_id": "$date",
+            "calories": {"$sum": "$calories"},
+            "protein_g": {"$sum": "$protein_g"},
+            "carbs_g": {"$sum": "$carbs_g"},
+            "fat_g": {"$sum": "$fat_g"},
+            "fiber_g": {"$sum": {"$ifNull": ["$fiber_g", 0]}},
+            "sodium_mg": {"$sum": {"$ifNull": ["$sodium_mg", 0]}},
+            "sugar_g": {"$sum": {"$ifNull": ["$sugar_g", 0]}},
+            "meal_count": {"$sum": 1},
+        }},
+        {"$sort": {"_id": -1}},
+    ]
+    cursor = await db.meals.aggregate(pipeline)
+    agg = await cursor.to_list(7)
+
+    by_date = {d["_id"]: {**d, "date": d.pop("_id")} for d in agg}
+    days = []
+    for d in sorted(dates):
+        if d in by_date:
+            days.append(by_date[d])
+        else:
+            days.append({
+                "date": d, "calories": 0, "protein_g": 0, "carbs_g": 0,
+                "fat_g": 0, "fiber_g": 0, "sodium_mg": 0, "sugar_g": 0, "meal_count": 0,
+            })
+    return {"days": days, "goals": user.get("goals", Goals().model_dump())}
+
+
+# ── Delete meal ─────────────────────────────────────────────────
 
 
 @router.delete("/{meal_id}")
@@ -114,3 +301,191 @@ async def delete_meal(meal_id: str, user: dict = Depends(current_user)):
         {"$set": {"deleted_at": now_utc()}},
     )
     return {"ok": True}
+
+
+# ── Favorites ───────────────────────────────────────────────────
+
+
+@router.post("/favorites")
+async def create_favorite(
+    data: FavoriteIn,
+    user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    existing = await db.meal_favorites.count_documents(
+        {"user_id": user_id, "deleted_at": None}
+    )
+    if existing >= 100:
+        raise HTTPException(400, "Limite de 100 favoritos atingido")
+    fav = {
+        "user_id": user_id,
+        "name": data.name,
+        "meal_type": data.meal_type,
+        "items": [i.model_dump() for i in data.items],
+        "created_at": now_utc(),
+        "deleted_at": None,
+    }
+    result = await db.meal_favorites.insert_one(fav)
+    fav["id"] = str(result.inserted_id)
+    del fav["_id"]
+    return fav
+
+
+@router.get("/favorites")
+async def list_favorites(user: dict = Depends(current_user)):
+    favs = (
+        await db.meal_favorites.find(
+            {"user_id": str(user["_id"]), "deleted_at": None}
+        )
+        .sort("name", 1)
+        .to_list(100)
+    )
+    for f in favs:
+        f["id"] = str(f.pop("_id"))
+    return {"favorites": favs}
+
+
+@router.delete("/favorites/{fav_id}")
+async def delete_favorite(fav_id: str, user: dict = Depends(current_user)):
+    if not ObjectId.is_valid(fav_id):
+        raise HTTPException(404, "Favorito nao encontrado")
+    result = await db.meal_favorites.update_one(
+        {"_id": ObjectId(fav_id), "user_id": str(user["_id"]), "deleted_at": None},
+        {"$set": {"deleted_at": now_utc()}},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(404, "Favorito nao encontrado")
+    return {"ok": True}
+
+
+@router.post("/favorites/{fav_id}/use")
+async def use_favorite(fav_id: str, user: dict = Depends(current_user)):
+    if not ObjectId.is_valid(fav_id):
+        raise HTTPException(404, "Favorito nao encontrado")
+    fav = await db.meal_favorites.find_one(
+        {"_id": ObjectId(fav_id), "user_id": str(user["_id"]), "deleted_at": None}
+    )
+    if not fav:
+        raise HTTPException(404, "Favorito nao encontrado")
+    items = fav["items"]
+    totals = _sum_items(items)
+    meal = {
+        "user_id": str(user["_id"]),
+        "date": today_str(),
+        "meal_type": fav.get("meal_type", "meal"),
+        "source": "favorite",
+        "photo_file_id": None,
+        "title": fav["name"],
+        "items": items,
+        **totals,
+        "health_score": 0,
+        "coach_note": "",
+        "ai_failed": False,
+        "notes": "",
+        "created_at": now_utc(),
+        "deleted_at": None,
+    }
+    result = await db.meals.insert_one(meal)
+    meal.pop("_id", None)
+    meal["id"] = str(result.inserted_id)
+    meal["photo_url"] = None
+    return meal
+
+
+# ── Recipes ─────────────────────────────────────────────────────
+
+
+@router.post("/recipes")
+async def create_recipe(
+    data: RecipeIn,
+    user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    existing = await db.meal_recipes.count_documents(
+        {"user_id": user_id, "deleted_at": None}
+    )
+    if existing >= 50:
+        raise HTTPException(400, "Limite de 50 receitas atingido")
+    items = [i.model_dump() for i in data.items]
+    totals = _sum_items(items)
+    recipe = {
+        "user_id": user_id,
+        "name": data.name,
+        "servings": data.servings,
+        "items": items,
+        "totals_per_recipe": totals,
+        "totals_per_serving": {k: round(v / data.servings, 1) for k, v in totals.items()},
+        "instructions": data.instructions,
+        "created_at": now_utc(),
+        "deleted_at": None,
+    }
+    result = await db.meal_recipes.insert_one(recipe)
+    recipe["id"] = str(result.inserted_id)
+    del recipe["_id"]
+    return recipe
+
+
+@router.get("/recipes")
+async def list_recipes(user: dict = Depends(current_user)):
+    recipes = (
+        await db.meal_recipes.find(
+            {"user_id": str(user["_id"]), "deleted_at": None}
+        )
+        .sort("name", 1)
+        .to_list(50)
+    )
+    for r in recipes:
+        r["id"] = str(r.pop("_id"))
+    return {"recipes": recipes}
+
+
+@router.delete("/recipes/{recipe_id}")
+async def delete_recipe(recipe_id: str, user: dict = Depends(current_user)):
+    if not ObjectId.is_valid(recipe_id):
+        raise HTTPException(404, "Receita nao encontrada")
+    result = await db.meal_recipes.update_one(
+        {"_id": ObjectId(recipe_id), "user_id": str(user["_id"]), "deleted_at": None},
+        {"$set": {"deleted_at": now_utc()}},
+    )
+    if result.modified_count == 0:
+        raise HTTPException(404, "Receita nao encontrada")
+    return {"ok": True}
+
+
+@router.post("/recipes/{recipe_id}/use")
+async def use_recipe(
+    recipe_id: str,
+    servings: int = Query(default=1, ge=1, le=50),
+    user: dict = Depends(current_user),
+):
+    if not ObjectId.is_valid(recipe_id):
+        raise HTTPException(404, "Receita nao encontrada")
+    recipe = await db.meal_recipes.find_one(
+        {"_id": ObjectId(recipe_id), "user_id": str(user["_id"]), "deleted_at": None}
+    )
+    if not recipe:
+        raise HTTPException(404, "Receita nao encontrada")
+    per_serving = recipe["totals_per_serving"]
+    scaled = {k: round(v * servings, 1) for k, v in per_serving.items()}
+    items = recipe["items"]
+    meal = {
+        "user_id": str(user["_id"]),
+        "date": today_str(),
+        "meal_type": "meal",
+        "source": "recipe",
+        "photo_file_id": None,
+        "title": f"{recipe['name']} ({servings}x)",
+        "items": items,
+        **scaled,
+        "health_score": 0,
+        "coach_note": "",
+        "ai_failed": False,
+        "notes": "",
+        "created_at": now_utc(),
+        "deleted_at": None,
+    }
+    result = await db.meals.insert_one(meal)
+    meal.pop("_id", None)
+    meal["id"] = str(result.inserted_id)
+    meal["photo_url"] = None
+    return meal

@@ -92,6 +92,31 @@ export const api = {
       body: form,
     });
   },
+  async uploadFile(path: string, uri: string, fileName: string, mimeType: string, extra?: Record<string, string>) {
+    const form = new FormData();
+    if (Platform.OS === "web") {
+      const blob = await (await fetch(uri)).blob();
+      form.append("file", blob, fileName);
+    } else {
+      form.append("file", { uri, name: fileName, type: mimeType } as any);
+    }
+    if (extra) {
+      for (const [k, v] of Object.entries(extra)) {
+        form.append(k, v);
+      }
+    }
+    return request(path, {
+      method: "POST",
+      body: form,
+    });
+  },
+  async patch(path: string, data?: any) {
+    return request(path, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  },
 };
 
 export function fileUrl(photoPath: string): string {

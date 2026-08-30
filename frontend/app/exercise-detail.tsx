@@ -6,7 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, spacing, radius, fonts, type as tp } from "@/src/theme";
+import { spacing, radius, fonts, type as tp, shadow } from "@/src/theme";
+import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import MuscleMap from "@/src/components/MuscleMap";
 
@@ -53,6 +54,7 @@ type Exercise = {
 };
 
 export default function ExerciseDetail() {
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -72,13 +74,13 @@ export default function ExerciseDetail() {
 
   if (loading || !exercise) {
     return (
-      <View style={styles.root}>
-        <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+      <View style={[s.root, { backgroundColor: colors.surface }]}>
+        <View style={[s.header, { paddingTop: insets.top + spacing.md, borderBottomColor: colors.divider }]}>
+          <Pressable onPress={() => router.back()} style={[s.backBtn, { backgroundColor: colors.surfaceSecondary }]}>
             <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
           </Pressable>
         </View>
-        <View style={styles.center}>
+        <View style={s.center}>
           <ActivityIndicator color={colors.brandPrimary} />
         </View>
       </View>
@@ -86,12 +88,12 @@ export default function ExerciseDetail() {
   }
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+    <View style={[s.root, { backgroundColor: colors.surface }]}>
+      <View style={[s.header, { paddingTop: insets.top + spacing.md, borderBottomColor: colors.divider }]}>
+        <Pressable onPress={() => router.back()} style={[s.backBtn, { backgroundColor: colors.surfaceSecondary }]}>
           <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>{exercise.name}</Text>
+        <Text style={[s.headerTitle, { color: colors.onSurface }]} numberOfLines={1}>{exercise.name}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -100,7 +102,7 @@ export default function ExerciseDetail() {
         showsVerticalScrollIndicator={false}
       >
         {/* Muscle map illustration */}
-        <View style={styles.illustrationArea}>
+        <View style={[s.illustrationArea, { backgroundColor: colors.surfaceSecondary, ...(isDark ? {} : shadow.sm) }]}>
           <MuscleMap
             primary={exercise.primary_muscles as any[]}
             secondary={exercise.secondary_muscles as any[]}
@@ -109,43 +111,43 @@ export default function ExerciseDetail() {
         </View>
 
         {/* Badges */}
-        <View style={styles.badgeRow}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern}</Text>
+        <View style={s.badgeRow}>
+          <View style={[s.badge, { backgroundColor: colors.surfaceTertiary }]}>
+            <Text style={[s.badgeText, { color: colors.onSurfaceSecondary }]}>{PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern}</Text>
           </View>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{LEVEL_LABEL[exercise.min_level]}</Text>
+          <View style={[s.badge, { backgroundColor: colors.surfaceTertiary }]}>
+            <Text style={[s.badgeText, { color: colors.onSurfaceSecondary }]}>{LEVEL_LABEL[exercise.min_level]}</Text>
           </View>
           {exercise.equipment.map((eq) => (
-            <View key={eq} style={styles.badge}>
-              <Text style={styles.badgeText}>{eq}</Text>
+            <View key={eq} style={[s.badge, { backgroundColor: colors.surfaceTertiary }]}>
+              <Text style={[s.badgeText, { color: colors.onSurfaceSecondary }]}>{eq}</Text>
             </View>
           ))}
         </View>
 
         {/* Muscles */}
         {(exercise.primary_muscles.length > 0 || exercise.secondary_muscles.length > 0) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>MÚSCULOS ATIVADOS</Text>
+          <View style={s.section}>
+            <Text style={[s.sectionTitle, { color: colors.onSurfaceSecondary }]}>MÚSCULOS ATIVADOS</Text>
             {exercise.primary_muscles.length > 0 && (
-              <View style={styles.muscleRow}>
-                <Text style={styles.muscleLabel}>Primários</Text>
-                <View style={styles.muscleChips}>
+              <View style={s.muscleRow}>
+                <Text style={[s.muscleLabel, { color: colors.onSurfaceSecondary }]}>Primários</Text>
+                <View style={s.muscleChips}>
                   {exercise.primary_muscles.map((m) => (
-                    <View key={m} style={styles.musclePrimary}>
-                      <Text style={styles.musclePrimaryText}>{MUSCLE_LABEL[m] || m}</Text>
+                    <View key={m} style={[s.musclePrimary, { backgroundColor: colors.brandTertiary }]}>
+                      <Text style={[s.musclePrimaryText, { color: colors.brandSecondary }]}>{MUSCLE_LABEL[m] || m}</Text>
                     </View>
                   ))}
                 </View>
               </View>
             )}
             {exercise.secondary_muscles.length > 0 && (
-              <View style={[styles.muscleRow, { marginTop: spacing.sm }]}>
-                <Text style={styles.muscleLabel}>Secundários</Text>
-                <View style={styles.muscleChips}>
+              <View style={[s.muscleRow, { marginTop: spacing.sm }]}>
+                <Text style={[s.muscleLabel, { color: colors.onSurfaceSecondary }]}>Secundários</Text>
+                <View style={s.muscleChips}>
                   {exercise.secondary_muscles.map((m) => (
-                    <View key={m} style={styles.muscleSecondary}>
-                      <Text style={styles.muscleSecondaryText}>{MUSCLE_LABEL[m] || m}</Text>
+                    <View key={m} style={[s.muscleSecondary, { backgroundColor: colors.surfaceTertiary }]}>
+                      <Text style={[s.muscleSecondaryText, { color: colors.onSurfaceSecondary }]}>{MUSCLE_LABEL[m] || m}</Text>
                     </View>
                   ))}
                 </View>
@@ -155,44 +157,44 @@ export default function ExerciseDetail() {
         )}
 
         {/* Instructions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>EXECUÇÃO</Text>
-          <View style={styles.infoCard}>
+        <View style={s.section}>
+          <Text style={[s.sectionTitle, { color: colors.onSurfaceSecondary }]}>EXECUÇÃO</Text>
+          <View style={[s.infoCard, { backgroundColor: colors.surfaceSecondary, ...(isDark ? {} : shadow.sm) }]}>
             <Ionicons name="checkmark-circle" size={20} color={colors.success} style={{ marginTop: 2 }} />
-            <Text style={styles.infoText}>{exercise.instructions}</Text>
+            <Text style={[s.infoText, { color: colors.onSurfaceTertiary }]}>{exercise.instructions}</Text>
           </View>
         </View>
 
         {/* Common errors */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ERROS COMUNS</Text>
-          <View style={styles.infoCard}>
+        <View style={s.section}>
+          <Text style={[s.sectionTitle, { color: colors.onSurfaceSecondary }]}>ERROS COMUNS</Text>
+          <View style={[s.infoCard, { backgroundColor: colors.surfaceSecondary, ...(isDark ? {} : shadow.sm) }]}>
             <Ionicons name="alert-circle" size={20} color={colors.warning} style={{ marginTop: 2 }} />
-            <Text style={styles.infoText}>{exercise.common_errors}</Text>
+            <Text style={[s.infoText, { color: colors.onSurfaceTertiary }]}>{exercise.common_errors}</Text>
           </View>
         </View>
 
         {/* Regression / Progression */}
         {(exercise.regression_id || exercise.progression_id) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>VARIAÇÕES</Text>
+          <View style={s.section}>
+            <Text style={[s.sectionTitle, { color: colors.onSurfaceSecondary }]}>VARIAÇÕES</Text>
             {exercise.regression_id && (
               <Pressable
-                style={styles.variationBtn}
+                style={[s.variationBtn, { backgroundColor: colors.surfaceSecondary, ...(isDark ? {} : shadow.sm) }]}
                 onPress={() => router.push({ pathname: "/exercise-detail", params: { id: exercise.regression_id! } })}
               >
                 <Ionicons name="arrow-down-circle" size={20} color={colors.success} />
-                <Text style={styles.variationText}>Ver regressão (mais fácil)</Text>
+                <Text style={[s.variationText, { color: colors.onSurface }]}>Ver regressão (mais fácil)</Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceSecondary} />
               </Pressable>
             )}
             {exercise.progression_id && (
               <Pressable
-                style={styles.variationBtn}
+                style={[s.variationBtn, { backgroundColor: colors.surfaceSecondary, ...(isDark ? {} : shadow.sm) }]}
                 onPress={() => router.push({ pathname: "/exercise-detail", params: { id: exercise.progression_id! } })}
               >
                 <Ionicons name="arrow-up-circle" size={20} color={colors.brandPrimary} />
-                <Text style={styles.variationText}>Ver progressão (mais difícil)</Text>
+                <Text style={[s.variationText, { color: colors.onSurface }]}>Ver progressão (mais difícil)</Text>
                 <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceSecondary} />
               </Pressable>
             )}
@@ -203,73 +205,68 @@ export default function ExerciseDetail() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
+const s = StyleSheet.create({
+  root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   header: {
     flexDirection: "row", alignItems: "center", gap: spacing.sm,
     paddingHorizontal: spacing.lg, paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: {
-    width: 40, height: 40, borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: colors.border,
+    width: 44, height: 44, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center",
   },
   headerTitle: {
     flex: 1, fontFamily: fonts.display, fontSize: tp["2xl"],
-    color: colors.onSurface, letterSpacing: 1, textAlign: "center",
+    letterSpacing: 1, textAlign: "center",
   },
 
   illustrationArea: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: spacing.lg, marginBottom: spacing.lg, paddingVertical: spacing.md,
-    backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.border, minHeight: 200,
+    gap: spacing.lg, marginBottom: spacing.xl, paddingVertical: spacing.xl,
+    borderRadius: radius.xl, minHeight: 200,
   },
 
   badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
   badge: {
-    paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm,
-    backgroundColor: colors.surfaceTertiary,
+    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
   },
-  badgeText: { fontFamily: fonts.medium, fontSize: 11, color: colors.onSurfaceSecondary, letterSpacing: 0.5 },
+  badgeText: { fontFamily: fonts.medium, fontSize: 11, letterSpacing: 0.5 },
 
-  section: { marginBottom: spacing.xl },
+  section: { marginBottom: spacing["2xl"] },
   sectionTitle: {
-    fontFamily: fonts.bold, fontSize: tp.sm, color: colors.onSurfaceSecondary,
+    fontFamily: fonts.bold, fontSize: tp.sm,
     letterSpacing: 2, marginBottom: spacing.md,
   },
 
   muscleRow: {},
-  muscleLabel: { fontFamily: fonts.semibold, fontSize: tp.sm, color: colors.onSurfaceSecondary, marginBottom: spacing.xs },
+  muscleLabel: { fontFamily: fonts.semibold, fontSize: tp.sm, marginBottom: spacing.xs },
   muscleChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   musclePrimary: {
-    paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm,
-    backgroundColor: colors.brandTertiary,
+    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
   },
-  musclePrimaryText: { fontFamily: fonts.semibold, fontSize: 11, color: colors.brandSecondary },
+  musclePrimaryText: { fontFamily: fonts.semibold, fontSize: 11 },
   muscleSecondary: {
-    paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm,
-    backgroundColor: colors.surfaceTertiary,
+    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
   },
-  muscleSecondaryText: { fontFamily: fonts.medium, fontSize: 11, color: colors.onSurfaceSecondary },
+  muscleSecondaryText: { fontFamily: fonts.medium, fontSize: 11 },
 
   infoCard: {
-    flexDirection: "row", gap: spacing.md, backgroundColor: colors.surfaceSecondary,
-    borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border,
+    flexDirection: "row", gap: spacing.md,
+    borderRadius: radius.lg, padding: spacing.xl,
   },
   infoText: {
-    flex: 1, fontFamily: fonts.text, fontSize: tp.base, color: colors.onSurfaceTertiary,
+    flex: 1, fontFamily: fonts.text, fontSize: tp.base,
     lineHeight: 22,
   },
 
   variationBtn: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
-    backgroundColor: colors.surfaceSecondary, borderRadius: radius.md,
-    padding: spacing.lg, borderWidth: 1, borderColor: colors.border,
-    marginBottom: spacing.sm,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    marginBottom: spacing.md,
   },
-  variationText: { flex: 1, fontFamily: fonts.medium, fontSize: tp.base, color: colors.onSurface },
+  variationText: { flex: 1, fontFamily: fonts.medium, fontSize: tp.base },
 });

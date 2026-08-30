@@ -16,6 +16,10 @@ from app.routes.system import router as system_router
 from app.routes.wellness import router as wellness_router
 from app.routes.exercises import router as exercises_router
 from app.routes.workouts import router as workouts_router
+from app.routes.health import router as health_router
+from app.routes.fueling import router as fueling_router
+from app.routes.meal_plans import router as meal_plans_router
+from app.routes.nutrition_feedback import router as nutrition_feedback_router
 
 
 api = APIRouter()
@@ -33,6 +37,10 @@ for router in (
     nutrition_router,
     wellness_router,
     coach_router,
+    health_router,
+    meal_plans_router,
+    fueling_router,
+    nutrition_feedback_router,
 ):
     api.include_router(router)
 

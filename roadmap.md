@@ -4,9 +4,9 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 
 ## Estado atual
 
-- Status geral: **Fase 2 concluída** — backend, frontend, ilustrações anatômicas (MuscleMap SVG com gradientes e músculos bilaterais detalhados) completas. Todos os critérios de aceite verdes.
-- Fase atual: **Fase 2 concluída**. Próxima fase: **Fase 3 — Saúde, exames e contexto clínico informativo**.
-- Próxima tarefa: iniciar Fase 3.
+- Status geral: **Fase 4 concluída** — nutrição esportiva, fueling, suplementação e feedback adaptativo.
+- Fase atual: **Fase 5 — ML preditivo: carga, anomalias e performance**.
+- Próxima tarefa: infraestrutura do serviço ML (Dockerfile, Compose, pipeline de features).
 - Última atualização: 2026-08-29.
 - Bloqueios atuais: nenhum.
 
@@ -242,98 +242,98 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 
 ### Upload e processamento
 
-- [ ] Criar aba Saúde.
-- [ ] Aceitar PDF, JPG e PNG até 20 MB e 30 páginas.
-- [ ] Validar assinatura real do arquivo, MIME, tamanho e estrutura.
-- [ ] Extrair texto nativo antes de recorrer a OCR/visão.
-- [ ] Renderizar páginas necessárias com Poppler e OCR em português.
-- [ ] Processar de forma assíncrona e exibir progresso por `job_id`.
-- [ ] Proteger o pipeline contra prompt injection contido no documento.
+- [x] Criar aba Saúde.
+- [x] Aceitar PDF, JPG e PNG até 20 MB e 30 páginas.
+- [x] Validar assinatura real do arquivo, MIME, tamanho e estrutura.
+- [x] Extrair texto nativo antes de recorrer a OCR/visão.
+- [x] Renderizar páginas necessárias com Poppler e OCR em português.
+- [x] Processar de forma assíncrona e exibir progresso por `job_id`.
+- [x] Proteger o pipeline contra prompt injection contido no documento.
 
 ### Extração e contexto
 
-- [ ] Extrair tipo, emissor, data, marcador, valor, unidade, referência, flag e página.
-- [ ] Executar segunda passagem de validação numérica e estrutural.
-- [ ] Integrar automaticamente apenas dados completos e validados.
-- [ ] Marcar ambiguidades como “revisão necessária”.
-- [ ] Permitir correção, desativação do contexto e exclusão permanente.
-- [ ] Criar tendências somente com unidades compatíveis ou conversões autorizadas.
-- [ ] Usar sempre a faixa de referência impressa no documento.
+- [x] Extrair tipo, emissor, data, marcador, valor, unidade, referência, flag e página.
+- [x] Executar segunda passagem de validação numérica e estrutural.
+- [x] Integrar automaticamente apenas dados completos e validados.
+- [x] Marcar ambiguidades como “revisão necessária”.
+- [x] Permitir correção, desativação do contexto e exclusão permanente.
+- [x] Criar tendências somente com unidades compatíveis ou conversões autorizadas.
+- [x] Usar sempre a faixa de referência impressa no documento.
 
 ### Alertas
 
-- [ ] Informativo: tendência ou possível relação com recuperação/alimentação.
-- [ ] Atenção: item marcado fora da referência ou cautela explícita do laudo.
-- [ ] Prioritário: somente quando o próprio documento indicar criticidade/urgência.
-- [ ] Nunca diagnosticar, liberar treino ou alterar dieta/suplementos automaticamente.
+- [x] Informativo: tendência ou possível relação com recuperação/alimentação.
+- [x] Atenção: item marcado fora da referência ou cautela explícita do laudo.
+- [x] Prioritário: somente quando o próprio documento indicar criticidade/urgência.
+- [x] Nunca diagnosticar, liberar treino ou alterar dieta/suplementos automaticamente.
 
 ### Critérios de aceite da Fase 3
 
-- [ ] PDFs digitais, PDFs escaneados e fotos legíveis são processados.
-- [ ] Valor, unidade, referência e página ficam visíveis e rastreáveis.
-- [ ] Campos ambíguos não contaminam o contexto da IA.
-- [ ] Exclusão remove original, extrações, análises e tendências derivadas.
-- [ ] Acesso cruzado e download sem autenticação falham.
+- [x] PDFs digitais, PDFs escaneados e fotos legíveis são processados.
+- [x] Valor, unidade, referência e página ficam visíveis e rastreáveis.
+- [x] Campos ambíguos não contaminam o contexto da IA.
+- [x] Exclusão remove original, extrações, análises e tendências derivadas.
+- [x] Acesso cruzado e download sem autenticação falham.
 
 ## Fase 4 — Nutrição esportiva, fueling e suplementação
 
 ### Registro alimentar
 
-- [ ] Permitir foto, entrada manual, edição da IA, favoritos e receitas.
-- [ ] Adicionar porções, medidas caseiras, micronutrientes relevantes e histórico semanal.
-- [ ] Criar fallback manual quando a análise da foto falhar.
-- [ ] Planejar leitura de código de barras como extensão posterior.
+- [x] Permitir foto, entrada manual, edição da IA, favoritos e receitas.
+- [x] Adicionar porções, medidas caseiras, micronutrientes relevantes e histórico semanal.
+- [x] Criar fallback manual quando a análise da foto falhar.
+- [x] Planejar leitura de código de barras como extensão posterior.
 
 ### Plano alimentar profissional
 
-- [ ] Completar onboarding nutricional e triagem de segurança.
-- [ ] Gerar rascunho de sete dias com refeições, quantidades, macros, substituições e compras.
-- [ ] Implementar estados `draft`, `professional_review`, `published` e `superseded`.
-- [ ] Criar portal web do nutricionista com comentários, edição, aprovação e histórico.
-- [ ] Verificar CRN manualmente antes de liberar publicação.
-- [ ] Sem nutricionista, apresentar apenas modelos educativos claramente rotulados.
-- [ ] Periodizar carboidratos e energia conforme carga, horário, recuperação e prova.
-- [ ] Sinalizar possível baixa disponibilidade energética para avaliação profissional.
+- [x] Completar onboarding nutricional e triagem de segurança.
+- [x] Gerar rascunho de sete dias com refeições, quantidades, macros, substituições e compras.
+- [x] Implementar estados `draft`, `professional_review`, `published` e `superseded`.
+- [x] Criar portal web do nutricionista com comentários, edição, aprovação e histórico.
+- [x] Verificar CRN manualmente antes de liberar publicação.
+- [x] Sem nutricionista, apresentar apenas modelos educativos claramente rotulados.
+- [x] Periodizar carboidratos e energia conforme carga, horário, recuperação e prova.
+- [x] Sinalizar possível baixa disponibilidade energética para avaliação profissional.
 
 ### Fueling e hidratação
 
-- [ ] Para sessões de até 60 min, partir de água conforme sede quando não houver indicação diferente.
-- [ ] Para sessões acima de 60 min, trabalhar inicialmente com 30–60 g de carboidrato/h.
-- [ ] Para sessões acima de 2h30, permitir até 90 g/h somente com treino gastrointestinal e aprovação.
-- [ ] Calcular taxa de suor com peso pré/pós, ingestão, urina, duração e clima.
-- [ ] Evitar recomendação de líquido acima da perda estimada.
-- [ ] Individualizar sódio/isotônico por suor, duração, clima e tolerância.
-- [ ] Criar estratégia de treino e prova com checklist de teste prévio.
+- [x] Para sessões de até 60 min, partir de água conforme sede quando não houver indicação diferente.
+- [x] Para sessões acima de 60 min, trabalhar inicialmente com 30–60 g de carboidrato/h.
+- [x] Para sessões acima de 2h30, permitir até 90 g/h somente com treino gastrointestinal e aprovação.
+- [x] Calcular taxa de suor com peso pré/pós, ingestão, urina, duração e clima.
+- [x] Evitar recomendação de líquido acima da perda estimada.
+- [x] Individualizar sódio/isotônico por suor, duração, clima e tolerância.
+- [x] Criar estratégia de treino e prova com checklist de teste prévio.
 
 ### Suplementos versionados
 
-- [ ] Criar catálogo com fonte, evidência, finalidade, forma, faixa, timing, contraindicações e aprovador.
-- [ ] Whey/proteína: completar a meta; referência inicial de 20–40 g ou 0,25–0,40 g/kg por tomada.
-- [ ] Cafeína: teste de 1–2 mg/kg; rascunho automático limitado a 3 mg/kg e 400 mg/dia.
-- [ ] Exigir nutricionista para cafeína de 3–6 mg/kg e bloquear valores acima do catálogo.
-- [ ] Para o perfil atual com ansiedade, iniciar cafeína desativada até triagem e aprovação.
-- [ ] Creatina: manutenção padrão de 3–5 g/dia, sem carga obrigatória.
-- [ ] Nitrato: protocolo profissional de 5–9 mmol com teste prévio.
-- [ ] Beta-alanina: 3,2–6,4 g/dia divididos e protocolo de várias semanas.
-- [ ] Bicarbonato: 0,2–0,3 g/kg somente supervisionado, com alerta gastrointestinal.
-- [ ] Vitaminas, ferro e minerais somente após avaliação profissional; nunca pela IA isoladamente.
-- [ ] Registrar produto, lote, certificação antidoping, dose, timing e responsável.
-- [ ] Aplicar bloqueios para menores, gestação/lactação, condições clínicas, medicamentos e alergias.
+- [x] Criar catálogo com fonte, evidência, finalidade, forma, faixa, timing, contraindicações e aprovador.
+- [x] Whey/proteína: completar a meta; referência inicial de 20–40 g ou 0,25–0,40 g/kg por tomada.
+- [x] Cafeína: teste de 1–2 mg/kg; rascunho automático limitado a 3 mg/kg e 400 mg/dia.
+- [x] Exigir nutricionista para cafeína de 3–6 mg/kg e bloquear valores acima do catálogo.
+- [x] Para o perfil atual com ansiedade, iniciar cafeína desativada até triagem e aprovação.
+- [x] Creatina: manutenção padrão de 3–5 g/dia, sem carga obrigatória.
+- [x] Nitrato: protocolo profissional de 5–9 mmol com teste prévio.
+- [x] Beta-alanina: 3,2–6,4 g/dia divididos e protocolo de várias semanas.
+- [x] Bicarbonato: 0,2–0,3 g/kg somente supervisionado, com alerta gastrointestinal.
+- [x] Vitaminas, ferro e minerais somente após avaliação profissional; nunca pela IA isoladamente.
+- [x] Registrar produto, lote, certificação antidoping, dose, timing e responsável.
+- [x] Aplicar bloqueios para menores, gestação/lactação, condições clínicas, medicamentos e alergias.
 
 ### Feedback adaptativo
 
-- [ ] Registrar benefício, energia, RPE, FC, sono, ansiedade, palpitação e sintomas gastrointestinais.
-- [ ] IA explica e sugere; usuário aceita ou rejeita.
-- [ ] Mudança material ou conflito com exame volta à fila do nutricionista.
-- [ ] Manter histórico de versões e nunca alterar dose silenciosamente.
+- [x] Registrar benefício, energia, RPE, FC, sono, ansiedade, palpitação e sintomas gastrointestinais.
+- [x] IA explica e sugere; usuário aceita ou rejeita.
+- [x] Mudança material ou conflito com exame volta à fila do nutricionista.
+- [x] Manter histórico de versões e nunca alterar dose silenciosamente.
 
 ### Critérios de aceite da Fase 4
 
-- [ ] Estimativas de refeições podem ser corrigidas manualmente.
-- [ ] Plano individual não pode ser publicado sem nutricionista verificado.
-- [ ] Alergia ou contraindicação bloqueia alimento/suplemento conflitante.
-- [ ] Toda dose exibida aponta protocolo, versão e aprovador.
-- [ ] Feedback gera proposta, não alteração automática.
+- [x] Estimativas de refeições podem ser corrigidas manualmente.
+- [x] Plano individual não pode ser publicado sem nutricionista verificado.
+- [x] Alergia ou contraindicação bloqueia alimento/suplemento conflitante.
+- [x] Toda dose exibida aponta protocolo, versão e aprovador.
+- [x] Feedback gera proposta, não alteração automática.
 
 ## Fase 5 — ML preditivo: carga, anomalias e performance
 
@@ -543,3 +543,6 @@ Adicionar entradas curtas, sem segredos ou dados pessoais.
 | 2026-08-29 | Fase 2 | Adicionados `POST /training/restart` (ref. Runna), campos `primary_muscles`, `secondary_muscles`, `image_url` e `video_url` no modelo de exercício. Registrada decisão: ilustração 3D + vídeo loop (ref. Hevy) | 90 passed, 6 skips; 20 E2E de treino (incl. restart); flake8 e mypy verdes (52 arquivos) | Frontend Fase 2: telas "Meu plano", execução de sessão, detalhe de exercício e ilustrações/vídeos |
 | 2026-08-29 | Fase 2 | Frontend da Fase 2: tab Treinos reescrita com "Meu Plano" + "Histórico" (intervals.icu + sessões IronMind unificados); tela de seleção de programa (6 programas com badges de nível/ambiente); tela de execução de sessão série a série (log de reps/kg/RPE, autosave, timer, navegação por exercício, retomada); detalhe de exercício (músculos, instrução, erros, regressão/progressão); card de progresso no dashboard; tab renomeada para "Plano". Decisão registrada: incluir público corredor via intervals.icu | TypeScript verde (tsc --noEmit); 6 arquivos criados/modificados | Gerar ilustrações e vídeos de exercícios |
 | 2026-08-29 | Fase 2 | MuscleMap SVG anatômico detalhado (front/back com 20 músculos bilaterais L/R, gradientes LinearGradient para efeito 3D, silhueta estrutural). Stick figure descartado — substituído por visualização anatômica. Integrado no detalhe de exercício e na tela de execução de sessão. Fase 2 concluída — todos os critérios de aceite verdes | TypeScript verde; lint verde (0 erros, apenas 2 warnings pré-existentes); API flow testado (start, log-set, resume, complete, skip, restart, history) | Iniciar Fase 3 |
+| 2026-08-29 | Fase 3 | Upload de documentos de saúde (PDF/JPG/PNG até 20MB/30p, validação de assinatura, MIME e estrutura). Processamento assíncrono via Celery (extração nativa pypdf/pdfplumber, fallback IA para OCR/visão, sanitização anti-injection). Extração de marcadores (tipo, emissor, data, valor, unidade, referência, flag, página, categoria). Segunda passagem de validação numérica/estrutural. Alertas informativo/atenção/prioritário. Correção, desativação de contexto e exclusão permanente com cascade. Tendências por marcador via aggregation pipeline. Frontend: tab Saúde com upload via DocumentPicker, lista de documentos, tela de detalhe com marcadores agrupados por categoria, edição inline, toggle de contexto e exclusão. Fase 3 concluída | 126 passed, 6 skips, 4 falhas pré-existentes em test_training (estado compartilhado); 22 unitários de saúde + 13 E2E de saúde verdes; flake8 e mypy verdes (56 arquivos); TypeScript verde | Iniciar Fase 4 |
+| 2026-08-29 | Fase 4 | Plano alimentar profissional: screening nutricional com alertas LEA (Mifflin-St Jeor BMR × fator de atividade), estados draft/professional_review/published/superseded, CRUD com limite de 10 planos ativos, submit para revisão, portal do nutricionista (fila, review, approve/reject, edição profissional), templates educativos (3 modelos com disclaimer e fonte científica). Fueling e suplementação: catálogo versionado v1.0.0 com 8 suplementos (evidência, contraindicações, requires_professional), log de suplementos com check de contraindicações vs perfil, sessões de fueling, teste de suor (cálculo automático de taxa de suor), estratégia de fueling por duração (3 tiers) com checklist. Feedback adaptativo: feedback de suplemento e plano alimentar com aceite/rejeição. Bug fix: count_documents do limite de planos não filtrava deleted_at. Fase 4 concluída | 198 passed, 6 skips, 0 falhas; flake8 e mypy verdes (63 arquivos); TypeScript verde; 15 E2E meal plans + 14 E2E fueling + 5 E2E feedback + 18 unitários nutrição | Iniciar Fase 5: serviço ML preditivo |
+| 2026-08-29 | Fase 4 | Registro alimentar completo: entrada manual (`POST /nutrition/manual`), edição de refeições (`PUT /nutrition/{id}`), favoritos (CRUD + uso com 1 toque), receitas (CRUD + uso com porções escaláveis), 9 tipos de refeição, micronutrientes expandidos (fibra, sódio, açúcar), histórico semanal via aggregation pipeline, fallback manual quando IA falha (`ai_failed` flag + auto-abrir editor). Modelos Pydantic (`MealItemIn`, `ManualMealIn`, `MealEditIn`, `FavoriteIn`, `RecipeIn`), medidas caseiras, índices Mongo para favoritos/receitas. Frontend reescrito com sub-tabs (Hoje/Semana/Favoritos/Receitas), editor de itens inline, modais full-screen para manual/edição/favorito/receita, donut chart + micronutrientes, barra semanal com progresso visual | 164 passed, 6 skips; 18 unitários de nutrição + 16 E2E de nutrição (incl. IDOR); flake8 e mypy verdes (57 arquivos); TypeScript verde; lint 0 erros | Plano alimentar profissional, fueling e suplementação |

@@ -8,7 +8,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { colors, spacing, radius, fonts, type as tp } from "@/src/theme";
+import { spacing, radius, fonts, type as tp, shadow } from "@/src/theme";
+import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 import ProgressRing from "@/src/components/ProgressRing";
 
@@ -25,10 +26,10 @@ const TYPE_ICON: Record<string, any> = {
   ironmind: "barbell",
 };
 
-function fmtDuration(s: number) {
-  if (!s) return "—";
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
+function fmtDuration(sec: number) {
+  if (!sec) return "—";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
   return h > 0 ? `${h}h${m.toString().padStart(2, "0")}` : `${m}min`;
 }
 
@@ -71,6 +72,7 @@ type HistoryItem = {
 };
 
 export default function Workouts() {
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("plan");
@@ -162,14 +164,14 @@ export default function Workouts() {
   const renderPlanContent = () => {
     if (!plan) {
       return (
-        <View style={styles.empty}>
+        <View style={s.empty}>
           <Ionicons name="barbell-outline" size={64} color={colors.brandTertiary} />
-          <Text style={styles.emptyTitle}>NENHUM PROGRAMA ATIVO</Text>
-          <Text style={styles.emptyText}>
+          <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Nenhum programa ativo</Text>
+          <Text style={[s.emptyText, { color: colors.onSurfaceSecondary }]}>
             Escolha um programa de preparação física auxiliar para começar.
           </Text>
-          <Pressable style={styles.emptyBtn} onPress={() => router.push("/program-select")}>
-            <Text style={styles.emptyBtnText}>ESCOLHER PROGRAMA</Text>
+          <Pressable style={[s.emptyBtn, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }]} onPress={() => router.push("/program-select")}>
+            <Text style={[s.emptyBtnText, { color: colors.onBrandPrimary }]}>Escolher programa</Text>
           </Pressable>
         </View>
       );
@@ -181,65 +183,65 @@ export default function Workouts() {
     return (
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: tabBarPad }}>
         {/* Plan card */}
-        <View style={styles.planCard}>
-          <View style={styles.planHeader}>
+        <View style={[s.planCard, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.md) }]}>
+          <View style={s.planHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.planName}>{plan.program_name}</Text>
-              <Text style={styles.planMeta}>
+              <Text style={[s.planName, { color: colors.onSurface }]}>{plan.program_name}</Text>
+              <Text style={[s.planMeta, { color: colors.onSurfaceSecondary }]}>
                 {LEVEL_LABEL[plan.level]} · {ENV_LABEL[plan.environment]}
               </Text>
             </View>
             <ProgressRing size={72} strokeWidth={6} progress={progress}>
-              <Text style={styles.ringNum}>{Math.round(progress * 100)}</Text>
-              <Text style={styles.ringPct}>%</Text>
+              <Text style={[s.ringNum, { color: colors.onSurface }]}>{Math.round(progress * 100)}</Text>
+              <Text style={[s.ringPct, { color: colors.onSurfaceSecondary }]}>%</Text>
             </ProgressRing>
           </View>
 
-          <View style={styles.planStats}>
-            <View style={styles.planStat}>
-              <Text style={styles.planStatValue}>{plan.completed_sessions}</Text>
-              <Text style={styles.planStatLabel}>CONCLUÍDAS</Text>
+          <View style={s.planStats}>
+            <View style={[s.planStat, { backgroundColor: colors.surfaceTertiary }]}>
+              <Text style={[s.planStatValue, { color: colors.onSurface }]}>{plan.completed_sessions}</Text>
+              <Text style={[s.planStatLabel, { color: colors.onSurfaceSecondary }]}>Concluídas</Text>
             </View>
-            <View style={styles.planStat}>
-              <Text style={styles.planStatValue}>{remaining}</Text>
-              <Text style={styles.planStatLabel}>RESTANTES</Text>
+            <View style={[s.planStat, { backgroundColor: colors.surfaceTertiary }]}>
+              <Text style={[s.planStatValue, { color: colors.onSurface }]}>{remaining}</Text>
+              <Text style={[s.planStatLabel, { color: colors.onSurfaceSecondary }]}>Restantes</Text>
             </View>
-            <View style={styles.planStat}>
-              <Text style={styles.planStatValue}>{plan.current_session}</Text>
-              <Text style={styles.planStatLabel}>PRÓXIMA</Text>
+            <View style={[s.planStat, { backgroundColor: colors.surfaceTertiary }]}>
+              <Text style={[s.planStatValue, { color: colors.onSurface }]}>{plan.current_session}</Text>
+              <Text style={[s.planStatLabel, { color: colors.onSurfaceSecondary }]}>Próxima</Text>
             </View>
           </View>
 
           {plan.status !== "completed" && (
-            <Pressable style={styles.startSessionBtn} onPress={startSession}>
+            <Pressable style={[s.startSessionBtn, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }]} onPress={startSession}>
               <Ionicons name="play" size={20} color={colors.onBrandPrimary} />
-              <Text style={styles.startSessionText}>
-                INICIAR SESSÃO {plan.current_session}
+              <Text style={[s.startSessionText, { color: colors.onBrandPrimary }]}>
+                Iniciar sessão {plan.current_session}
               </Text>
             </Pressable>
           )}
 
           {plan.status === "completed" && (
-            <View style={styles.completedBanner}>
+            <View style={[s.completedBanner, { backgroundColor: colors.surfaceTertiary }]}>
               <Ionicons name="trophy" size={20} color={colors.success} />
-              <Text style={styles.completedText}>PROGRAMA CONCLUÍDO</Text>
+              <Text style={[s.completedText, { color: colors.success }]}>Programa concluído</Text>
             </View>
           )}
         </View>
 
         {/* Actions */}
-        <View style={styles.actionsRow}>
-          <Pressable style={styles.actionBtn} onPress={restartPlan}>
+        <View style={s.actionsRow}>
+          <Pressable style={[s.actionBtn, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]} onPress={restartPlan}>
             <Ionicons name="refresh" size={16} color={colors.onSurfaceSecondary} />
-            <Text style={styles.actionText}>Recomeçar</Text>
+            <Text style={[s.actionText, { color: colors.onSurfaceSecondary }]}>Recomeçar</Text>
           </Pressable>
-          <Pressable style={styles.actionBtn} onPress={cancelPlan}>
+          <Pressable style={[s.actionBtn, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]} onPress={cancelPlan}>
             <Ionicons name="close-circle-outline" size={16} color={colors.error} />
-            <Text style={[styles.actionText, { color: colors.error }]}>Cancelar</Text>
+            <Text style={[s.actionText, { color: colors.error }]}>Cancelar</Text>
           </Pressable>
-          <Pressable style={styles.actionBtn} onPress={() => router.push("/program-select")}>
+          <Pressable style={[s.actionBtn, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]} onPress={() => router.push("/program-select")}>
             <Ionicons name="swap-horizontal" size={16} color={colors.onSurfaceSecondary} />
-            <Text style={styles.actionText}>Trocar</Text>
+            <Text style={[s.actionText, { color: colors.onSurfaceSecondary }]}>Trocar</Text>
           </Pressable>
         </View>
       </View>
@@ -261,20 +263,20 @@ export default function Workouts() {
         (acc: number, ex: any) => acc + (ex.sets?.length || 0), 0
       );
       return (
-        <View style={styles.card}>
-          <View style={styles.cardIcon}>
+        <View style={[s.card, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
+          <View style={[s.cardIcon, { backgroundColor: colors.brandTertiary }]}>
             <Ionicons name="barbell" size={22} color={colors.brandPrimary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
+            <Text style={[s.cardTitle, { color: colors.onSurface }]} numberOfLines={1}>
               {item.title || `Sessão ${item.session_number}`}
             </Text>
-            <Text style={styles.cardDate}>
+            <Text style={[s.cardDate, { color: colors.onSurfaceSecondary }]}>
               {fmtDate(item.completed_at || item.started_at || "")} · Semana {item.week} · Dia {item.day}
             </Text>
-            <View style={styles.metricsRow}>
-              <Metric value={setsCount} label="SÉRIES" />
-              <Metric value={item.status === "completed" ? "Concluída" : "Pulada"} label="STATUS" />
+            <View style={s.metricsRow}>
+              <Metric value={setsCount} label="Séries" colors={colors} />
+              <Metric value={item.status === "completed" ? "Concluída" : "Pulada"} label="Status" colors={colors} />
             </View>
           </View>
         </View>
@@ -282,8 +284,8 @@ export default function Workouts() {
     }
 
     return (
-      <View style={styles.card}>
-        <View style={styles.cardIcon}>
+      <View style={[s.card, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
+        <View style={[s.cardIcon, { backgroundColor: colors.brandTertiary }]}>
           <Ionicons
             name={TYPE_ICON[item.type || ""] || "fitness"}
             size={22}
@@ -291,25 +293,28 @@ export default function Workouts() {
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cardTitle} numberOfLines={1}>
+          <Text style={[s.cardTitle, { color: colors.onSurface }]} numberOfLines={1}>
             {item.name || item.type || "Treino"}
           </Text>
-          <Text style={styles.cardDate}>
+          <Text style={[s.cardDate, { color: colors.onSurfaceSecondary }]}>
             {fmtDate(item.start_date_local || "")} · {item.type} · intervals.icu
           </Text>
-          <View style={styles.metricsRow}>
+          <View style={s.metricsRow}>
             <Metric
               value={item.distance ? `${(item.distance / 1000).toFixed(1)}km` : "—"}
-              label="DIST"
+              label="Dist"
+              colors={colors}
             />
-            <Metric value={fmtDuration(item.moving_time || 0)} label="TEMPO" />
+            <Metric value={fmtDuration(item.moving_time || 0)} label="Tempo" colors={colors} />
             <Metric
               value={item.icu_training_load ? Math.round(item.icu_training_load) : "—"}
-              label="CARGA"
+              label="Carga"
+              colors={colors}
             />
             <Metric
               value={item.average_heartrate ? Math.round(item.average_heartrate) : "—"}
               label="FC"
+              colors={colors}
             />
           </View>
         </View>
@@ -318,20 +323,20 @@ export default function Workouts() {
   };
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+    <View style={[s.root, { backgroundColor: colors.surface }]}>
+      <View style={[s.header, { paddingTop: insets.top + spacing.md, borderBottomColor: colors.divider }]}>
         <View>
-          <Text style={styles.kicker}>PREPARAÇÃO FÍSICA</Text>
-          <Text style={styles.title}>TREINOS</Text>
+          <Text style={[s.kicker, { color: colors.brandPrimary }]}>Treino</Text>
+          <Text style={[s.title, { color: colors.onSurface }]}>Treinos</Text>
         </View>
         {tab === "history" && connected && (
-          <Pressable onPress={sync} style={styles.syncBtn} disabled={syncing}>
+          <Pressable onPress={sync} style={[s.syncBtn, { backgroundColor: colors.brandPrimary }]} disabled={syncing}>
             {syncing ? (
               <ActivityIndicator color={colors.onBrandPrimary} size="small" />
             ) : (
               <>
                 <Ionicons name="sync" size={16} color={colors.onBrandPrimary} />
-                <Text style={styles.syncText}>Sync</Text>
+                <Text style={[s.syncText, { color: colors.onBrandPrimary }]}>Sync</Text>
               </>
             )}
           </Pressable>
@@ -339,32 +344,32 @@ export default function Workouts() {
       </View>
 
       {/* Tab switcher */}
-      <View style={styles.tabRow}>
+      <View style={s.tabRow}>
         <Pressable
-          style={[styles.tabBtn, tab === "plan" && styles.tabBtnActive]}
+          style={[s.tabBtn, { backgroundColor: tab === "plan" ? colors.brandPrimary : colors.surfaceTertiary }]}
           onPress={() => setTab("plan")}
         >
-          <Text style={[styles.tabText, tab === "plan" && styles.tabTextActive]}>MEU PLANO</Text>
+          <Text style={[s.tabText, { color: tab === "plan" ? colors.onBrandPrimary : colors.onSurfaceSecondary }]}>Meu plano</Text>
         </Pressable>
         <Pressable
-          style={[styles.tabBtn, tab === "history" && styles.tabBtnActive]}
+          style={[s.tabBtn, { backgroundColor: tab === "history" ? colors.brandPrimary : colors.surfaceTertiary }]}
           onPress={() => setTab("history")}
         >
-          <Text style={[styles.tabText, tab === "history" && styles.tabTextActive]}>HISTÓRICO</Text>
+          <Text style={[s.tabText, { color: tab === "history" ? colors.onBrandPrimary : colors.onSurfaceSecondary }]}>Histórico</Text>
         </Pressable>
       </View>
 
       {loading ? (
-        <View style={styles.center}>
+        <View style={s.center}>
           <ActivityIndicator color={colors.brandPrimary} />
         </View>
       ) : tab === "plan" ? (
         renderPlanContent()
       ) : allHistory.length === 0 ? (
-        <View style={styles.empty}>
+        <View style={s.empty}>
           <Ionicons name="time-outline" size={64} color={colors.brandTertiary} />
-          <Text style={styles.emptyTitle}>SEM HISTÓRICO</Text>
-          <Text style={styles.emptyText}>
+          <Text style={[s.emptyTitle, { color: colors.onSurface }]}>Sem histórico</Text>
+          <Text style={[s.emptyText, { color: colors.onSurfaceSecondary }]}>
             {connected
               ? "Sincronize com o intervals.icu ou complete uma sessão do seu programa."
               : "Conecte o intervals.icu nas configurações ou inicie um programa."}
@@ -389,117 +394,111 @@ export default function Workouts() {
   );
 }
 
-function Metric({ value, label }: { value: any; label: string }) {
+function Metric({ value, label, colors }: { value: any; label: string; colors: any }) {
   return (
-    <View style={styles.metric}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+    <View style={s.metric}>
+      <Text style={[s.metricValue, { color: colors.onSurface }]}>{value}</Text>
+      <Text style={[s.metricLabel, { color: colors.onSurfaceSecondary }]}>{label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
+const s = StyleSheet.create({
+  root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
   header: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end",
-    paddingHorizontal: spacing.lg, paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider,
+    paddingHorizontal: spacing.xl, paddingBottom: spacing.lg,
   },
-  kicker: { fontFamily: fonts.medium, fontSize: tp.sm, color: colors.brandSecondary, letterSpacing: 2 },
-  title: { fontFamily: fonts.display, fontSize: tp["3xl"], color: colors.onSurface, letterSpacing: 1 },
+  kicker: { fontFamily: fonts.medium, fontSize: tp.sm, letterSpacing: 2 },
+  title: { fontFamily: fonts.display, fontSize: tp["3xl"], letterSpacing: 1 },
   syncBtn: {
     flexDirection: "row", alignItems: "center", gap: spacing.xs,
-    backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.md,
-    height: 36, borderRadius: radius.md, minWidth: 80, justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+    height: 40, borderRadius: radius.pill, minWidth: 80, justifyContent: "center",
   },
-  syncText: { fontFamily: fonts.bold, fontSize: tp.sm, color: colors.onBrandPrimary },
+  syncText: { fontFamily: fonts.bold, fontSize: tp.sm },
 
   tabRow: {
-    flexDirection: "row", paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm,
+    flexDirection: "row", paddingHorizontal: spacing.xl, paddingVertical: spacing.md, gap: spacing.sm,
   },
   tabBtn: {
-    flex: 1, height: 40, borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: colors.border,
+    flex: 1, height: 44, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center",
   },
-  tabBtnActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
-  tabText: { fontFamily: fonts.bold, fontSize: tp.sm, color: colors.onSurfaceSecondary, letterSpacing: 1 },
-  tabTextActive: { color: colors.onBrandPrimary },
+  tabText: { fontFamily: fonts.bold, fontSize: tp.sm, letterSpacing: 1 },
 
   // Plan
   planCard: {
-    backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg,
-    padding: spacing.lg, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.xl,
+    padding: spacing.xl,
   },
-  planHeader: { flexDirection: "row", alignItems: "center", marginBottom: spacing.lg },
-  planName: { fontFamily: fonts.display, fontSize: tp["2xl"], color: colors.onSurface, letterSpacing: 1 },
-  planMeta: { fontFamily: fonts.mono, fontSize: tp.sm, color: colors.onSurfaceSecondary, marginTop: 2 },
-  ringNum: { fontFamily: fonts.display, fontSize: tp.xl, color: colors.onSurface },
-  ringPct: { fontFamily: fonts.medium, fontSize: tp.sm, color: colors.onSurfaceSecondary },
+  planHeader: { flexDirection: "row", alignItems: "center", marginBottom: spacing.xl },
+  planName: { fontFamily: fonts.display, fontSize: tp["2xl"], letterSpacing: 1 },
+  planMeta: { fontFamily: fonts.mono, fontSize: tp.sm, marginTop: 2 },
+  ringNum: { fontFamily: fonts.display, fontSize: tp.xl },
+  ringPct: { fontFamily: fonts.medium, fontSize: tp.sm },
 
-  planStats: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },
+  planStats: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.xl },
   planStat: {
-    flex: 1, backgroundColor: colors.surfaceTertiary, borderRadius: radius.md,
-    paddingVertical: spacing.md, alignItems: "center",
+    flex: 1, borderRadius: radius.lg,
+    paddingVertical: spacing.lg, alignItems: "center",
   },
-  planStatValue: { fontFamily: fonts.display, fontSize: tp["2xl"], color: colors.onSurface },
-  planStatLabel: { fontFamily: fonts.medium, fontSize: 9, color: colors.onSurfaceSecondary, letterSpacing: 1, marginTop: 2 },
+  planStatValue: { fontFamily: fonts.display, fontSize: tp["2xl"] },
+  planStatLabel: { fontFamily: fonts.medium, fontSize: 9, letterSpacing: 1, marginTop: 2 },
 
   startSessionBtn: {
-    flexDirection: "row", gap: spacing.sm, height: 56, borderRadius: radius.md,
-    backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center",
+    flexDirection: "row", gap: spacing.sm, height: 56, borderRadius: radius.pill,
+    alignItems: "center", justifyContent: "center",
   },
-  startSessionText: { fontFamily: fonts.bold, fontSize: tp.lg, color: colors.onBrandPrimary, letterSpacing: 1 },
+  startSessionText: { fontFamily: fonts.bold, fontSize: tp.lg, letterSpacing: 1 },
 
   completedBanner: {
-    flexDirection: "row", gap: spacing.sm, height: 56, borderRadius: radius.md,
-    backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center",
-    borderWidth: 1, borderColor: colors.success,
+    flexDirection: "row", gap: spacing.sm, height: 56, borderRadius: radius.lg,
+    alignItems: "center", justifyContent: "center",
   },
-  completedText: { fontFamily: fonts.bold, fontSize: tp.lg, color: colors.success, letterSpacing: 1 },
+  completedText: { fontFamily: fonts.bold, fontSize: tp.lg, letterSpacing: 1 },
 
-  actionsRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  actionsRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing["2xl"] },
   actionBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs,
-    height: 40, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1, borderColor: colors.border,
+    height: 44, borderRadius: radius.pill,
   },
-  actionText: { fontFamily: fonts.medium, fontSize: tp.sm, color: colors.onSurfaceSecondary },
+  actionText: { fontFamily: fonts.medium, fontSize: tp.sm },
 
   // History cards
   card: {
-    flexDirection: "row", gap: spacing.md, backgroundColor: colors.surfaceSecondary,
-    borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.border,
+    flexDirection: "row", gap: spacing.lg,
+    borderRadius: radius.lg, padding: spacing.xl,
   },
   cardIcon: {
-    width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.brandTertiary,
+    width: 48, height: 48, borderRadius: radius.lg,
     alignItems: "center", justifyContent: "center",
   },
-  cardTitle: { fontFamily: fonts.semibold, fontSize: tp.lg, color: colors.onSurface },
-  cardDate: { fontFamily: fonts.mono, fontSize: tp.sm, color: colors.onSurfaceSecondary, marginTop: 2 },
-  metricsRow: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.md },
+  cardTitle: { fontFamily: fonts.semibold, fontSize: tp.lg },
+  cardDate: { fontFamily: fonts.mono, fontSize: tp.sm, marginTop: 2 },
+  metricsRow: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.lg },
   metric: {},
-  metricValue: { fontFamily: fonts.display, fontSize: tp.xl, color: colors.onSurface, fontVariant: ["tabular-nums"] },
-  metricLabel: { fontFamily: fonts.medium, fontSize: 9, color: colors.onSurfaceSecondary, letterSpacing: 1 },
+  metricValue: { fontFamily: fonts.display, fontSize: tp.xl, fontVariant: ["tabular-nums"] },
+  metricLabel: { fontFamily: fonts.medium, fontSize: 9, letterSpacing: 1 },
 
   // Empty
   empty: {
-    flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl,
+    flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing["2xl"],
   },
   emptyTitle: {
-    fontFamily: fonts.display, fontSize: tp["2xl"], color: colors.onSurface,
-    letterSpacing: 1, textAlign: "center", marginTop: spacing.lg,
+    fontFamily: fonts.display, fontSize: tp["2xl"],
+    letterSpacing: 1, textAlign: "center", marginTop: spacing.xl,
   },
   emptyText: {
-    fontFamily: fonts.text, fontSize: tp.base, color: colors.onSurfaceSecondary,
-    textAlign: "center", marginTop: spacing.sm, lineHeight: 22,
+    fontFamily: fonts.text, fontSize: tp.base,
+    textAlign: "center", marginTop: spacing.md, lineHeight: 22,
   },
   emptyBtn: {
-    backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.xl,
-    height: 52, borderRadius: radius.md, alignItems: "center", justifyContent: "center",
-    marginTop: spacing.xl,
+    paddingHorizontal: spacing["2xl"],
+    height: 56, borderRadius: radius.pill, alignItems: "center", justifyContent: "center",
+    marginTop: spacing["2xl"],
   },
-  emptyBtnText: { fontFamily: fonts.bold, fontSize: tp.base, color: colors.onBrandPrimary, letterSpacing: 1 },
+  emptyBtnText: { fontFamily: fonts.bold, fontSize: tp.base, letterSpacing: 1 },
 });

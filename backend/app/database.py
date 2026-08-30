@@ -112,6 +112,57 @@ async def ensure_indexes() -> None:
             ),
         ]
     )
+    await db.health_documents.create_indexes(
+        [
+            IndexModel(
+                [("user_id", ASCENDING), ("deleted_at", ASCENDING), ("created_at", DESCENDING)],
+            ),
+            IndexModel(
+                [("user_id", ASCENDING), ("status", ASCENDING)],
+            ),
+        ]
+    )
+    await db.health_markers.create_indexes(
+        [
+            IndexModel(
+                [("document_id", ASCENDING), ("user_id", ASCENDING), ("deleted_at", ASCENDING)],
+            ),
+            IndexModel(
+                [("user_id", ASCENDING), ("name", ASCENDING), ("deleted_at", ASCENDING)],
+            ),
+        ]
+    )
+    await db.meal_favorites.create_index(
+        [("user_id", ASCENDING), ("deleted_at", ASCENDING)]
+    )
+    await db.meal_recipes.create_index(
+        [("user_id", ASCENDING), ("deleted_at", ASCENDING)]
+    )
+    await db.meal_plans.create_indexes(
+        [
+            IndexModel(
+                [("user_id", ASCENDING), ("status", ASCENDING), ("deleted_at", ASCENDING)],
+            ),
+            IndexModel(
+                [("status", ASCENDING), ("deleted_at", ASCENDING), ("updated_at", ASCENDING)],
+            ),
+        ]
+    )
+    await db.nutrition_screenings.create_index(
+        [("user_id", ASCENDING)], unique=True
+    )
+    await db.supplement_logs.create_index(
+        [("user_id", ASCENDING), ("date", DESCENDING), ("deleted_at", ASCENDING)]
+    )
+    await db.fueling_logs.create_index(
+        [("user_id", ASCENDING), ("date", DESCENDING), ("deleted_at", ASCENDING)]
+    )
+    await db.sweat_tests.create_index(
+        [("user_id", ASCENDING), ("created_at", DESCENDING)]
+    )
+    await db.nutrition_feedback.create_index(
+        [("user_id", ASCENDING), ("created_at", DESCENDING)]
+    )
 
 
 @asynccontextmanager

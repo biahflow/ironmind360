@@ -9,7 +9,8 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { colors, spacing, radius, fonts, type } from "@/src/theme";
+import { spacing, radius, fonts, type, shadow } from "@/src/theme";
+import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
 
 const AVATAR = "https://images.unsplash.com/photo-1581889470536-467bdbe30cd0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwyfHxkYXJrJTIwZ3JpdHR5JTIwcnVubmluZyUyMG1hcmF0aG9uJTIwdG91Z2glMjBmaXRuZXNzfGVufDB8fHx8MTc4ODAyNzc2N3ww&ixlib=rb-4.1.0&q=85";
@@ -21,6 +22,7 @@ const GREETING = {
 };
 
 export default function Coach() {
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<any[]>([GREETING]);
   const [input, setInput] = useState("");
@@ -54,7 +56,7 @@ export default function Coach() {
     try {
       const res = await api.post("/coach/chat", { message: text });
       setMessages((m) => [...m, { role: "assistant", content: res.reply, created_at: new Date().toISOString() }]);
-    } catch (e: any) {
+    } catch {
       setMessages((m) => [...m, { role: "assistant", content: "Conexão perdida. Mas isso não é desculpa pra parar. Tenta de novo.", created_at: "" }]);
     } finally {
       setSending(false);
@@ -79,34 +81,39 @@ export default function Coach() {
   const renderItem = ({ item }: any) => {
     const isCoach = item.role === "assistant";
     return (
-      <View style={[styles.msgRow, isCoach ? styles.rowLeft : styles.rowRight]}>
-        {isCoach && <Image source={{ uri: AVATAR }} style={styles.msgAvatar} contentFit="cover" />}
-        <View style={[styles.bubble, isCoach ? styles.coachBubble : styles.userBubble]}>
-          {isCoach && <Text style={styles.coachName}>O COMANDANTE</Text>}
-          <Text style={[styles.msgText, !isCoach && styles.userText]}>{item.content}</Text>
+      <View style={[s.msgRow, isCoach ? s.rowLeft : s.rowRight]}>
+        {isCoach && <Image source={{ uri: AVATAR }} style={s.msgAvatar} contentFit="cover" />}
+        <View style={[
+          s.bubble,
+          isCoach
+            ? [s.coachBubble, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]
+            : [s.userBubble, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }],
+        ]}>
+          {isCoach && <Text style={[s.coachName, { color: colors.brandPrimary }]}>Coach IA</Text>}
+          <Text style={[s.msgText, { color: isCoach ? colors.onSurface : colors.onBrandPrimary }]}>{item.content}</Text>
         </View>
       </View>
     );
   };
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Image source={{ uri: AVATAR }} style={styles.headerAvatar} contentFit="cover" />
+    <View style={[s.root, { backgroundColor: colors.surface }]}>
+      <View style={[s.header, { paddingTop: insets.top + spacing.md, ...(isDark ? {} : shadow.sm) }]}>
+        <Image source={{ uri: AVATAR }} style={[s.headerAvatar, { borderColor: colors.brandPrimary }]} contentFit="cover" />
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerName}>O COMANDANTE</Text>
-          <Text style={styles.headerSub}>Coach mental · Modo Goggins</Text>
+          <Text style={[s.headerName, { color: colors.onSurface }]}>Coach IA</Text>
+          <Text style={[s.headerSub, { color: colors.onSurfaceSecondary }]}>Seu assistente de treino e saúde</Text>
         </View>
-        <Pressable testID="weekly-report-button" style={styles.reportBtn} onPress={generateReport}>
-          <Ionicons name="document-text-outline" size={16} color={colors.brandSecondary} />
-          <Text style={styles.reportBtnText}>Relatório</Text>
+        <Pressable testID="weekly-report-button" style={[s.reportBtn, { backgroundColor: colors.brandTertiary }]} onPress={generateReport}>
+          <Ionicons name="document-text-outline" size={16} color={colors.brandPrimary} />
+          <Text style={[s.reportBtnText, { color: colors.brandPrimary }]}>Relatório</Text>
         </Pressable>
       </View>
 
       {showReport && (
-        <View style={styles.reportCard} testID="weekly-report-card">
-          <View style={styles.reportHead}>
-            <Text style={styles.reportKicker}>AFTER ACTION REPORT · 7 DIAS</Text>
+        <View style={[s.reportCard, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.md) }]} testID="weekly-report-card">
+          <View style={s.reportHead}>
+            <Text style={[s.reportKicker, { color: colors.brandPrimary }]}>Relatório semanal · 7 dias</Text>
             <Pressable testID="dismiss-report" onPress={() => setShowReport(false)} hitSlop={8}>
               <Ionicons name="close" size={18} color={colors.onSurfaceSecondary} />
             </Pressable>
@@ -114,7 +121,7 @@ export default function Coach() {
           {loadingReport ? (
             <ActivityIndicator color={colors.brandPrimary} style={{ marginVertical: spacing.lg }} />
           ) : (
-            <Text style={styles.reportText}>{report}</Text>
+            <Text style={[s.reportText, { color: colors.onSurface }]}>{report}</Text>
           )}
         </View>
       )}
@@ -129,31 +136,31 @@ export default function Coach() {
           data={messages}
           keyExtractor={(_, i) => String(i)}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.lg }}
+          contentContainerStyle={{ padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xl }}
           onContentSizeChange={scrollEnd}
           showsVerticalScrollIndicator={false}
           ListFooterComponent={sending ? (
-            <View style={[styles.msgRow, styles.rowLeft]}>
-              <Image source={{ uri: AVATAR }} style={styles.msgAvatar} contentFit="cover" />
-              <View style={[styles.bubble, styles.coachBubble]}>
-                <Text style={styles.typing}>escrevendo...</Text>
+            <View style={[s.msgRow, s.rowLeft]}>
+              <Image source={{ uri: AVATAR }} style={s.msgAvatar} contentFit="cover" />
+              <View style={[s.bubble, s.coachBubble, { backgroundColor: colors.cardBackground, ...(isDark ? {} : shadow.sm) }]}>
+                <Text style={[s.typing, { color: colors.onSurfaceSecondary }]}>escrevendo...</Text>
               </View>
             </View>
           ) : null}
         />
 
-        <View style={[styles.inputBar, { paddingBottom: insets.bottom + 64 + spacing.sm }]}>
+        <View style={[s.inputBar, { paddingBottom: insets.bottom + 64 + spacing.sm, backgroundColor: colors.surface }]}>
           <TextInput
             testID="coach-input"
-            style={styles.input}
-            placeholder="Fale com o Comandante..."
+            style={[s.input, { backgroundColor: colors.inputBackground, color: colors.onSurface, ...(isDark ? {} : shadow.sm) }]}
+            placeholder="Digite sua mensagem..."
             placeholderTextColor={colors.onSurfaceSecondary}
             value={input}
             onChangeText={setInput}
             multiline
             onSubmitEditing={send}
           />
-          <Pressable testID="coach-send-button" style={styles.sendBtn} onPress={send} disabled={sending || !input.trim()}>
+          <Pressable testID="coach-send-button" style={[s.sendBtn, { backgroundColor: colors.brandPrimary, ...shadow.glow(colors.brandPrimary) }]} onPress={send} disabled={sending || !input.trim()}>
             <Ionicons name="arrow-up" size={22} color={colors.onBrandPrimary} />
           </Pressable>
         </View>
@@ -162,47 +169,43 @@ export default function Coach() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
+const s = StyleSheet.create({
+  root: { flex: 1 },
   header: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
-    paddingHorizontal: spacing.lg, paddingBottom: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider,
+    paddingHorizontal: spacing.xl, paddingBottom: spacing.lg,
   },
-  headerAvatar: { width: 44, height: 44, borderRadius: radius.pill, borderWidth: 2, borderColor: colors.brandPrimary },
-  headerName: { fontFamily: fonts.display, fontSize: type.xl, color: colors.onSurface, letterSpacing: 1 },
-  headerSub: { fontFamily: fonts.text, fontSize: type.sm, color: colors.onSurfaceSecondary },
-  reportBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, height: 36, borderRadius: radius.md },
-  reportBtnText: { fontFamily: fonts.semibold, fontSize: type.sm, color: colors.brandSecondary },
+  headerAvatar: { width: 48, height: 48, borderRadius: radius.pill, borderWidth: 2 },
+  headerName: { fontFamily: fonts.display, fontSize: type.xl, letterSpacing: 1 },
+  headerSub: { fontFamily: fonts.text, fontSize: type.sm },
+  reportBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.lg, height: 40, borderRadius: radius.pill },
+  reportBtnText: { fontFamily: fonts.semibold, fontSize: type.sm },
 
-  reportCard: { margin: spacing.lg, marginBottom: 0, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.brandPrimary },
-  reportHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
-  reportKicker: { fontFamily: fonts.bold, fontSize: type.sm, color: colors.brandSecondary, letterSpacing: 1 },
-  reportText: { fontFamily: fonts.text, fontSize: type.base, color: colors.onSurface, lineHeight: 22 },
+  reportCard: { marginHorizontal: spacing.xl, marginTop: spacing.md, borderRadius: radius.xl, padding: spacing.xl },
+  reportHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
+  reportKicker: { fontFamily: fonts.bold, fontSize: type.sm, letterSpacing: 1 },
+  reportText: { fontFamily: fonts.text, fontSize: type.base, lineHeight: 22 },
 
   msgRow: { flexDirection: "row", gap: spacing.sm, maxWidth: "100%" },
   rowLeft: { justifyContent: "flex-start" },
   rowRight: { justifyContent: "flex-end" },
-  msgAvatar: { width: 32, height: 32, borderRadius: radius.pill, marginTop: 2 },
-  bubble: { maxWidth: "80%", padding: spacing.md, borderRadius: radius.sm },
-  coachBubble: { backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.brandPrimary },
-  userBubble: { backgroundColor: colors.brandPrimary },
-  coachName: { fontFamily: fonts.bold, fontSize: 10, color: colors.brandSecondary, letterSpacing: 1, marginBottom: 4 },
-  msgText: { fontFamily: fonts.text, fontSize: type.base, color: colors.onSurface, lineHeight: 22 },
-  userText: { color: colors.onBrandPrimary },
-  typing: { fontFamily: fonts.mono, fontSize: type.sm, color: colors.onSurfaceSecondary },
+  msgAvatar: { width: 36, height: 36, borderRadius: radius.pill, marginTop: 2 },
+  bubble: { maxWidth: "80%", padding: spacing.lg, borderRadius: radius.lg },
+  coachBubble: {},
+  userBubble: {},
+  coachName: { fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1, marginBottom: 4 },
+  msgText: { fontFamily: fonts.text, fontSize: type.base, lineHeight: 22 },
+  typing: { fontFamily: fonts.mono, fontSize: type.sm },
 
   inputBar: {
     flexDirection: "row", alignItems: "flex-end", gap: spacing.sm,
-    paddingHorizontal: spacing.lg, paddingTop: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider,
-    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.xl, paddingTop: spacing.md,
   },
   input: {
-    flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md,
-    borderWidth: 1, borderColor: colors.border, color: colors.onSurface,
-    fontFamily: fonts.text, fontSize: type.lg, paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md, paddingBottom: spacing.md, maxHeight: 120, minHeight: 48,
+    flex: 1, borderRadius: radius.xl,
+    fontFamily: fonts.text, fontSize: type.lg,
+    paddingHorizontal: spacing.xl, paddingTop: spacing.lg, paddingBottom: spacing.lg,
+    maxHeight: 120, minHeight: 52,
   },
-  sendBtn: { width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  sendBtn: { width: 52, height: 52, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
 });
