@@ -444,6 +444,16 @@ export default function Settings() {
           </>
         )}
 
+        <Overline style={s.section}>TREINO</Overline>
+        <Pressable
+          onPress={() => router.push("/training-zones")}
+          style={({ pressed }) => [s.card, s.linkRowCard, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.85 }]}
+        >
+          <Ionicons name="speedometer-outline" size={20} color={colors.accent} />
+          <Text style={[s.themeLabel, { color: colors.text, flex: 1 }]}>Zonas de treino</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </Pressable>
+
         {prefs && (
           <>
             <Overline style={s.section}>NOTIFICAÇÕES</Overline>
@@ -627,6 +637,7 @@ const s = StyleSheet.create({
   help: { fontFamily: fonts.text, ...type.bodySmall, lineHeight: 20, marginBottom: spacing.lg },
   goalGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.lg },
   goalField: { width: "47%", flexGrow: 1 },
+  linkRowCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   prefRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingVertical: spacing.md, gap: spacing.md,

@@ -1,4 +1,7 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 
 from app.database import db
 from app.dependencies import current_user
@@ -39,6 +42,27 @@ def _serialize(document: dict | None) -> dict:
 async def get_profile(user: dict = Depends(current_user)):
     document = await db.profiles.find_one({"user_id": str(user["_id"])})
     return _serialize(document)
+
+
+class ThresholdsIn(BaseModel):
+    ftp_watts: Optional[int] = Field(default=None, ge=0, le=600)
+    lthr_bpm: Optional[int] = Field(default=None, ge=0, le=230)
+    max_hr_bpm: Optional[int] = Field(default=None, ge=0, le=230)
+    threshold_pace_per_km: Optional[str] = Field(default=None, pattern=r"^\d{1,2}:\d{2}$")
+
+
+@router.get("/thresholds")
+async def get_thresholds(user: dict = Depends(current_user)):
+    return user.get("training_thresholds") or {}
+
+
+@router.put("/thresholds")
+async def put_thresholds(data: ThresholdsIn, user: dict = Depends(current_user)):
+    thresholds = data.model_dump()
+    await db.users.update_one(
+        {"_id": user["_id"]}, {"$set": {"training_thresholds": thresholds}}
+    )
+    return thresholds
 
 
 @router.put("/avatar")
