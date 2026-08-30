@@ -198,7 +198,7 @@ export function ProgressBar({
 
 // ── Metric card (icon chip + label + value + sub + progress) ─
 export function MetricCard({
-  icon, label, value, sub, progress, onPress, testID, tone = "accent",
+  icon, label, value, sub, progress, onPress, testID, tone = "accent", iconColor: iconColorProp,
 }: {
   icon: IconName;
   label: string;
@@ -208,9 +208,10 @@ export function MetricCard({
   onPress?: () => void;
   testID?: string;
   tone?: "accent" | "neutral";
+  iconColor?: string;
 }) {
   const { colors } = useTheme();
-  const iconColor = tone === "accent" ? colors.accent : colors.textSecondary;
+  const iconColor = iconColorProp || (tone === "accent" ? colors.accent : colors.textSecondary);
   return (
     <Pressable
       testID={testID}
@@ -228,14 +229,14 @@ export function MetricCard({
       <Text style={[st.metricLabel, { color: colors.textSecondary }]}>{label}</Text>
       <Text style={[st.metricValue, { color: colors.text }]}>{value}</Text>
       {sub ? <Text style={[st.metricSub, { color: colors.textSecondary }]}>{sub}</Text> : null}
-      {progress != null ? <ProgressBar progress={progress} style={{ marginTop: "auto" }} /> : null}
+      {progress != null ? <ProgressBar progress={progress} color={iconColorProp} style={{ marginTop: "auto" }} /> : null}
     </Pressable>
   );
 }
 
 // ── Stat tile (icon header + label + value + supporting copy) ─
 export function StatTile({
-  icon, label, value, supporting, trend, style,
+  icon, label, value, supporting, trend, style, iconColor,
 }: {
   icon: IconName;
   label: string;
@@ -243,13 +244,14 @@ export function StatTile({
   supporting?: string;
   trend?: IconName;
   style?: StyleProp<ViewStyle>;
+  iconColor?: string;
 }) {
   const { colors } = useTheme();
   return (
     <View style={[st.statTile, { backgroundColor: colors.surface, borderColor: colors.border }, style]}>
       <View style={st.statHeader}>
         <View style={[st.statIcon, { backgroundColor: colors.elevated }]}>
-          <Ionicons name={icon} size={18} color={colors.textSecondary} />
+          <Ionicons name={icon} size={18} color={iconColor || colors.textSecondary} />
         </View>
         {trend ? <Ionicons name={trend} size={16} color={colors.accent} /> : null}
       </View>

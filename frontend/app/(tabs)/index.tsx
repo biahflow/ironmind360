@@ -41,6 +41,28 @@ function fmtShortDate(iso?: string) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
+// Semáforo de cores dos tiles: cinza = sem dado, verde = ok, laranja = perto do
+// limite, vermelho = fora do recomendado.
+function goalTone(value: number, goal: number, colors: any): string {
+  if (!value) return colors.textSecondary;
+  const p = value / Math.max(goal, 1);
+  if (p >= 0.7) return colors.accent;
+  if (p >= 0.3) return colors.warning;
+  return colors.error;
+}
+function restingHrTone(bpm: number | null | undefined, colors: any): string {
+  if (bpm == null) return colors.textSecondary;
+  if (bpm <= 60) return colors.accent;
+  if (bpm <= 75) return colors.warning;
+  return colors.error;
+}
+function sleepTone(hours: number | null | undefined, colors: any): string {
+  if (hours == null) return colors.textSecondary;
+  if (hours >= 7 && hours <= 9) return colors.accent;
+  if ((hours >= 6 && hours < 7) || (hours > 9 && hours <= 10)) return colors.warning;
+  return colors.error;
+}
+
 export default function Home() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -365,6 +387,7 @@ export default function Home() {
               value={`${(water / 1000).toFixed(1)}L`}
               sub={`de ${(waterGoal / 1000).toFixed(1)}L`}
               progress={clamp(water / waterGoal)}
+              iconColor={goalTone(water, waterGoal, colors)}
               onPress={() => patchHabit({ water_ml: water + 250 })}
             />
             <MetricCard
@@ -373,6 +396,7 @@ export default function Home() {
               value={`${Math.round(activeMinutes)}`}
               sub={`de ${Math.round(activeGoal)} min`}
               progress={clamp(activeMinutes / activeGoal)}
+              iconColor={goalTone(activeMinutes, activeGoal, colors)}
             />
             <MetricCard
               icon="flame-outline"
@@ -380,6 +404,7 @@ export default function Home() {
               value={`${Math.round(calories)}`}
               sub={`de ${Math.round(caloriesGoal)}`}
               progress={clamp(calories / caloriesGoal)}
+              iconColor={goalTone(calories, caloriesGoal, colors)}
             />
           </View>
 
@@ -452,6 +477,7 @@ export default function Home() {
                       value={`${wearable.resting_hr.value?.bpm ?? "—"} bpm`}
                       supporting={`${fmtShortDate(wearable.resting_hr.date)} · ver 7 dias`}
                       trend="chevron-forward-outline"
+                      iconColor={restingHrTone(wearable.resting_hr.value?.bpm, colors)}
                     />
                   </Pressable>
                 ) : null}
@@ -463,6 +489,7 @@ export default function Home() {
                       value={`${wearable.last_sleep.value?.hours ?? "—"}h`}
                       supporting={`${fmtShortDate(wearable.last_sleep.date)} · ver 7 dias`}
                       trend="chevron-forward-outline"
+                      iconColor={sleepTone(wearable.last_sleep.value?.hours, colors)}
                     />
                   </Pressable>
                 ) : null}
