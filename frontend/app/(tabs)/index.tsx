@@ -49,6 +49,7 @@ export default function Home() {
   const [data, setData] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [wearable, setWearable] = useState<any>(null);
+  const [habitsWeek, setHabitsWeek] = useState<any>(null);
   const [chart, setChart] = useState<null | {
     metric: "resting_hr" | "sleep";
     loading: boolean;
@@ -61,16 +62,18 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const [dashboard, activePlan, wearableSummary] = await Promise.all([
+      const [dashboard, activePlan, wearableSummary, week] = await Promise.all([
         api.get("/dashboard"),
         api.get("/training/active"),
         // Best-effort: sem wearable conectado o endpoint pode falhar; não deve
         // derrubar o carregamento do painel.
         api.get("/wearable-summary").catch(() => null),
+        api.get("/habits/week").catch(() => null),
       ]);
       setData(dashboard);
       setPlan(activePlan?.plan || null);
       setWearable(wearableSummary);
+      setHabitsWeek(week);
       setImageHeaders(await authHeaders());
       setFailed(false);
     } catch {
@@ -112,6 +115,22 @@ export default function Home() {
       setChart({ metric, loading: false, points });
     } catch {
       setChart({ metric, loading: false, points: [] });
+    }
+  };
+
+  const toggleHabit = async (habit: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const today = habitsWeek?.days?.[habitsWeek.days.length - 1] || data?.date;
+    const next = !habit.done_today;
+    try {
+      if (habit.builtin) {
+        await api.put("/habits", { date: today, [habit.key]: next });
+      } else {
+        await api.put(`/custom-habits/${habit.id}/log`, { date: today, value: next ? 1 : 0 });
+      }
+      await load();
+    } catch {
+      await load();
     }
   };
 
@@ -451,32 +470,26 @@ export default function Home() {
             </>
           )}
 
-          <SectionHeader title="Pequenos hábitos" />
-          <View style={styles.habitRow}>
-            <HabitButton
-              icon="leaf-outline"
-              label="Meditar"
-              active={Boolean(data.meditate)}
-              colors={colors}
-              onPress={() => patchHabit({ meditate: !data.meditate })}
-              testID="toggle-meditate"
-            />
-            <HabitButton
-              icon="book-outline"
-              label="Ler"
-              active={Boolean(data.read)}
-              colors={colors}
-              onPress={() => patchHabit({ read: !data.read })}
-              testID="toggle-read"
-            />
-            <HabitButton
-              icon="snow-outline"
-              label="Gelado"
-              active={Boolean(data.cold_shower)}
-              colors={colors}
-              onPress={() => patchHabit({ cold_shower: !data.cold_shower })}
-              testID="toggle-cold"
-            />
+          <SectionHeader
+            title="Pequenos hábitos"
+            action="Gerenciar"
+            onAction={() => router.push("/habits")}
+          />
+          <View style={[styles.habitList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {(habitsWeek?.habits || []).map((h: any, idx: number) => (
+              <HabitRow
+                key={h.key}
+                habit={h}
+                colors={colors}
+                first={idx === 0}
+                onToggle={() => toggleHabit(h)}
+              />
+            ))}
+            {(!habitsWeek || habitsWeek.habits?.length === 0) && (
+              <Text style={[styles.habitEmpty, { color: colors.textSecondary }]}>
+                Toque em Gerenciar para criar seus hábitos.
+              </Text>
+            )}
           </View>
 
           {!data.intervals_connected && (
@@ -567,32 +580,51 @@ export default function Home() {
   );
 }
 
-function HabitButton({ icon, label, active, colors, onPress, testID }: any) {
+function HabitRow({ habit, colors, first, onToggle }: any) {
+  const done = habit.done_today;
+  const week: boolean[] = habit.week || [];
   return (
     <Pressable
-      testID={testID}
-      onPress={onPress}
-      style={[
-        styles.habitButton,
-        {
-          backgroundColor: active ? colors.accent : colors.surface,
-          borderColor: active ? colors.accent : colors.border,
-        },
-      ]}
+      onPress={onToggle}
+      style={[styles.habitRowItem, !first && { borderTopWidth: 1, borderTopColor: colors.border }]}
     >
-      <Ionicons
-        name={active ? icon.replace("-outline", "") : icon}
-        size={19}
-        color={active ? colors.onAccent : colors.textSecondary}
-      />
-      <Text
+      <View
         style={[
-          styles.habitText,
-          { color: active ? colors.onAccent : colors.textSecondary },
+          styles.habitRowIcon,
+          { backgroundColor: done ? colors.accent : colors.elevated },
         ]}
       >
-        {label}
-      </Text>
+        <Ionicons
+          name={done ? habit.icon.replace("-outline", "") : habit.icon}
+          size={18}
+          color={done ? colors.onAccent : colors.textSecondary}
+        />
+      </View>
+      <View style={{ flex: 1, marginLeft: spacing.md }}>
+        <Text style={[styles.habitRowName, { color: colors.text }]} numberOfLines={1}>
+          {habit.name}
+        </Text>
+        <View style={styles.habitDots}>
+          {week.map((d, i) => (
+            <View
+              key={i}
+              style={[
+                styles.habitDot,
+                {
+                  backgroundColor: d ? colors.accent : "transparent",
+                  borderColor: d ? colors.accent : colors.border,
+                },
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+      {habit.streak > 0 && (
+        <View style={styles.habitStreak}>
+          <Ionicons name="flame" size={13} color={colors.accent} />
+          <Text style={[styles.habitStreakText, { color: colors.accent }]}>{habit.streak}</Text>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -790,18 +822,37 @@ const styles = StyleSheet.create({
 
   insightGrid: { flexDirection: "row", gap: spacing.md },
 
-  habitRow: { flexDirection: "row", gap: spacing.sm },
-  habitButton: {
-    flex: 1,
-    height: 58,
-    borderRadius: 18,
+  habitList: {
+    borderRadius: radius.card,
     borderWidth: 1,
+    paddingHorizontal: spacing.lg,
+  },
+  habitEmpty: {
+    fontFamily: fonts.text, ...type.bodySmall,
+    textAlign: "center", paddingVertical: spacing.xl,
+  },
+  habitRowItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
+    paddingVertical: spacing.md,
   },
-  habitText: { fontFamily: fonts.semibold, ...type.bodySmall },
+  habitRowIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  habitRowName: { fontFamily: fonts.semibold, ...type.bodySmall },
+  habitDots: { flexDirection: "row", gap: 5, marginTop: 6 },
+  habitDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 1.5,
+  },
+  habitStreak: { flexDirection: "row", alignItems: "center", gap: 3, marginLeft: spacing.sm },
+  habitStreakText: { fontFamily: fonts.bold, ...type.bodySmall, fontVariant: ["tabular-nums"] },
 
   connectCard: {
     flexDirection: "row",
