@@ -26,6 +26,14 @@ const LEVEL_LABEL: Record<string, string> = {
   beginner: "Iniciante", intermediate: "Intermediário", advanced: "Avançado",
 };
 
+const EQUIPMENT_LABEL: Record<string, string> = {
+  bodyweight: "Peso corporal", dumbbell: "Halteres", barbell: "Barra",
+  kettlebell: "Kettlebell", band: "Faixa elástica", miniband: "Mini band",
+  bench: "Banco", pull_up_bar: "Barra fixa", cable: "Cabo", machine: "Máquina",
+  foam_roller: "Rolo de espuma", swiss_ball: "Bola suíça", trx: "TRX",
+  box: "Caixa / step", wall: "Parede",
+};
+
 const PATTERN_LABEL: Record<string, string> = {
   squat: "Agachamento", hinge: "Hinge", lunge: "Avanço",
   push_horizontal: "Empurrada horizontal", push_vertical: "Empurrada vertical",
@@ -106,7 +114,7 @@ export default function ExerciseDetail() {
           <Chip label={PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern} tone="neutral" />
           <Chip label={LEVEL_LABEL[exercise.min_level]} tone="neutral" />
           {exercise.equipment.map((eq) => (
-            <Chip key={eq} label={eq} tone="neutral" />
+            <Chip key={eq} label={EQUIPMENT_LABEL[eq] || eq} tone="neutral" />
           ))}
         </View>
 
