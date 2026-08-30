@@ -48,9 +48,15 @@ class Settings:
     smtp_port: int = int(os.getenv("SMTP_PORT", "1025"))
     smtp_from: str = os.getenv("SMTP_FROM", "no-reply@ironmind.local")
     app_public_url: str = os.getenv("APP_PUBLIC_URL", "http://localhost:8081")
+    ml_service_url: str = os.getenv("ML_SERVICE_URL", "http://localhost:8100")
+    ml_service_token: str | None = os.getenv("ML_SERVICE_TOKEN") or None
 
     def validate(self) -> None:
         if self.app_env.lower() in {"production", "prod"}:
+            if "localhost" in self.ml_service_url or not self.ml_service_token:
+                raise RuntimeError(
+                    "ML_SERVICE_URL interno e ML_SERVICE_TOKEN sao obrigatorios em producao"
+                )
             if len(self.jwt_secret) < 32 or "development" in self.jwt_secret:
                 raise RuntimeError("JWT_SECRET forte e exclusivo e obrigatorio em producao")
             if "*" in self.cors_origins:

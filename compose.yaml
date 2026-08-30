@@ -143,6 +143,33 @@ services:
       retries: 10
       start_period: 20s
 
+  ml:
+    build:
+      context: ./ml
+    env_file:
+      - path: .env.example
+        required: true
+      - path: .env
+        required: false
+    ports:
+      - "${ML_PORT:-8100}:8100"
+    volumes:
+      - ml_models:/app/models
+    networks:
+      - ironmind_internal
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8100/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
   frontend-web:
     image: node:22-alpine
     profiles: ["web"]
@@ -171,3 +198,4 @@ volumes:
   redis_data:
   minio_data:
   frontend_node_modules:
+  ml_models:

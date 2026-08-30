@@ -4,11 +4,11 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 
 ## Estado atual
 
-- Status geral: **Fase 4 concluída** — nutrição esportiva, fueling, suplementação e feedback adaptativo.
-- Fase atual: **Fase 5 — ML preditivo: carga, anomalias e performance**.
-- Próxima tarefa: infraestrutura do serviço ML (Dockerfile, Compose, pipeline de features).
+- Status geral: **Fase 4 concluída**; **Fase 5 — Bloco 1 (Infraestrutura ML) concluído**.
+- Fase atual: **Fase 5 — ML preditivo**. Próximo bloco: **Previsão de carga e risco de overtraining** (ACWR já disponível no pipeline; falta o modelo e o endpoint `/ml/overtraining-risk`).
+- Serviço `ml/` no ar (FastAPI/8100), pipeline de features, versionamento em diretório, cache Redis e proxy `/api/v1/ml/*` prontos e testados.
 - Última atualização: 2026-08-29.
-- Bloqueios atuais: nenhum.
+- Bloqueios atuais: nenhum. Nota: HRV/FC de repouso ainda não existem no modelo de dados (features opcionais nulas) — sincronizar wellness do intervals.icu é pré-requisito para usá-las.
 
 ### Protocolo de retomada
 
@@ -341,12 +341,12 @@ Serviço Python separado (`ml/`) com FastAPI/Uvicorn, isolado do backend princip
 
 ### Infraestrutura do serviço ML
 
-- [ ] Criar serviço `ml/` com FastAPI, Uvicorn e Dockerfile próprio (Python 3.12, TensorFlow, scikit-learn, XGBoost, Pandas, NumPy).
-- [ ] Adicionar container `ml` ao Docker Compose com healthcheck, rede interna e dependência do Mongo/Redis.
-- [ ] Criar pipeline de dados: extração de features do histórico de atividades, check-ins e intervals.icu (TSS, FC, sono, HRV, RPE).
-- [ ] Implementar versionamento de modelos e artefatos (MLflow ou diretório versionado com metadata JSON).
-- [ ] Criar endpoint de retreino sob demanda com proteção por role `administrator`.
-- [ ] Implementar cache de inferência em Redis com TTL configurável.
+- [x] Criar serviço `ml/` com FastAPI, Uvicorn e Dockerfile próprio (Python 3.12, scikit-learn, XGBoost, Pandas, NumPy). **TensorFlow adiado** por decisão (ver Registro de decisões) — entra quando LSTM/Autoencoder forem implementados.
+- [x] Adicionar container `ml` ao Docker Compose com healthcheck, rede interna e dependência do Mongo/Redis (porta 8100, sobe por padrão, volume `ml_models`).
+- [x] Criar pipeline de dados: extração de features do histórico de atividades, check-ins e sessões de força (TSS/ACWR 7:28, sono, escalas subjetivas, RPE por série). FC/HRV ficam como colunas opcionais nulas até o wellness do intervals.icu ser sincronizado.
+- [x] Implementar versionamento de modelos e artefatos (diretório versionado `<MODEL_DIR>/<modelo>/vN/` com `metadata.json`; MLflow descartado por peso).
+- [x] Criar endpoint de retreino sob demanda com proteção por role `administrator` (proxy `POST /api/v1/ml/retrain`; serviço interno protegido por token `X-ML-Token`).
+- [x] Implementar cache de inferência em Redis com TTL configurável (`INFERENCE_CACHE_TTL`, fail-open).
 
 ### Previsão de carga e risco de overtraining
 
@@ -375,7 +375,7 @@ Serviço Python separado (`ml/`) com FastAPI/Uvicorn, isolado do backend princip
 - [ ] Expor `POST /api/v1/ml/race-prediction` com entrada de tipo de prova, data e condições.
 - [ ] Registrar previsão vs. resultado real para retroalimentação e melhoria contínua do modelo.
 
-### Critérios de aceite da Fase 6
+### Critérios de aceite da Fase 5
 
 - [ ] Serviço ML inicia com healthcheck verde e responde em <2s para inferência.
 - [ ] ACWR e risco de overtraining refletem corretamente a carga dos últimos 28 dias.
@@ -521,6 +521,10 @@ Serviço Python separado (`ml/`) com FastAPI/Uvicorn, isolado do backend princip
 | 2026-08-29 | Exercícios terão ilustração estática + vídeo curto demonstrativo | Referência Hevy: thumbnail 3D com músculos destacados + loop de vídeo mostrando execução. Melhor UX de aprendizado |
 | 2026-08-29 | Incluir público corredor (somente corrida) | Ajustar onboarding para aceitar "corredor" como modalidade; intervals.icu continua como fonte dos treinos de corrida; preparação física auxiliar adaptada; não criar planos de corrida próprios nesta etapa |
 | 2026-08-29 | Ilustrações via SVG anatômico programático | MuscleMap detalhado (front/back com 20 músculos bilaterais, gradientes 3D, silhueta estrutural). Solução inline sem dependência externa. Stick figure descartado por qualidade insuficiente. Pode ser evoluída para Lottie/3D futuramente |
+| 2026-08-29 | Design system unificado em todas as telas | Módulo compartilhado `frontend/src/components/ui.tsx` alinhado à home; fundo `bg`, cards com borda, DMSans + escala `type`. Substitui o visual antigo (surface, sombras, BebasNeue/mono) para consistência e manutenção |
+| 2026-08-29 | Adiar TensorFlow no Bloco 1 da Fase 5 | Serviço ML começa com scikit-learn/XGBoost/pandas/numpy. TF (~500MB+, build lento) só quando LSTM/Autoencoder forem realmente implementados — coerente com a decisão de começar por modelos clássicos |
+| 2026-08-29 | Serviço `ml` sobe por padrão no Compose | Integração backend→ml testável out-of-the-box; sem perfil `ml`. Como não há TF, o build é leve. Backend faz fail-open (503) se o ml estiver fora |
+| 2026-08-29 | Features do Bloco 1 sem HRV/FC de repouso | Modelo de dados atual não tem HRV nem FC repouso; pipeline usa TSS/ACWR, sono e escalas subjetivas + RPE. HRV/FC ficam nulos até sincronizar o wellness do intervals.icu (tarefa futura) |
 
 ## Log de execução
 
@@ -547,3 +551,4 @@ Adicionar entradas curtas, sem segredos ou dados pessoais.
 | 2026-08-29 | Fase 4 | Plano alimentar profissional: screening nutricional com alertas LEA (Mifflin-St Jeor BMR × fator de atividade), estados draft/professional_review/published/superseded, CRUD com limite de 10 planos ativos, submit para revisão, portal do nutricionista (fila, review, approve/reject, edição profissional), templates educativos (3 modelos com disclaimer e fonte científica). Fueling e suplementação: catálogo versionado v1.0.0 com 8 suplementos (evidência, contraindicações, requires_professional), log de suplementos com check de contraindicações vs perfil, sessões de fueling, teste de suor (cálculo automático de taxa de suor), estratégia de fueling por duração (3 tiers) com checklist. Feedback adaptativo: feedback de suplemento e plano alimentar com aceite/rejeição. Bug fix: count_documents do limite de planos não filtrava deleted_at. Fase 4 concluída | 198 passed, 6 skips, 0 falhas; flake8 e mypy verdes (63 arquivos); TypeScript verde; 15 E2E meal plans + 14 E2E fueling + 5 E2E feedback + 18 unitários nutrição | Iniciar Fase 5: serviço ML preditivo |
 | 2026-08-29 | Fase 4 | Registro alimentar completo: entrada manual (`POST /nutrition/manual`), edição de refeições (`PUT /nutrition/{id}`), favoritos (CRUD + uso com 1 toque), receitas (CRUD + uso com porções escaláveis), 9 tipos de refeição, micronutrientes expandidos (fibra, sódio, açúcar), histórico semanal via aggregation pipeline, fallback manual quando IA falha (`ai_failed` flag + auto-abrir editor). Modelos Pydantic (`MealItemIn`, `ManualMealIn`, `MealEditIn`, `FavoriteIn`, `RecipeIn`), medidas caseiras, índices Mongo para favoritos/receitas. Frontend reescrito com sub-tabs (Hoje/Semana/Favoritos/Receitas), editor de itens inline, modais full-screen para manual/edição/favorito/receita, donut chart + micronutrientes, barra semanal com progresso visual | 164 passed, 6 skips; 18 unitários de nutrição + 16 E2E de nutrição (incl. IDOR); flake8 e mypy verdes (57 arquivos); TypeScript verde; lint 0 erros | Plano alimentar profissional, fueling e suplementação |
 | 2026-08-29 | UX/Design | Design system unificado: criado módulo compartilhado `src/components/ui.tsx` (Screen, ScreenHeader, IconButton, Card, SectionTitle, Overline, PrimaryButton, SecondaryButton, PillTabs, EmptyState) alinhado à home. Todas as 9 telas migradas (workouts, nutrition, health, health-detail, coach, session, program-select, exercise-detail, settings, login, register) do visual antigo (fundo surface, sombras/glow, BebasNeue+mono, aliases brand*) para o novo (fundo `bg`, cards com borda, DMSans + escala `type`, cores `accent`/`text`/`textSecondary`). Nenhuma lógica, rota, testID ou tipo alterado — apenas estilo | TypeScript verde (tsc --noEmit); lint 0 erros (1 warning pré-existente em settings.tsx); verificação visual via Expo Web (Playwright, usuário demo) das 9 telas | Iniciar Fase 5: serviço ML preditivo |
+| 2026-08-29 | Fase 5 | Bloco 1 (Infraestrutura ML) concluído. Novo serviço `ml/` (FastAPI/Uvicorn na porta 8100, Python 3.12, imagem não-root espelhando o backend). Pipeline de features (`features.py`): série diária de carga + ACWR 7:28 a partir de `activities.icu_training_load`, agregados de sono/fadiga/estresse/energia de `habits` e RPE por série de `training_sessions`; HRV/FC repouso como placeholders nulos. Versionamento em diretório (`registry.py`, `<MODEL_DIR>/<modelo>/vN/metadata.json`), cache Redis fail-open (`cache.py`), auth por token `X-ML-Token` (`security.py`). Endpoints: `/health`, `/features/{user_id}`, `/retrain` (scaffold), `/models/{name}/versions`, e stubs 501 de overtraining/anomalies/race-prediction. Integração no backend: `MLClient` (requests+to_thread), `MLProvider` protocol, rotas proxy `/api/v1/ml/{status,retrain}` (retrain admin-only + rate-limit), config `ML_SERVICE_URL`/`ML_SERVICE_TOKEN` com guard de produção. Compose: serviço `ml` (healthcheck, rede interna, deps mongo/redis, volume `ml_models`). TensorFlow adiado | 14 testes unitários do ml verdes (Python 3.12 em container: features/ACWR, registry, health, token guard); 4 E2E backend do proxy verdes; flake8 + mypy verdes (65 arquivos); `ml` Up (healthy), `/health` e `/features` do demo validados end-to-end (25 sessões de força, RPE 7.0) | Bloco 2: modelo de carga/overtraining e `/ml/overtraining-risk` integrado à readiness |
