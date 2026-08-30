@@ -59,7 +59,26 @@ async def ensure_indexes() -> None:
         ]
     )
     await db.chat_messages.create_index(
-        [("user_id", ASCENDING), ("created_at", ASCENDING)]
+        [("user_id", ASCENDING), ("conversation_id", ASCENDING), ("created_at", ASCENDING)]
+    )
+    await db.coach_conversations.create_indexes(
+        [
+            IndexModel(
+                [("user_id", ASCENDING), ("deleted_at", ASCENDING), ("updated_at", DESCENDING)],
+            ),
+        ]
+    )
+    await db.weekly_reports.create_index(
+        [("user_id", ASCENDING), ("created_at", DESCENDING)]
+    )
+    await db.diary_entries.create_index(
+        [("user_id", ASCENDING), ("created_at", DESCENDING)]
+    )
+    await db.breathing_sessions.create_index(
+        [("user_id", ASCENDING), ("created_at", DESCENDING)]
+    )
+    await db.reflections.create_index(
+        [("user_id", ASCENDING), ("created_at", DESCENDING)]
     )
     await db.consents.create_index(
         [("user_id", ASCENDING), ("purpose", ASCENDING), ("created_at", DESCENDING)]
@@ -162,6 +181,15 @@ async def ensure_indexes() -> None:
     )
     await db.nutrition_feedback.create_index(
         [("user_id", ASCENDING), ("created_at", DESCENDING)]
+    )
+    await db.equipment.create_index(
+        [("user_id", ASCENDING), ("deleted_at", ASCENDING), ("category", ASCENDING)]
+    )
+    await db.shared_reports.create_indexes(
+        [
+            IndexModel([("token", ASCENDING)], unique=True),
+            IndexModel([("expires_at", ASCENDING)], expireAfterSeconds=0),
+        ]
     )
 
 

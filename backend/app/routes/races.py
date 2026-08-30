@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.database import db
 from app.dependencies import current_user
 from app.models import RaceIn
+from app.models.race_plan import ChecklistIn, RaceRetrospectiveIn, RaceStrategyIn
 from app.services.audit import audit_event
 from app.utils.time import now_utc
 
@@ -89,4 +90,143 @@ async def delete_race(race_id: str, user: dict = Depends(current_user)):
         resource_type="race",
         resource_id=race_id,
     )
+    return {"ok": True}
+
+
+async def _get_race(race_id: str, user_id: str) -> dict:
+    if not ObjectId.is_valid(race_id):
+        raise HTTPException(404, "Prova nao encontrada")
+    doc = await db.races.find_one(
+        {"_id": ObjectId(race_id), "user_id": user_id, "deleted_at": None}
+    )
+    if not doc:
+        raise HTTPException(404, "Prova nao encontrada")
+    return doc
+
+
+# ---------------------------------------------------------------------------
+# Checklist
+# ---------------------------------------------------------------------------
+
+DEFAULT_CHECKLIST_ITEMS = [
+    {"text": "Documento de identidade", "category": "documents", "checked": False},
+    {"text": "Comprovante de inscrição", "category": "documents", "checked": False},
+    {"text": "Atestado médico", "category": "documents", "checked": False},
+    {"text": "Wetsuit / roupa de borracha", "category": "equipment", "checked": False},
+    {"text": "Bike revisada", "category": "equipment", "checked": False},
+    {"text": "Capacete", "category": "equipment", "checked": False},
+    {"text": "Tênis de corrida", "category": "equipment", "checked": False},
+    {"text": "Óculos de natação", "category": "equipment", "checked": False},
+    {"text": "Sapatilha de ciclismo", "category": "equipment", "checked": False},
+    {"text": "Gel / carboidrato", "category": "nutrition", "checked": False},
+    {"text": "Isotônico / eletrólitos", "category": "nutrition", "checked": False},
+    {"text": "Garrafa / caramanhola", "category": "nutrition", "checked": False},
+    {"text": "Organizar área de transição", "category": "transition", "checked": False},
+    {"text": "Testar equipamento na véspera", "category": "logistics", "checked": False},
+    {"text": "Verificar horário de largada", "category": "logistics", "checked": False},
+]
+
+
+@router.get("/{race_id}/checklist")
+async def get_checklist(race_id: str, user: dict = Depends(current_user)):
+    doc = await _get_race(race_id, str(user["_id"]))
+    items = doc.get("checklist", DEFAULT_CHECKLIST_ITEMS)
+    return {"checklist": items}
+
+
+@router.put("/{race_id}/checklist")
+async def update_checklist(
+    race_id: str, data: ChecklistIn, user: dict = Depends(current_user),
+):
+    await _get_race(race_id, str(user["_id"]))
+    items = [i.model_dump() for i in data.items]
+    await db.races.update_one(
+        {"_id": ObjectId(race_id)},
+        {"$set": {"checklist": items, "updated_at": now_utc()}},
+    )
+    return {"checklist": items}
+
+
+@router.put("/{race_id}/checklist/{item_index}/toggle")
+async def toggle_checklist_item(
+    race_id: str, item_index: int, user: dict = Depends(current_user),
+):
+    doc = await _get_race(race_id, str(user["_id"]))
+    items = doc.get("checklist", DEFAULT_CHECKLIST_ITEMS)
+    if item_index < 0 or item_index >= len(items):
+        raise HTTPException(400, "Indice invalido")
+    items[item_index]["checked"] = not items[item_index]["checked"]
+    await db.races.update_one(
+        {"_id": ObjectId(race_id)},
+        {"$set": {"checklist": items, "updated_at": now_utc()}},
+    )
+    return {"checklist": items}
+
+
+# ---------------------------------------------------------------------------
+# Estratégia de prova
+# ---------------------------------------------------------------------------
+
+@router.get("/{race_id}/strategy")
+async def get_strategy(race_id: str, user: dict = Depends(current_user)):
+    doc = await _get_race(race_id, str(user["_id"]))
+    return {"strategy": doc.get("strategy", {})}
+
+
+@router.put("/{race_id}/strategy")
+async def update_strategy(
+    race_id: str, data: RaceStrategyIn, user: dict = Depends(current_user),
+):
+    await _get_race(race_id, str(user["_id"]))
+    strategy = data.model_dump(exclude_none=True)
+    await db.races.update_one(
+        {"_id": ObjectId(race_id)},
+        {"$set": {"strategy": strategy, "updated_at": now_utc()}},
+    )
+    return {"strategy": strategy}
+
+
+# ---------------------------------------------------------------------------
+# Retrospectiva pós-prova
+# ---------------------------------------------------------------------------
+
+@router.get("/{race_id}/retrospective")
+async def get_retrospective(race_id: str, user: dict = Depends(current_user)):
+    doc = await _get_race(race_id, str(user["_id"]))
+    return {"retrospective": doc.get("retrospective", {})}
+
+
+@router.put("/{race_id}/retrospective")
+async def update_retrospective(
+    race_id: str, data: RaceRetrospectiveIn, user: dict = Depends(current_user),
+):
+    await _get_race(race_id, str(user["_id"]))
+    retro = data.model_dump()
+    await db.races.update_one(
+        {"_id": ObjectId(race_id)},
+        {"$set": {"retrospective": retro, "updated_at": now_utc()}},
+    )
+    return {"retrospective": retro}
+
+
+# ---------------------------------------------------------------------------
+# Duplicar checklist e estratégia para outra prova
+# ---------------------------------------------------------------------------
+
+@router.post("/{race_id}/duplicate-plan-to/{target_race_id}")
+async def duplicate_plan(
+    race_id: str, target_race_id: str, user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    source = await _get_race(race_id, user_id)
+    await _get_race(target_race_id, user_id)
+
+    update: dict = {"updated_at": now_utc()}
+    if "checklist" in source:
+        unchecked = [{**i, "checked": False} for i in source["checklist"]]
+        update["checklist"] = unchecked
+    if "strategy" in source:
+        update["strategy"] = source["strategy"]
+
+    await db.races.update_one({"_id": ObjectId(target_race_id)}, {"$set": update})
     return {"ok": True}

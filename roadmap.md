@@ -4,8 +4,8 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 
 ## Estado atual
 
-- Status geral: **Fase 5 concluída** (todos os 4 blocos). Todas as fases 0–5 completas.
-- Fase atual: **Fase 5 — ML preditivo** — concluída. Próxima fase: **Fase 6 — Coach, analytics, provas e equipamentos**.
+- Status geral: **Fase 6 concluída** (todos os 3 blocos). Todas as fases 0–6 completas.
+- Fase atual: **Fase 6 — Coach, analytics, provas e equipamentos** — concluída. Próxima fase: **Fase 7 — Comunidade e marketplace profissional**.
 - Serviço `ml/` no ar (FastAPI/8100): features (ACWR/monotonia/strain, sono, RPE), risco de overtraining, detecção de anomalias (Isolation Forest), previsão de performance (Riegel + perfil de treino), versionamento, cache Redis; proxy `/api/v1/ml/*` com `/status`, `/retrain`, `/overtraining-risk`, `/anomalies`, `/race-prediction`; risco integrado à readiness; anomalies e overtraining no dashboard/home.
 - Última atualização: 2026-08-30.
 - Bloqueios atuais: nenhum. Nota: HRV/FC de repouso ainda não existem no modelo de dados (features nulas) — sincronizar wellness do intervals.icu é pré-requisito para usá-las.
@@ -388,34 +388,34 @@ Serviço Python separado (`ml/`) com FastAPI/Uvicorn, isolado do backend princip
 
 ### Coach e bem-estar
 
-- [ ] Criar tons direto, equilibrado e acolhedor.
-- [ ] Aplicar políticas de segurança iguais em todos os tons.
-- [ ] Exibir quais dados sustentaram recomendações relevantes.
-- [ ] Criar memória controlável e exclusão de conversas.
-- [ ] Histórico de relatórios semanais e ações acompanháveis.
-- [ ] Oferecer diário, respiração e reflexão sem alegar terapia.
-- [ ] Criar protocolo regional de crise e indicação de ajuda humana.
+- [x] Criar tons direto, equilibrado e acolhedor.
+- [x] Aplicar políticas de segurança iguais em todos os tons.
+- [x] Exibir quais dados sustentaram recomendações relevantes.
+- [x] Criar memória controlável e exclusão de conversas.
+- [x] Histórico de relatórios semanais e ações acompanháveis.
+- [x] Oferecer diário, respiração e reflexão sem alegar terapia.
+- [x] Criar protocolo regional de crise e indicação de ajuda humana.
 
 ### Analytics
 
-- [ ] Gráficos de carga, consistência, sono, fadiga, dor, alimentação, força e provas.
-- [ ] Marcar correlações como observacionais, não causais.
-- [ ] Criar recordes pessoais e retrospectivas de prova.
-- [ ] Permitir relatório compartilhável com escopo e consentimento escolhidos.
+- [x] Gráficos de carga, consistência, sono, fadiga, dor, alimentação, força e provas.
+- [x] Marcar correlações como observacionais, não causais.
+- [x] Criar recordes pessoais e retrospectivas de prova.
+- [x] Permitir relatório compartilhável com escopo e consentimento escolhidos.
 
 ### Equipamentos e prova
 
-- [ ] Inventário de tênis, bike, componentes, roupa de borracha e acessórios.
-- [ ] Acumular distância/horas e gerar manutenção configurável.
-- [ ] Checklists de logística, equipamento, documentos e transição.
-- [ ] Estratégia de fueling, ritmo importado e retrospectiva pós-prova.
+- [x] Inventário de tênis, bike, componentes, roupa de borracha e acessórios.
+- [x] Acumular distância/horas e gerar manutenção configurável.
+- [x] Checklists de logística, equipamento, documentos e transição.
+- [x] Estratégia de fueling, ritmo importado e retrospectiva pós-prova.
 
 ### Critérios de aceite da Fase 6
 
-- [ ] Coach respeita tom escolhido e nunca rompe guardrails.
-- [ ] Insights apresentam dados de origem e linguagem não causal.
-- [ ] Equipamentos recebem uso das atividades corretas.
-- [ ] Checklist e estratégia podem ser duplicados para outra prova.
+- [x] Coach respeita tom escolhido e nunca rompe guardrails.
+- [x] Insights apresentam dados de origem e linguagem não causal.
+- [x] Equipamentos recebem uso das atividades corretas.
+- [x] Checklist e estratégia podem ser duplicados para outra prova.
 
 ## Fase 7 — Comunidade e marketplace profissional (ex-Fase 6)
 
@@ -552,6 +552,7 @@ Adicionar entradas curtas, sem segredos ou dados pessoais.
 | 2026-08-29 | Fase 4 | Plano alimentar profissional: screening nutricional com alertas LEA (Mifflin-St Jeor BMR × fator de atividade), estados draft/professional_review/published/superseded, CRUD com limite de 10 planos ativos, submit para revisão, portal do nutricionista (fila, review, approve/reject, edição profissional), templates educativos (3 modelos com disclaimer e fonte científica). Fueling e suplementação: catálogo versionado v1.0.0 com 8 suplementos (evidência, contraindicações, requires_professional), log de suplementos com check de contraindicações vs perfil, sessões de fueling, teste de suor (cálculo automático de taxa de suor), estratégia de fueling por duração (3 tiers) com checklist. Feedback adaptativo: feedback de suplemento e plano alimentar com aceite/rejeição. Bug fix: count_documents do limite de planos não filtrava deleted_at. Fase 4 concluída | 198 passed, 6 skips, 0 falhas; flake8 e mypy verdes (63 arquivos); TypeScript verde; 15 E2E meal plans + 14 E2E fueling + 5 E2E feedback + 18 unitários nutrição | Iniciar Fase 5: serviço ML preditivo |
 | 2026-08-29 | Fase 4 | Registro alimentar completo: entrada manual (`POST /nutrition/manual`), edição de refeições (`PUT /nutrition/{id}`), favoritos (CRUD + uso com 1 toque), receitas (CRUD + uso com porções escaláveis), 9 tipos de refeição, micronutrientes expandidos (fibra, sódio, açúcar), histórico semanal via aggregation pipeline, fallback manual quando IA falha (`ai_failed` flag + auto-abrir editor). Modelos Pydantic (`MealItemIn`, `ManualMealIn`, `MealEditIn`, `FavoriteIn`, `RecipeIn`), medidas caseiras, índices Mongo para favoritos/receitas. Frontend reescrito com sub-tabs (Hoje/Semana/Favoritos/Receitas), editor de itens inline, modais full-screen para manual/edição/favorito/receita, donut chart + micronutrientes, barra semanal com progresso visual | 164 passed, 6 skips; 18 unitários de nutrição + 16 E2E de nutrição (incl. IDOR); flake8 e mypy verdes (57 arquivos); TypeScript verde; lint 0 erros | Plano alimentar profissional, fueling e suplementação |
 | 2026-08-29 | UX/Design | Design system unificado: criado módulo compartilhado `src/components/ui.tsx` (Screen, ScreenHeader, IconButton, Card, SectionTitle, Overline, PrimaryButton, SecondaryButton, PillTabs, EmptyState) alinhado à home. Todas as 9 telas migradas (workouts, nutrition, health, health-detail, coach, session, program-select, exercise-detail, settings, login, register) do visual antigo (fundo surface, sombras/glow, BebasNeue+mono, aliases brand*) para o novo (fundo `bg`, cards com borda, DMSans + escala `type`, cores `accent`/`text`/`textSecondary`). Nenhuma lógica, rota, testID ou tipo alterado — apenas estilo | TypeScript verde (tsc --noEmit); lint 0 erros (1 warning pré-existente em settings.tsx); verificação visual via Expo Web (Playwright, usuário demo) das 9 telas | Iniciar Fase 5: serviço ML preditivo |
+| 2026-08-30 | Fase 6 | **Fase 6 completa.** Bloco 1 (Coach e bem-estar): 3 tons (direto/equilibrado/acolhedor) com mesma política de segurança (7 guardrails), detecção de crise (CVV 188, SAMU 192), conversas agrupadas com CRUD e exclusão, contexto enriquecido (atividades, refeições, check-ins, perfil, provas, alertas de saúde) com dados de origem explícitos, relatórios semanais com ações acompanháveis, diário privado com humor, respiração guiada (3 técnicas), reflexões com prompts. Bloco 2 (Equipamentos e provas): inventário CRUD com 5 categorias, acúmulo de distância/horas, alertas de vida útil e manutenção, checklist de prova (15 itens default por 5 categorias), toggle individual, estratégia (paces/potência/fueling/hidratação), retrospectiva pós-prova (rating/tempos/notas), duplicação de checklist+estratégia entre provas. Bloco 3 (Analytics): 8 endpoints (carga/consistência/wellness/nutrição/força/recordes/provas/correlações), correlações observacionais com disclaimer, recordes pessoais (corrida/ciclismo/natação/força), relatório compartilhável com token e TTL 7d. Frontend: tab Coach reescrita (chat com tons+conversas, bem-estar com diário/respiração/reflexões, relatórios com ações), tab Analytics nova (visão geral/recordes/provas) | 282 passed, 6 skips; 16 unit coach + 22 E2E coach + 18 E2E equipamentos + 11 E2E analytics; flake8/mypy verdes (70 arquivos); tsc + lint verdes (0 erros, 1 warning pré-existente) | Fase 7: comunidade e marketplace profissional |
 | 2026-08-30 | Fase 5 | Bloco 4 (Previsão de performance) concluído. **Fase 5 completa.** Serviço `ml/`: `prediction.py` — modelo empírico baseado na fórmula de Riegel (T2 = T1 × (D2/D1)^1.06) + perfil de treino recente (pace/velocidade/FC/distância por modalidade). Previsão individual por disciplina (`predict_race_time`) e triathlon completo (`predict_triathlon` com sprint/olympic/half_ironman/ironman + transições). Intervalo otimista/realista/conservador (P10/média/P90 dos paces de treino). Ajustes opcionais de elevação (+2%/100m) e calor (+0.5%/°C acima de 25°C). Fatores de extrapolação quando distância-alvo >2× treino. `POST /race-prediction` (cache Redis 1h). Backend: `MLClient.race_prediction`, proxy `POST /api/v1/ml/race-prediction` (auth + rate-limit, body com race_type ou discipline+distance_m). Decisão: Riegel empírico em vez de Gradient Boosting supervisionado (sem outcomes de prova; GB fica para quando houver retroalimentação) | 52 unit ml verdes (Riegel, formato, perfil, insuf. dados, distância/elevação/calor, triathlon completo/parcial); 215 E2E backend + 6 skips; flake8/mypy verdes (65 arquivos); tsc + lint frontend verdes; todos os critérios de aceite da Fase 5 atendidos | Fase 6: coach, analytics, provas e equipamentos |
 | 2026-08-29 | Fase 5 | Bloco 3 (Detecção de anomalias) concluído. Serviço `ml/`: `anomaly.py` — Isolation Forest (scikit-learn) por tipo de atividade sobre features normalizadas (velocidade, FC, TSS, duração, distância), perfil estatístico do atleta (`build_athlete_profile`), z-scores explicativos por métrica desviante, classificação positiva/negativa/neutra pela direção dos desvios, sumário textual. `POST /anomalies` (cache Redis) substitui o stub. Backend: `MLClient.anomalies`, proxy `POST /api/v1/ml/anomalies` (sempre id autenticado, filtro por tipo), dashboard inclui `anomalies` com fail-open. Frontend: card "Sessões atípicas" na home com lista de anomalias (ícone/pill colorido por classificação + sumário). Guardrails: sinaliza desvio, nunca diagnostica | 34 unit ml verdes (z-score, classificação, perfil, spike detectado, filtro, vazio); 211 E2E backend + 6 skips (incl. 3 anomalies); flake8/mypy verdes (65 arquivos); tsc + lint frontend verdes | Bloco 4: previsão de performance em prova |
 | 2026-08-29 | Fase 5 | Bloco 2 (Carga/overtraining) concluído. Seed do demo passou a inserir ~30 atividades intervals.icu (idempotente) para exercitar o ACWR. Serviço `ml/`: features estendidas com monotonia (média/DP da carga diária 7d) e strain (Foster); `risk.py` — modelo composto que combina faixa de ACWR (Gabbett), monotonia e carga subjetiva (fadiga/sono/estresse/energia) em score 0–100 com fatores explícitos, nível baixo/moderado/alto/crítico/indeterminado, confiança e projeção qualitativa de fadiga; config versionada via registry; `POST /overtraining-risk` (cache Redis) substitui o stub. Backend: `MLClient.overtraining_risk`, proxy `POST /api/v1/ml/overtraining-risk` (sempre id do usuário autenticado — sem IDOR), `compute_readiness(load_risk=...)` penaliza em alto/crítico, `/dashboard` e `/readiness` anexam `overtraining` com fail-open. Frontend: card "Carga de treino" na home (ACWR/score/monotonia + pill de nível + recomendação). Decisão: modelo composto no lugar de supervisionado (sem rótulos) | 20 unit ml verdes (risco por zona, monotonia, endpoint); 208 E2E backend + 6 skips (incl. 3 overtraining/dashboard + 3 readiness load_risk); flake8/mypy verdes (65 arquivos); tsc + lint frontend verdes; endpoint e card validados end-to-end (demo: ACWR 1.209, risco baixo, monotonia 1.67) | Bloco 3: detecção de anomalias em sessões |

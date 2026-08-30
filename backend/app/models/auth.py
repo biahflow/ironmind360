@@ -43,6 +43,7 @@ class SettingsIn(BaseModel):
     intervals_api_key: Optional[str] = None
     intervals_athlete_id: Optional[str] = None
     goals: Optional[Goals] = None
+    coach_tone: Optional[str] = Field(default=None, pattern="^(direct|balanced|supportive)$")
 
 
 class HabitIn(BaseModel):

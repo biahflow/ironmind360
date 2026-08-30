@@ -21,6 +21,8 @@ from app.routes.fueling import router as fueling_router
 from app.routes.meal_plans import router as meal_plans_router
 from app.routes.nutrition_feedback import router as nutrition_feedback_router
 from app.routes.ml import router as ml_router
+from app.routes.equipment import router as equipment_router
+from app.routes.analytics import router as analytics_router
 
 
 api = APIRouter()
@@ -43,6 +45,8 @@ for router in (
     fueling_router,
     nutrition_feedback_router,
     ml_router,
+    equipment_router,
+    analytics_router,
 ):
     api.include_router(router)
 

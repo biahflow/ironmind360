@@ -25,6 +25,8 @@ async def update_settings(data: SettingsIn, user: dict = Depends(current_user)):
         update["intervals_athlete_id"] = data.intervals_athlete_id.strip() or "0"
     if data.goals is not None:
         update["goals"] = data.goals.model_dump()
+    if data.coach_tone is not None:
+        update["coach_tone"] = data.coach_tone
     if update:
         await db.users.update_one({"_id": user["_id"]}, {"$set": update})
     fresh = await db.users.find_one({"_id": user["_id"]})
