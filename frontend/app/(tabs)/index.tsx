@@ -123,6 +123,7 @@ export default function Home() {
   const [wearable, setWearable] = useState<any>(null);
   const [habitsWeek, setHabitsWeek] = useState<any>(null);
   const [races, setRaces] = useState<any[]>([]);
+  const [fuel, setFuel] = useState<any>(null);
   const [factorsOpen, setFactorsOpen] = useState(false);
   const [chart, setChart] = useState<null | {
     metric: "resting_hr" | "sleep";
@@ -136,7 +137,7 @@ export default function Home() {
 
   const load = useCallback(async () => {
     try {
-      const [dashboard, activePlan, wearableSummary, week, raceList] = await Promise.all([
+      const [dashboard, activePlan, wearableSummary, week, raceList, todayFuel] = await Promise.all([
         api.get("/dashboard"),
         api.get("/training/active"),
         // Best-effort: sem wearable conectado o endpoint pode falhar; não deve
@@ -144,12 +145,15 @@ export default function Home() {
         api.get("/wearable-summary").catch(() => null),
         api.get("/habits/week").catch(() => null),
         api.get("/races").catch(() => null),
+        // Meta nutricional do dia (calorias/carbo ajustados pela carga/prova).
+        api.get("/nutrition/today-target").catch(() => null),
       ]);
       setData(dashboard);
       setPlan(activePlan?.plan || null);
       setWearable(wearableSummary);
       setHabitsWeek(week);
       setRaces(Array.isArray(raceList) ? raceList : raceList?.races || []);
+      setFuel(todayFuel);
       setImageHeaders(await authHeaders());
       setFailed(false);
     } catch {
@@ -264,7 +268,12 @@ export default function Home() {
   const activeMinutes = Number(data.active_minutes || 0);
   const activeGoal = Math.max(Number(goals.active_minutes || 30), 1);
   const calories = Number(data.calories || 0);
-  const caloriesGoal = Math.max(Number(goals.calories || 700), 1);
+  // Meta de calorias ajustada pela carga/prova (fuel for the work required),
+  // com fallback para a meta estática.
+  const caloriesGoal = Math.max(
+    Number(fuel?.calories || goals.calories || 700),
+    1,
+  );
   const firstName = String(data.name || "Atleta").split(" ")[0];
   const weeklyWorkouts = Number(data.weekly_workouts || 0);
   const weeklyKm = Number(data.weekly_km || 0);
@@ -565,6 +574,22 @@ export default function Home() {
               iconColor={goalTone(calories, caloriesGoal, colors)}
             />
           </View>
+
+          {fuel?.message && fuel.context !== "rest" && (
+            <Pressable
+              onPress={() => router.push("/(tabs)/nutrition")}
+              style={[styles.fuelNote, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            >
+              <Ionicons
+                name={fuel.context === "race" ? "flag" : fuel.context === "recovery" ? "bed-outline" : "flame"}
+                size={16}
+                color={fuel.context === "recovery" ? colors.warning : colors.accent}
+              />
+              <Text style={[styles.fuelNoteText, { color: colors.textSecondary }]} numberOfLines={2}>
+                {fuel.message}
+              </Text>
+            </Pressable>
+          )}
 
           {plan && plan.status !== "completed" && (
             <>
@@ -1066,6 +1091,13 @@ const styles = StyleSheet.create({
   factorDisclaimer: { fontFamily: fonts.text, ...type.caption, fontStyle: "italic", marginTop: spacing.md, lineHeight: 16 },
 
   metricsRow: { flexDirection: "row", gap: spacing.sm },
+  fuelNote: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    borderRadius: radius.card, borderWidth: 1,
+    paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+    marginTop: spacing.md,
+  },
+  fuelNoteText: { flex: 1, fontFamily: fonts.medium, ...type.bodySmall, lineHeight: 18 },
 
   workoutCard: {
     borderRadius: 24,
