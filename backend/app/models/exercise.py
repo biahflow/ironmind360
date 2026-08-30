@@ -118,6 +118,12 @@ class StartSessionIn(BaseModel):
     session_length: str = Field(default="full")  # "full" | "essential"
 
 
+class TrainingPrefsIn(BaseModel):
+    """Atualiza a disponibilidade de tempo de um plano JÁ ativo."""
+    days_per_week: int = Field(default=2, ge=1, le=3)
+    session_length: str = Field(default="full")  # "full" | "essential"
+
+
 class CustomSessionItemIn(BaseModel):
     exercise_id: str
     sets: int = Field(default=3, ge=1, le=10)

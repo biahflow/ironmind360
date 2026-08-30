@@ -55,21 +55,55 @@ export default function ProgramSelect() {
   const [starting, setStarting] = useState<string | null>(null);
   const [daysPerWeek, setDaysPerWeek] = useState(2);
   const [sessionLength, setSessionLength] = useState("full");
+  const [activePlan, setActivePlan] = useState<any>(null);
+  const [savingPrefs, setSavingPrefs] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const d = await api.get("/programs");
+      const [d, active] = await Promise.all([
+        api.get("/programs"),
+        api.get("/training/active").catch(() => null),
+      ]);
       setPrograms(d.programs || []);
+      const plan = active?.plan || null;
+      setActivePlan(plan);
+      // Inicia os seletores com as preferências do plano ativo, se houver.
+      if (plan) {
+        if (plan.days_per_week) setDaysPerWeek(plan.days_per_week);
+        if (plan.session_length) setSessionLength(plan.session_length);
+      }
     } catch {}
     setLoading(false);
   }, []);
 
   React.useEffect(() => { load(); }, [load]);
 
+  // Aplica as preferências ao plano ATIVO, sem reiniciar (mantém progresso).
+  const savePrefs = async () => {
+    setSavingPrefs(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await api.put("/training/preferences", {
+        days_per_week: daysPerWeek,
+        session_length: sessionLength,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
   const startProgram = async (p: Program) => {
     setStarting(p.id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     try {
+      // Se já há um plano ativo, troca (cancela e inicia o novo com as prefs).
+      if (activePlan) {
+        await api.post("/training/cancel").catch(() => {});
+      }
       await api.post("/training/start", {
         program_id: p.id,
         session_number: 1,
@@ -137,6 +171,23 @@ export default function ProgramSelect() {
             {totalSessions} sessões · ~{estWeeks} semanas no seu ritmo
           </Text>
         </View>
+
+        {activePlan && (
+          <>
+            <Text style={[s.activeNote, { color: colors.textSecondary }]}>
+              Você tem um programa ativo ({activePlan.program_name}). Salve para
+              aplicar sem perder o progresso, ou troque de programa abaixo.
+            </Text>
+            <PrimaryButton
+              label="Salvar preferências no plano atual"
+              icon="checkmark"
+              onPress={savePrefs}
+              loading={savingPrefs}
+              disabled={!!starting}
+              style={{ marginTop: spacing.md }}
+            />
+          </>
+        )}
       </View>
     </View>
   );
@@ -173,10 +224,10 @@ export default function ProgramSelect() {
         </View>
 
         <PrimaryButton
-          label="Iniciar programa"
+          label={activePlan ? "Trocar para este programa" : "Iniciar programa"}
           onPress={() => startProgram(item)}
           loading={active}
-          disabled={!!starting}
+          disabled={!!starting || savingPrefs}
           style={s.startBtn}
         />
       </Card>
@@ -241,6 +292,7 @@ const s = StyleSheet.create({
     borderTopWidth: 1, marginTop: spacing.lg, paddingTop: spacing.md,
   },
   estText: { fontFamily: fonts.medium, ...type.bodySmall },
+  activeNote: { fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.lg, lineHeight: 18 },
 
   cardHeader: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
 

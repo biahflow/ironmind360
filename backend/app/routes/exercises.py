@@ -14,7 +14,7 @@ from app.adapters.ml import MLClient
 from app.data.programs import PROGRAMS, PROGRAMS_BY_ID, WEEK_PARAMS
 from app.database import db
 from app.dependencies import current_user
-from app.models.exercise import CustomSessionIn, LogSetIn, StartSessionIn
+from app.models.exercise import CustomSessionIn, LogSetIn, StartSessionIn, TrainingPrefsIn
 from app.services.periodization import compute_periodization
 from app.services.readiness import compute_readiness
 from app.utils.time import now_utc
@@ -303,6 +303,44 @@ async def start_program(body: StartSessionIn, user: dict = Depends(current_user)
     plan["id"] = str(result.inserted_id)
     plan.pop("_id", None)
     return {"plan": plan}
+
+
+@router.put("/training/preferences")
+async def update_training_prefs(body: TrainingPrefsIn, user: dict = Depends(current_user)):
+    """Atualiza dias/semana e duração de um plano ATIVO sem reiniciar do zero.
+    Recalcula a sequência, ajusta o total e mantém o progresso (limitado ao novo
+    tamanho). A mudança de duração reflete já na próxima sessão aberta."""
+    user_id = str(user["_id"])
+    plan = await db.training_plans.find_one(
+        {"user_id": user_id, "status": {"$in": ["active", "in_progress"]}}
+    )
+    if not plan:
+        raise HTTPException(404, "Nenhum programa ativo encontrado")
+
+    session_length = body.session_length if body.session_length in ("full", "essential") else "full"
+    sequence = _build_session_sequence(body.days_per_week)
+    completed = plan.get("completed_sessions", 0)
+    # Mantém o progresso, mas dentro dos limites da nova sequência.
+    current = min(max(completed + 1, 1), len(sequence))
+
+    await db.training_plans.update_one(
+        {"_id": plan["_id"]},
+        {"$set": {
+            "days_per_week": body.days_per_week,
+            "session_length": session_length,
+            "session_sequence": sequence,
+            "total_sessions": len(sequence),
+            "current_session": current,
+            "updated_at": now_utc(),
+        }},
+    )
+    return {
+        "updated": True,
+        "days_per_week": body.days_per_week,
+        "session_length": session_length,
+        "total_sessions": len(sequence),
+        "current_session": current,
+    }
 
 
 @router.post("/training/cancel")

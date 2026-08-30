@@ -17,6 +17,7 @@ from app.models.coach import (
     ReflectionIn,
 )
 from app.rate_limit import rate_limit
+from app.services.nutrition_target import compute_today_target
 from app.utils.time import now_utc
 
 router = APIRouter(prefix="/coach", tags=["coach"])
@@ -173,6 +174,21 @@ async def gather_context(user: dict) -> dict:
             f"plano nutricional ~{plan_doc['plan'].get('daily_calories')} kcal/dia"
         )
 
+    # Meta nutricional de HOJE (interligada à carga/prova/recuperação) — permite
+    # o coach conectar treino e alimentação na mesma resposta.
+    try:
+        fuel = await compute_today_target(user)
+        ctx_label = {
+            "race": "dia de prova", "training": "dia de treino",
+            "recovery": "recuperação", "rest": "dia leve",
+        }.get(fuel.get("context", ""), fuel.get("context", ""))
+        fuel_bits = f"combustível de hoje ({ctx_label}): ~{fuel.get('calories')} kcal"
+        if fuel.get("carbs_g"):
+            fuel_bits += f", carbo ~{fuel.get('carbs_g')}g"
+        context_parts.append(fuel_bits)
+    except Exception:
+        fuel = None
+
     if upcoming_race:
         context_parts.append(
             f"proxima prova: {upcoming_race.get('name', upcoming_race.get('race_type'))} "
@@ -222,6 +238,8 @@ async def gather_context(user: dict) -> dict:
         sources.append("peso")
     if plan_doc and plan_doc.get("plan"):
         sources.append("plano nutricional")
+    if fuel:
+        sources.append("nutrição do dia")
 
     text = "; ".join(context_parts) + "."
     if is_new_user:
