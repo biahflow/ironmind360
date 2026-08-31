@@ -160,6 +160,130 @@ async def nutrition_trends(
 
 
 # ---------------------------------------------------------------------------
+# Resumo semanal consolidado
+# ---------------------------------------------------------------------------
+
+async def _training_window(user_id: str, since: str, until: str | None):
+    """Agrega treino/sono de uma janela [since, until) — reutilizado para
+    comparar a semana atual com a anterior."""
+    act_query: dict = {"user_id": user_id, "start_date_local": {"$gte": since}}
+    hab_query: dict = {"user_id": user_id, "date": {"$gte": since}}
+    if until is not None:
+        act_query["start_date_local"]["$lt"] = until
+        hab_query["date"]["$lt"] = until
+
+    activities = await db.activities.find(
+        act_query, {"distance": 1, "icu_training_load": 1},
+    ).to_list(200)
+    habits = await db.habits.find(
+        hab_query, {"sleep_hours": 1},
+    ).to_list(20)
+    sleeps = [h["sleep_hours"] for h in habits if h.get("sleep_hours") is not None]
+
+    return {
+        "sessions": len(activities),
+        "km": round(sum((a.get("distance") or 0) for a in activities) / 1000, 1),
+        "tss": round(sum((a.get("icu_training_load") or 0) for a in activities)),
+        "avg_sleep": round(sum(sleeps) / len(sleeps), 1) if sleeps else None,
+    }
+
+
+@router.get("/weekly-summary")
+async def weekly_summary(user: dict = Depends(current_user)):
+    user_id = str(user["_id"])
+    since = (now_utc() - timedelta(days=7)).strftime("%Y-%m-%d")
+    prev_since = (now_utc() - timedelta(days=14)).strftime("%Y-%m-%d")
+
+    activities = await db.activities.find(
+        {"user_id": user_id, "start_date_local": {"$gte": since}},
+        {"distance": 1, "icu_training_load": 1},
+    ).to_list(200)
+    sessions = len(activities)
+    km = round(sum((a.get("distance") or 0) for a in activities) / 1000, 1)
+    tss = round(sum((a.get("icu_training_load") or 0) for a in activities))
+
+    meals = await db.meals.find(
+        {"user_id": user_id, "date": {"$gte": since}, "deleted_at": None},
+        {"date": 1, "calories": 1},
+    ).to_list(400)
+    meal_days = len({m["date"] for m in meals})
+    avg_calories = round(sum((m.get("calories") or 0) for m in meals) / meal_days) if meal_days else 0
+
+    habits = await db.habits.find(
+        {"user_id": user_id, "date": {"$gte": since}},
+        {"sleep_hours": 1, "mood": 1},
+    ).to_list(10)
+    checkins = len(habits)
+
+    def avg(key: str):
+        vals = [h[key] for h in habits if h.get(key) is not None]
+        return round(sum(vals) / len(vals), 1) if vals else None
+
+    weight_series = []
+    async for h in db.habits.find(
+        {"user_id": user_id, "date": {"$gte": since}, "weight_kg": {"$ne": None}},
+        {"weight_kg": 1},
+    ).sort("date", 1):
+        weight_series.append(h["weight_kg"])
+    weight_delta = round(weight_series[-1] - weight_series[0], 1) if len(weight_series) >= 2 else None
+
+    # Semana anterior (dias 8–14) para comparação "vs semana passada".
+    previous = await _training_window(user_id, prev_since, since)
+
+    return {
+        "sessions": sessions, "km": km, "tss": tss,
+        "meal_days": meal_days, "avg_calories": avg_calories,
+        "checkins": checkins, "avg_sleep": avg("sleep_hours"), "avg_mood": avg("mood"),
+        "weight_delta": weight_delta,
+        "previous": previous,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Métricas corporais (peso / cintura ao longo do tempo)
+# ---------------------------------------------------------------------------
+
+@router.get("/body-metrics")
+async def body_metrics(
+    days: int = Query(90, ge=7, le=365),
+    user: dict = Depends(current_user),
+):
+    user_id = str(user["_id"])
+    since = (now_utc() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+    weight: list[dict] = []
+    waist: list[dict] = []
+    cursor = db.habits.find(
+        {"user_id": user_id, "date": {"$gte": since}},
+        {"date": 1, "weight_kg": 1, "waist_cm": 1},
+    ).sort("date", 1)
+    async for h in cursor:
+        if h.get("weight_kg") is not None:
+            weight.append({"date": h["date"], "value": round(float(h["weight_kg"]), 1)})
+        if h.get("waist_cm") is not None:
+            waist.append({"date": h["date"], "value": round(float(h["waist_cm"]), 1)})
+
+    def summary(series: list[dict]) -> dict:
+        if not series:
+            return {"latest": None, "delta": None, "min": None, "max": None}
+        values = [p["value"] for p in series]
+        return {
+            "latest": series[-1]["value"],
+            "delta": round(series[-1]["value"] - series[0]["value"], 1),
+            "min": min(values),
+            "max": max(values),
+        }
+
+    return {
+        "weight": weight,
+        "waist": waist,
+        "weight_summary": summary(weight),
+        "waist_summary": summary(waist),
+        "days": days,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Força (progresso nos exercícios de treino)
 # ---------------------------------------------------------------------------
 

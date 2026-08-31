@@ -1,24 +1,23 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
   Modal, Linking, RefreshControl, TextInput,
 } from "react-native";
 import { Image } from "expo-image";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 
-import { spacing, radius, fonts, type } from "@/src/theme";
+import { spacing, radius, fonts, type, controlHeight } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import DonutChart from "@/src/components/DonutChart";
-import { EmptyState } from "@/src/components/ui";
+import { Screen, ScreenHeader, EmptyState, PrimaryButton, SecondaryButton, layout } from "@/src/components/ui";
 
-const MACRO_COLORS = { protein: "#4ECDC4", carbs: "#FFD93D", fat: "#FF6B6B" };
-
-type SubTab = "today" | "week" | "favorites" | "recipes";
+type SubTab = "today" | "plan" | "week" | "favorites" | "recipes";
 
 const MEAL_TYPES = [
   { value: "breakfast", label: "Café da manhã" },
@@ -67,6 +66,7 @@ export default function Nutrition() {
   const [meals, setMeals] = useState<any[]>([]);
   const [totals, setTotals] = useState<any>({});
   const [goals, setGoals] = useState<any>({});
+  const [planTarget, setPlanTarget] = useState<any>(null);
   const [weekly, setWeekly] = useState<any[]>([]);
   const [favorites, setFavorites] = useState<any[]>([]);
   const [recipes, setRecipes] = useState<any[]>([]);
@@ -76,10 +76,15 @@ export default function Nutrition() {
   const [permMsg, setPermMsg] = useState("");
   const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
   const [manualModal, setManualModal] = useState(false);
+  const [manualInitial, setManualInitial] = useState<any>(null);
+  const [scanner, setScanner] = useState(false);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [foodSearch, setFoodSearch] = useState(false);
   const [editModal, setEditModal] = useState<any>(null);
   const [favModal, setFavModal] = useState(false);
   const [recipeModal, setRecipeModal] = useState(false);
-  const tabBarPad = 64 + insets.bottom + 90;
+  const [recipeIdeas, setRecipeIdeas] = useState(false);
+  const tabBarPad = layout.tabBarPad(insets.bottom) + 72;
 
   const loadToday = useCallback(async () => {
     try {
@@ -88,6 +93,10 @@ export default function Nutrition() {
       setTotals(d.totals || {});
       setGoals(d.goals || {});
       setImageHeaders(await authHeaders());
+    } catch {}
+    try {
+      const td = await api.get("/nutrition/today-target");
+      setPlanTarget(td?.calories ? td : null);
     } catch {}
     setLoading(false);
   }, []);
@@ -127,9 +136,9 @@ export default function Nutrition() {
     try {
       const result = await api.uploadPhoto("/nutrition/analyze", uri, "meal");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (result.ai_failed) {
-        setEditModal(result);
-      }
+      // Sempre abre a confirmação: o usuário revisa itens e detalhes que mudam
+      // as calorias (tipo de leite, açúcar/adoçante, porção) antes de contar.
+      setEditModal({ ...result, _fresh: true });
       await loadAll();
     } catch (e: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -159,6 +168,27 @@ export default function Nutrition() {
     }
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.6, mediaTypes: ["images"] });
     if (!res.canceled && res.assets?.[0]) handleImage(res.assets[0].uri);
+  };
+
+  const handleBarcode = async (code: string) => {
+    setScanner(false);
+    setScanLoading(true);
+    setPermMsg("");
+    try {
+      const res = await api.get(`/nutrition/barcode/${code}`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setManualInitial({ title: res.item.name, items: [res.item] });
+      setManualModal(true);
+    } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setPermMsg(
+        String(e?.message || "").includes("não encontrado")
+          ? "Produto não encontrado. Você pode adicionar manualmente."
+          : "Falha ao buscar o produto. Tente novamente.",
+      );
+    } finally {
+      setScanLoading(false);
+    }
   };
 
   const removeMeal = async (id: string) => {
@@ -204,63 +234,65 @@ export default function Nutrition() {
   const fatG = Math.round(totals.fat_g || 0);
   const totalMacroG = protG + carbG + fatG || 1;
   const segments = [
-    { value: protG, color: MACRO_COLORS.protein, label: "Proteína" },
-    { value: carbG, color: MACRO_COLORS.carbs, label: "Carboidrato" },
-    { value: fatG, color: MACRO_COLORS.fat, label: "Gordura" },
+    { value: protG, color: colors.macroProtein, label: "Proteína" },
+    { value: carbG, color: colors.macroCarbs, label: "Carboidrato" },
+    { value: fatG, color: colors.macroFat, label: "Gordura" },
   ];
 
   const SUB_TABS: { key: SubTab; label: string; icon: string }[] = [
     { key: "today", label: "Hoje", icon: "today-outline" },
+    { key: "plan", label: "Plano", icon: "nutrition-outline" },
     { key: "week", label: "Semana", icon: "calendar-outline" },
     { key: "favorites", label: "Favoritos", icon: "heart-outline" },
     { key: "recipes", label: "Receitas", icon: "book-outline" },
   ];
 
   return (
-    <View style={[s.root, { backgroundColor: colors.bg }]}>
-      <View style={[s.header, { paddingTop: insets.top + spacing.md, backgroundColor: colors.bg }]}>
-        <Text style={[s.title, { color: colors.text }]}>Nutrição</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
-          {SUB_TABS.map((t) => {
-            const active = tab === t.key;
-            return (
-              <Pressable
-                key={t.key}
-                onPress={() => setTab(t.key)}
-                style={[
-                  s.subTab,
-                  {
-                    backgroundColor: active ? colors.accent : colors.surface,
-                    borderColor: active ? colors.accent : colors.border,
-                  },
-                ]}
-              >
-                <Ionicons name={t.icon as any} size={16} color={active ? colors.onAccent : colors.textSecondary} />
-                <Text style={[s.subTabText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+    <Screen>
+      <ScreenHeader title="Nutrição" />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
+        {SUB_TABS.map((t) => {
+          const active = tab === t.key;
+          return (
+            <Pressable
+              key={t.key}
+              onPress={() => setTab(t.key)}
+              style={[
+                s.subTab,
+                {
+                  backgroundColor: active ? colors.accent : colors.surface,
+                  borderColor: active ? colors.accent : colors.border,
+                },
+              ]}
+            >
+              <Ionicons name={t.icon as any} size={16} color={active ? colors.onAccent : colors.textSecondary} />
+              <Text style={[s.subTabText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {loading ? (
         <View style={s.center}><ActivityIndicator color={colors.accent} /></View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: tabBarPad }}
+          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm, paddingBottom: tabBarPad }}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={false} onRefresh={loadAll} tintColor={colors.accent} />}
         >
-          {tab === "today" && <TodayView {...{ meals, totals, goals, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }} />}
+          {tab === "today" && <TodayView {...{ meals, totals, goals, planTarget, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }} />}
+          {tab === "plan" && <PlanView colors={colors} />}
           {tab === "week" && <WeekView days={weekly} goals={goals} colors={colors} />}
           {tab === "favorites" && <FavoritesView favorites={favorites} colors={colors} applyFavorite={applyFavorite} deleteFavorite={deleteFavorite} setFavModal={setFavModal} />}
-          {tab === "recipes" && <RecipesView recipes={recipes} colors={colors} applyRecipe={applyRecipe} deleteRecipe={deleteRecipe} setRecipeModal={setRecipeModal} />}
+          {tab === "recipes" && <RecipesView recipes={recipes} colors={colors} applyRecipe={applyRecipe} deleteRecipe={deleteRecipe} setRecipeModal={setRecipeModal} onOpenIdeas={() => setRecipeIdeas(true)} />}
         </ScrollView>
       )}
 
       {tab === "today" && (
         <Pressable
           testID="camera-log-fab"
+          accessibilityRole="button"
+          accessibilityLabel="Registrar refeição"
           style={[s.fab, { bottom: insets.bottom + 64 + spacing.lg, backgroundColor: colors.accent }]}
           onPress={() => setPicker(true)}
           disabled={analyzing}
@@ -271,7 +303,7 @@ export default function Nutrition() {
 
       {/* Add meal picker */}
       <Modal visible={picker} transparent animationType="slide" onRequestClose={() => setPicker(false)}>
-        <Pressable style={s.backdrop} onPress={() => setPicker(false)}>
+        <Pressable style={[s.backdrop, { backgroundColor: colors.overlay }]} onPress={() => setPicker(false)}>
           <View style={[s.sheet, { paddingBottom: insets.bottom + spacing.lg, backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[s.sheetHandle, { backgroundColor: colors.border }]} />
             <Text style={[s.sheetTitle, { color: colors.textSecondary }]}>REGISTRAR REFEIÇÃO</Text>
@@ -283,7 +315,15 @@ export default function Nutrition() {
               <Ionicons name="images" size={22} color={colors.text} />
               <Text style={[s.sheetBtnText, { color: colors.text }]}>Escolher da galeria</Text>
             </Pressable>
-            <Pressable testID="manual-entry-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setManualModal(true); }}>
+            <Pressable testID="scan-barcode-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setScanner(true); }}>
+              <Ionicons name="barcode-outline" size={22} color={colors.text} />
+              <Text style={[s.sheetBtnText, { color: colors.text }]}>Escanear código de barras</Text>
+            </Pressable>
+            <Pressable testID="search-food-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setFoodSearch(true); }}>
+              <Ionicons name="search-outline" size={22} color={colors.text} />
+              <Text style={[s.sheetBtnText, { color: colors.text }]}>Buscar alimento</Text>
+            </Pressable>
+            <Pressable testID="manual-entry-button" style={[s.sheetBtn, { backgroundColor: colors.elevated, borderColor: colors.border }]} onPress={() => { setPicker(false); setManualInitial(null); setManualModal(true); }}>
               <Ionicons name="create-outline" size={22} color={colors.text} />
               <Text style={[s.sheetBtnText, { color: colors.text }]}>Entrada manual</Text>
             </Pressable>
@@ -294,6 +334,7 @@ export default function Nutrition() {
       {/* Manual entry modal */}
       <ManualEntryModal
         visible={manualModal}
+        initialData={manualInitial}
         onClose={() => setManualModal(false)}
         onSave={async (data: any) => {
           await api.post("/nutrition/manual", data);
@@ -304,6 +345,41 @@ export default function Nutrition() {
         colors={colors}
         insets={insets}
       />
+
+      <BarcodeScannerModal
+        visible={scanner}
+        onClose={() => setScanner(false)}
+        onDetected={handleBarcode}
+        insets={insets}
+        colors={colors}
+      />
+
+      <FoodSearchModal
+        visible={foodSearch}
+        onClose={() => setFoodSearch(false)}
+        onPick={(item: any) => {
+          setFoodSearch(false);
+          setManualInitial({ title: item.name, items: [item] });
+          setManualModal(true);
+        }}
+        insets={insets}
+        colors={colors}
+      />
+
+      <RecipeIdeasModal
+        visible={recipeIdeas}
+        onClose={() => setRecipeIdeas(false)}
+        onLogged={loadAll}
+        insets={insets}
+        colors={colors}
+      />
+
+      {scanLoading && (
+        <View style={[s.analyzeOverlay, { backgroundColor: colors.overlay }]}>
+          <ActivityIndicator color={colors.accent} size="large" />
+          <Text style={[s.analyzeText, { color: colors.text }]}>Buscando produto...</Text>
+        </View>
+      )}
 
       {/* Edit meal modal */}
       {editModal && (
@@ -355,21 +431,66 @@ export default function Nutrition() {
           <Text style={[s.analyzeText, { color: colors.text }]}>Analisando seu prato...</Text>
         </View>
       )}
-    </View>
+    </Screen>
   );
 }
 
 // ─── Today View ────────────────────────────────────────────────
 
-function TodayView({ meals, totals, goals, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }: any) {
+function RemainingBar({ label, consumed, target, colors }: any) {
+  const pct = target > 0 ? Math.min(consumed / target, 1) : 0;
+  const remaining = Math.max(Math.round(target - consumed), 0);
+  const over = consumed > target;
+  return (
+    <View style={s.remRow}>
+      <View style={s.remHead}>
+        <Text style={[s.remLabel, { color: colors.textSecondary }]}>{label}</Text>
+        <Text style={[s.remValue, { color: over ? colors.warning : colors.text }]}>
+          {over ? `+${Math.round(consumed - target)}` : remaining}{label === "Calorias" ? "" : "g"}
+          <Text style={[s.remTarget, { color: colors.textSecondary }]}>{over ? " acima" : " restante"}</Text>
+        </Text>
+      </View>
+      <View style={[s.remTrack, { backgroundColor: colors.border }]}>
+        <View style={{ width: `${Math.round(pct * 100)}%`, height: 4, borderRadius: 999, backgroundColor: over ? colors.warning : colors.accent }} />
+      </View>
+    </View>
+  );
+}
+
+function TodayView({ meals, totals, goals, planTarget, segments, protG, carbG, fatG, totalMacroG, colors, imageHeaders, permMsg, removeMeal, setEditModal }: any) {
+  const target = planTarget
+    ? { calories: planTarget.calories, protein_g: planTarget.protein_g, carbs_g: planTarget.carbs_g, fat_g: planTarget.fat_g }
+    : { calories: goals.calories, protein_g: goals.protein };
+  const hasTarget = Number(target.calories) > 0;
   return (
     <>
+      {hasTarget && (
+        <View style={[s.remCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={s.remCardHead}>
+            <Text style={[s.remTitle, { color: colors.text }]}>Restante hoje</Text>
+            <Text style={[s.remSource, { color: colors.textSecondary }]}>{planTarget?.source === "plano" ? "meta do plano" : "sua meta"}</Text>
+          </View>
+          {planTarget?.is_training_day && planTarget?.extra_kcal ? (
+            <View style={[s.trainDayTag, { backgroundColor: colors.accentMuted }]}>
+              <Ionicons name="barbell-outline" size={13} color={colors.accent} />
+              <Text style={[s.trainDayText, { color: colors.accent }]}>
+                Dia de treino · +{planTarget.extra_kcal} kcal (carbo) pela carga
+              </Text>
+            </View>
+          ) : null}
+          <RemainingBar label="Calorias" consumed={totals.calories || 0} target={target.calories} colors={colors} />
+          <RemainingBar label="Proteína" consumed={protG} target={target.protein_g || 0} colors={colors} />
+          {target.carbs_g ? <RemainingBar label="Carbo" consumed={carbG} target={target.carbs_g} colors={colors} /> : null}
+          {target.fat_g ? <RemainingBar label="Gordura" consumed={fatG} target={target.fat_g} colors={colors} /> : null}
+        </View>
+      )}
+
       <View style={[s.donutSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <DonutChart size={180} strokeWidth={16} segments={segments} centerValue={`${Math.round(totals.calories || 0)}`} centerLabel="kcal" />
         <View style={s.macroLegend}>
-          <MacroChip label="Proteína" value={`${protG}g`} pct={Math.round((protG / totalMacroG) * 100)} color={MACRO_COLORS.protein} textColor={colors.text} subColor={colors.textSecondary} />
-          <MacroChip label="Carbo" value={`${carbG}g`} pct={Math.round((carbG / totalMacroG) * 100)} color={MACRO_COLORS.carbs} textColor={colors.text} subColor={colors.textSecondary} />
-          <MacroChip label="Gordura" value={`${fatG}g`} pct={Math.round((fatG / totalMacroG) * 100)} color={MACRO_COLORS.fat} textColor={colors.text} subColor={colors.textSecondary} />
+          <MacroChip label="Proteína" value={`${protG}g`} pct={Math.round((protG / totalMacroG) * 100)} color={colors.macroProtein} textColor={colors.text} subColor={colors.textSecondary} />
+          <MacroChip label="Carbo" value={`${carbG}g`} pct={Math.round((carbG / totalMacroG) * 100)} color={colors.macroCarbs} textColor={colors.text} subColor={colors.textSecondary} />
+          <MacroChip label="Gordura" value={`${fatG}g`} pct={Math.round((fatG / totalMacroG) * 100)} color={colors.macroFat} textColor={colors.text} subColor={colors.textSecondary} />
         </View>
         {(totals.fiber_g > 0 || totals.sodium_mg > 0) && (
           <View style={[s.microRow, { borderTopColor: colors.border }]}>
@@ -430,6 +551,119 @@ function TodayView({ meals, totals, goals, segments, protG, carbG, fatG, totalMa
         ))
       )}
     </>
+  );
+}
+
+// ─── Plan View (plano nutricional sugerido por IA) ─────────────
+
+function PlanView({ colors }: any) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [err, setErr] = useState("");
+
+  useFocusEffect(useCallback(() => {
+    let alive = true;
+    (async () => {
+      try { const d = await api.get("/nutrition/plan"); if (alive) setData(d); }
+      catch {} finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, []));
+
+  const generate = async () => {
+    setGenerating(true);
+    setErr("");
+    try {
+      const d = await api.post("/nutrition/plan/generate");
+      setData(d);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setErr(e?.message || "Não foi possível gerar o plano agora.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  if (loading) return <View style={s.center}><ActivityIndicator color={colors.accent} /></View>;
+
+  const plan = data?.plan;
+
+  return (
+    <>
+      <View style={[s.planDisclaimer, { backgroundColor: colors.warningMuted }]}>
+        <Ionicons name="information-circle-outline" size={18} color={colors.warning} />
+        <Text style={[s.planDisclaimerText, { color: colors.text }]}>
+          {data?.disclaimer || "Sugestão automática — não substitui um nutricionista."}
+        </Text>
+      </View>
+
+      {!plan ? (
+        <EmptyState
+          icon="nutrition-outline"
+          title="Plano alimentar sugerido"
+          text="Gere um plano personalizado pela sua modalidade, metas e carga de treino."
+          action={<PrimaryButton label={generating ? "Gerando..." : "Gerar plano"} icon="sparkles-outline" onPress={generate} loading={generating} />}
+        />
+      ) : (
+        <>
+          <View style={[s.donutSection, { backgroundColor: colors.surface, borderColor: colors.border, alignItems: "stretch" }]}>
+            {data?.modality ? <Text style={[s.planKicker, { color: colors.accent }]}>MODALIDADE · {String(data.modality).toUpperCase()}</Text> : null}
+            <Text style={[s.planKcal, { color: colors.text }]}>
+              {plan.daily_calories} <Text style={[s.planKcalUnit, { color: colors.textSecondary }]}>kcal/dia</Text>
+            </Text>
+            <View style={s.planMacroRow}>
+              <PlanMacro label="Proteína" value={`${plan.protein_g}g`} colors={colors} />
+              <PlanMacro label="Carbo" value={`${plan.carbs_g}g`} colors={colors} />
+              <PlanMacro label="Gordura" value={`${plan.fat_g}g`} colors={colors} />
+              <PlanMacro label="Água" value={`${((plan.hydration_ml || 0) / 1000).toFixed(1)}L`} colors={colors} />
+            </View>
+            {plan.summary ? <Text style={[s.planSummary, { color: colors.textSecondary }]}>{plan.summary}</Text> : null}
+          </View>
+
+          <Text style={[s.sectionTitle, { color: colors.text }]}>Refeições</Text>
+          {(plan.meals || []).map((m: any, i: number) => (
+            <View key={i} style={[s.meal, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <View style={s.mealHead}>
+                  <Text style={[s.mealTitle, { color: colors.text }]}>{m.name}</Text>
+                  {m.kcal ? <Text style={[s.planMealKcal, { color: colors.accent }]}>{m.kcal} kcal</Text> : null}
+                </View>
+                <Text style={[s.mealMacros, { color: colors.textSecondary }]}>{m.suggestion}</Text>
+              </View>
+            </View>
+          ))}
+
+          {plan.pre_workout ? <PlanNote icon="flash-outline" title="Pré-treino" text={plan.pre_workout} colors={colors} /> : null}
+          {plan.post_workout ? <PlanNote icon="barbell-outline" title="Pós-treino" text={plan.post_workout} colors={colors} /> : null}
+          {plan.notes ? <PlanNote icon="bulb-outline" title="Observações" text={plan.notes} colors={colors} /> : null}
+
+          {err ? <Text style={[s.aiFailed, { color: colors.error, marginTop: spacing.md }]}>{err}</Text> : null}
+          <SecondaryButton label={generating ? "Atualizando..." : "Atualizar plano"} icon="refresh" onPress={generate} style={{ marginTop: spacing.lg }} />
+        </>
+      )}
+    </>
+  );
+}
+
+function PlanMacro({ label, value, colors }: any) {
+  return (
+    <View style={s.planMacro}>
+      <Text style={[s.planMacroValue, { color: colors.text }]}>{value}</Text>
+      <Text style={[s.planMacroLabel, { color: colors.textSecondary }]}>{label}</Text>
+    </View>
+  );
+}
+
+function PlanNote({ icon, title, text, colors }: any) {
+  return (
+    <View style={[s.planNote, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={s.planNoteHead}>
+        <Ionicons name={icon} size={16} color={colors.accent} />
+        <Text style={[s.planNoteTitle, { color: colors.text }]}>{title}</Text>
+      </View>
+      <Text style={[s.planNoteText, { color: colors.textSecondary }]}>{text}</Text>
+    </View>
   );
 }
 
@@ -506,11 +740,22 @@ function FavoritesView({ favorites, colors, applyFavorite, deleteFavorite, setFa
 
 // ─── Recipes View ──────────────────────────────────────────────
 
-function RecipesView({ recipes, colors, applyRecipe, deleteRecipe, setRecipeModal }: any) {
+function RecipesView({ recipes, colors, applyRecipe, deleteRecipe, setRecipeModal, onOpenIdeas }: any) {
   return (
     <>
+      <Pressable onPress={onOpenIdeas} style={({ pressed }) => [s.ideasCard, { backgroundColor: colors.accentMuted }, pressed && { opacity: 0.85 }]}>
+        <View style={[s.ideasIcon, { backgroundColor: colors.accent }]}>
+          <Ionicons name="sparkles" size={18} color={colors.onAccent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.ideasTitle, { color: colors.text }]}>Receita com o que tenho</Text>
+          <Text style={[s.ideasSub, { color: colors.textSecondary }]}>A IA monta receitas fit com seus ingredientes</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+      </Pressable>
+
       <View style={s.sectionHeader}>
-        <Text style={[s.sectionTitle, s.sectionTitleInline, { color: colors.text }]}>Receitas</Text>
+        <Text style={[s.sectionTitle, s.sectionTitleInline, { color: colors.text }]}>Minhas receitas</Text>
         <Pressable onPress={() => setRecipeModal(true)} hitSlop={8}>
           <Ionicons name="add-circle-outline" size={24} color={colors.accent} />
         </Pressable>
@@ -624,12 +869,23 @@ function NumInput({ label, value, onChange, colors }: { label: string; value: nu
 
 // ─── Manual Entry Modal ────────────────────────────────────────
 
-function ManualEntryModal({ visible, onClose, onSave, colors, insets }: any) {
+function ManualEntryModal({ visible, onClose, onSave, colors, insets, initialData }: any) {
   const [title, setTitle] = useState("");
   const [mealType, setMealType] = useState("meal");
   const [items, setItems] = useState<MealItem[]>([emptyItem()]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (visible && initialData) {
+      setTitle(initialData.title || "");
+      setItems(initialData.items?.length
+        ? initialData.items.map((i: any) => ({ ...emptyItem(), ...i }))
+        : [emptyItem()]);
+      setMealType("meal");
+      setNotes("");
+    }
+  }, [visible, initialData]);
 
   const save = async () => {
     if (!title.trim()) return;
@@ -704,12 +960,20 @@ function EditMealModal({ meal, onClose, onSave, colors, insets }: any) {
       <View style={[s.modalRoot, { backgroundColor: colors.bg, paddingTop: insets.top }]}>
         <View style={s.modalHeader}>
           <Pressable onPress={onClose}><Ionicons name="close" size={24} color={colors.text} /></Pressable>
-          <Text style={[s.modalTitle, { color: colors.text }]}>Editar refeição</Text>
+          <Text style={[s.modalTitle, { color: colors.text }]}>{meal._fresh ? "Confirmar refeição" : "Editar refeição"}</Text>
           <Pressable onPress={save} disabled={saving}>
             {saving ? <ActivityIndicator color={colors.accent} size="small" /> : <Text style={[s.saveBtn, { color: colors.accent }]}>Salvar</Text>}
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
+          {meal._fresh && !meal.ai_failed && (
+            <View style={[s.confirmHint, { backgroundColor: colors.accentMuted }]}>
+              <Ionicons name="sparkles-outline" size={18} color={colors.accent} />
+              <Text style={[s.confirmHintText, { color: colors.text }]}>
+                Estimativa da IA — revise antes de salvar. Detalhes que mudam as calorias: tipo de leite (integral/desnatado), açúcar ou adoçante, e a porção.
+              </Text>
+            </View>
+          )}
           <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Título</Text>
           <TextInput style={[s.textInput, { color: colors.text, backgroundColor: colors.inputBackground, borderColor: colors.border }]} value={title} onChangeText={setTitle} />
 
@@ -729,7 +993,7 @@ function EditMealModal({ meal, onClose, onSave, colors, insets }: any) {
           <ItemEditor items={items} setItems={setItems} colors={colors} />
 
           {meal.ai_failed && (
-            <View style={[s.aiWarning, { backgroundColor: "rgba(245,166,35,0.15)" }]}>
+            <View style={[s.aiWarning, { backgroundColor: colors.warningMuted }]}>
               <Ionicons name="warning" size={18} color={colors.warning} />
               <Text style={[s.aiWarningText, { color: colors.warning }]}>A IA não conseguiu analisar esta foto. Preencha os itens manualmente.</Text>
             </View>
@@ -840,6 +1104,276 @@ function RecipeModal({ visible, onClose, onSave, colors, insets }: any) {
   );
 }
 
+// ─── Recipe Ideas (IA) ─────────────────────────────────────────
+
+function RecipeIdeasModal({ visible, onClose, onLogged, insets, colors }: any) {
+  const [items, setItems] = useState<string[]>([]);
+  const [text, setText] = useState("");
+  const [recipes, setRecipes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [logged, setLogged] = useState<Record<number, boolean>>({});
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    if (!visible) { setItems([]); setText(""); setRecipes([]); setLogged({}); setErr(""); }
+  }, [visible]);
+
+  const add = () => {
+    const t = text.trim();
+    if (t && !items.includes(t)) setItems([...items, t]);
+    setText("");
+  };
+
+  const generate = async () => {
+    if (items.length === 0) { setErr("Adicione ao menos um ingrediente."); return; }
+    setLoading(true); setErr("");
+    try {
+      const d = await api.post("/nutrition/recipe-ideas", { ingredients: items });
+      setRecipes(d.recipes || []);
+      setLogged({});
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setErr(e?.message || "Não foi possível gerar receitas agora.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logMeal = async (r: any, i: number) => {
+    try {
+      await api.post("/nutrition/manual", {
+        title: r.name,
+        meal_type: "meal",
+        items: [{
+          name: r.name, quantity: 1, unit: "porção",
+          calories: r.calories || 0, protein_g: r.protein_g || 0,
+          carbs_g: r.carbs_g || 0, fat_g: r.fat_g || 0,
+        }],
+        notes: "Receita sugerida por IA",
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setLogged((p) => ({ ...p, [i]: true }));
+      onLogged?.();
+    } catch {}
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Screen>
+        <ScreenHeader title="Receita com o que tenho" onBack={onClose} />
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.xl, paddingBottom: insets.bottom + spacing["3xl"], gap: spacing.md }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>INGREDIENTES QUE VOCÊ TEM</Text>
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <TextInput
+              style={[s.tagInput, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border, flex: 1 }]}
+              value={text}
+              onChangeText={setText}
+              placeholder="Ex: frango, batata doce, ovo..."
+              placeholderTextColor={colors.textSecondary}
+              onSubmitEditing={add}
+              returnKeyType="done"
+              blurOnSubmit={false}
+            />
+            <Pressable onPress={add} style={[s.addBtn, { backgroundColor: colors.accentMuted }]}>
+              <Ionicons name="add" size={20} color={colors.accent} />
+            </Pressable>
+          </View>
+          {items.length > 0 && (
+            <View style={s.tagList}>
+              {items.map((it, i) => (
+                <View key={i} style={[s.tag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={{ color: colors.text, fontFamily: fonts.text, ...type.bodySmall }}>{it}</Text>
+                  <Pressable onPress={() => setItems(items.filter((_, j) => j !== i))}>
+                    <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {err ? <Text style={[s.aiFailed, { color: colors.error }]}>{err}</Text> : null}
+          <PrimaryButton label={loading ? "Gerando..." : "Gerar receitas"} icon="sparkles-outline" onPress={generate} loading={loading} />
+
+          {recipes.map((r, i) => (
+            <View key={i} style={[s.ideaRecipe, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[s.ideaName, { color: colors.text }]}>{r.name}</Text>
+              <Text style={[s.ideaMeta, { color: colors.textSecondary }]}>
+                {r.calories} kcal · P{r.protein_g} C{r.carbs_g} G{r.fat_g}{r.prep_minutes ? ` · ${r.prep_minutes} min` : ""}
+              </Text>
+              {(r.ingredients || []).length > 0 && (
+                <>
+                  <Text style={[s.ideaSubhead, { color: colors.accent }]}>INGREDIENTES</Text>
+                  {r.ingredients.map((ing: string, k: number) => (
+                    <Text key={k} style={[s.ideaLine, { color: colors.textSecondary }]}>• {ing}</Text>
+                  ))}
+                </>
+              )}
+              {(r.steps || []).length > 0 && (
+                <>
+                  <Text style={[s.ideaSubhead, { color: colors.accent }]}>MODO DE PREPARO</Text>
+                  {r.steps.map((st: string, k: number) => (
+                    <Text key={k} style={[s.ideaLine, { color: colors.text }]}>{k + 1}. {st}</Text>
+                  ))}
+                </>
+              )}
+              {logged[i] ? (
+                <View style={s.ideaLogged}>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                  <Text style={[s.ideaLoggedText, { color: colors.success }]}>Registrada em Hoje</Text>
+                </View>
+              ) : (
+                <SecondaryButton label="Registrar como refeição" icon="add" color={colors.accent} onPress={() => logMeal(r, i)} style={{ marginTop: spacing.md }} />
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      </Screen>
+    </Modal>
+  );
+}
+
+// ─── Food Search ───────────────────────────────────────────────
+
+function FoodSearchModal({ visible, onClose, onPick, insets, colors }: any) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  useEffect(() => {
+    if (!visible) { setQ(""); setResults([]); setSearched(false); return; }
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    const term = q.trim();
+    if (term.length < 2) { setResults([]); setSearched(false); return; }
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const d = await api.get(`/nutrition/search?q=${encodeURIComponent(term)}`);
+        setResults(d.results || []);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+        setSearched(true);
+      }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [q, visible]);
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Screen>
+        <ScreenHeader title="Buscar alimento" onBack={onClose} />
+        <View style={{ paddingHorizontal: spacing.xl }}>
+          <View style={[s.searchBar, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+            <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
+            <TextInput
+              autoFocus
+              style={[s.searchInput, { color: colors.text }]}
+              placeholder="Ex: arroz, frango, aveia..."
+              placeholderTextColor={colors.textSecondary}
+              value={q}
+              onChangeText={setQ}
+              autoCapitalize="none"
+            />
+            {loading ? <ActivityIndicator color={colors.accent} /> : null}
+          </View>
+        </View>
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.xl, paddingTop: spacing.md, paddingBottom: insets.bottom + spacing["3xl"], gap: spacing.sm }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {results.map((item, i) => (
+            <Pressable
+              key={i}
+              onPress={() => onPick(item)}
+              style={({ pressed }) => [s.searchRow, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.85 }]}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[s.searchName, { color: colors.text }]} numberOfLines={2}>{item.name}</Text>
+                <Text style={[s.searchMacro, { color: colors.textSecondary }]}>
+                  {item.calories} kcal · P{item.protein_g} C{item.carbs_g} G{item.fat_g} <Text style={{ color: colors.textSecondary }}>/ 100g</Text>
+                </Text>
+              </View>
+              <Ionicons name="add-circle" size={24} color={colors.accent} />
+            </Pressable>
+          ))}
+          {!loading && searched && results.length === 0 ? (
+            <Text style={[s.searchEmpty, { color: colors.textSecondary }]}>
+              Nenhum resultado. Tente outro termo ou use o código de barras.
+            </Text>
+          ) : null}
+        </ScrollView>
+      </Screen>
+    </Modal>
+  );
+}
+
+// ─── Barcode Scanner ───────────────────────────────────────────
+
+function BarcodeScannerModal({ visible, onClose, onDetected, insets, colors }: any) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const scannedRef = useRef(false);
+
+  useEffect(() => {
+    if (visible) {
+      scannedRef.current = false;
+      if (permission && !permission.granted && permission.canAskAgain) requestPermission();
+    }
+  }, [visible, permission, requestPermission]);
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        {permission?.granted ? (
+          <CameraView
+            style={{ flex: 1 }}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e"] }}
+            onBarcodeScanned={({ data }) => {
+              if (scannedRef.current) return;
+              scannedRef.current = true;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              onDetected(data);
+            }}
+          />
+        ) : (
+          <View style={[s.center, { paddingHorizontal: spacing.xl }]}>
+            <Ionicons name="camera-outline" size={40} color="#fff" />
+            <Text style={{ color: "#fff", fontFamily: fonts.semibold, ...type.body, textAlign: "center", marginTop: spacing.lg }}>
+              Precisamos da câmera para escanear o código de barras.
+            </Text>
+            <PrimaryButton label="Permitir câmera" onPress={requestPermission} style={{ marginTop: spacing.xl }} />
+          </View>
+        )}
+
+        {/* Overlay: fechar + moldura + dica */}
+        <Pressable
+          onPress={onClose}
+          style={[s.scanClose, { top: insets.top + spacing.md }]}
+        >
+          <Ionicons name="close" size={24} color="#fff" />
+        </Pressable>
+        {permission?.granted && (
+          <>
+            <View pointerEvents="none" style={s.scanFrame} />
+            <Text style={[s.scanHint, { bottom: insets.bottom + spacing["3xl"] }]}>
+              Aponte para o código de barras do produto
+            </Text>
+          </>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
 // ─── MacroChip ─────────────────────────────────────────────────
 
 function MacroChip({ label, value, pct, color, textColor, subColor }: any) {
@@ -857,21 +1391,55 @@ function MacroChip({ label, value, pct, color, textColor, subColor }: any) {
 // ─── Styles ────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: {
-    paddingHorizontal: spacing.lg, paddingBottom: spacing.sm,
+  tabRow: {
+    flexDirection: "row", gap: spacing.sm,
+    paddingHorizontal: spacing.xl, paddingBottom: spacing.md,
   },
-  title: { fontFamily: fonts.bold, ...type.h1 },
-  tabRow: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.md },
   subTab: {
     flexDirection: "row", alignItems: "center", gap: spacing.xs,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg, height: 44,
     borderRadius: radius.pill, borderWidth: 1,
   },
   subTabText: { fontFamily: fonts.semibold, ...type.bodySmall },
 
-  donutSection: { borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1 },
+  donutSection: { borderRadius: radius.cardLarge, padding: spacing.xl, alignItems: "center", borderWidth: 1 },
+
+  remCard: { borderRadius: radius.card, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.lg },
+  remCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  remTitle: { fontFamily: fonts.bold, ...type.body },
+  remSource: { fontFamily: fonts.text, ...type.caption },
+  remRow: { marginTop: spacing.md },
+  remHead: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.xs },
+  remLabel: { fontFamily: fonts.medium, ...type.bodySmall },
+  remValue: { fontFamily: fonts.bold, ...type.bodySmall, fontVariant: ["tabular-nums"] },
+  remTarget: { fontFamily: fonts.text, ...type.caption },
+  remTrack: { height: 4, borderRadius: 999, overflow: "hidden" },
+  trainDayTag: {
+    flexDirection: "row", alignItems: "center", gap: spacing.xs,
+    alignSelf: "flex-start", paddingHorizontal: spacing.md, paddingVertical: 5,
+    borderRadius: radius.pill, marginBottom: spacing.xs,
+  },
+  trainDayText: { fontFamily: fonts.semibold, ...type.caption },
+
+  planDisclaimer: {
+    flexDirection: "row", alignItems: "flex-start", gap: spacing.sm,
+    padding: spacing.lg, borderRadius: radius.md, marginBottom: spacing.lg,
+  },
+  planDisclaimerText: { fontFamily: fonts.medium, ...type.caption, flex: 1, lineHeight: 17 },
+  planKicker: { fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.2, marginBottom: spacing.xs },
+  planKcal: { fontFamily: fonts.bold, fontSize: 34, lineHeight: 38, fontVariant: ["tabular-nums"] },
+  planKcalUnit: { fontFamily: fonts.text, ...type.bodySmall },
+  planMacroRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.lg },
+  planMacro: { alignItems: "center", flex: 1 },
+  planMacroValue: { fontFamily: fonts.bold, ...type.body, fontVariant: ["tabular-nums"] },
+  planMacroLabel: { fontFamily: fonts.text, ...type.caption, marginTop: 2 },
+  planSummary: { fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.lg, lineHeight: 19 },
+  planMealKcal: { fontFamily: fonts.bold, ...type.bodySmall, fontVariant: ["tabular-nums"] },
+  planNote: { borderRadius: radius.card, borderWidth: 1, padding: spacing.lg, marginBottom: spacing.md },
+  planNoteHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs },
+  planNoteTitle: { fontFamily: fonts.semibold, ...type.bodySmall },
+  planNoteText: { fontFamily: fonts.text, ...type.bodySmall, lineHeight: 19 },
   macroLegend: { flexDirection: "row", gap: spacing.xl, marginTop: spacing.lg },
   macroChip: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   macroDot: { width: 10, height: 10, borderRadius: 5 },
@@ -896,7 +1464,7 @@ const s = StyleSheet.create({
   },
 
   meal: {
-    flexDirection: "row", gap: spacing.lg, borderRadius: radius.lg,
+    flexDirection: "row", gap: spacing.lg, borderRadius: radius.card,
     padding: spacing.xl, marginBottom: spacing.lg, borderWidth: 1,
   },
   mealImg: { width: 80, height: 80, borderRadius: radius.md },
@@ -912,9 +1480,9 @@ const s = StyleSheet.create({
     position: "absolute", right: spacing.xl, width: 64, height: 64, borderRadius: radius.pill,
     alignItems: "center", justifyContent: "center",
   },
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  backdrop: { flex: 1, justifyContent: "flex-end" },
   sheet: {
-    borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+    borderTopLeftRadius: radius.hero, borderTopRightRadius: radius.hero,
     padding: spacing.xl, gap: spacing.md, borderWidth: 1,
   },
   sheetHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: spacing.sm },
@@ -933,10 +1501,67 @@ const s = StyleSheet.create({
   analyzeOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: spacing.lg },
   analyzeText: { fontFamily: fonts.bold, ...type.body },
 
+  ideasCard: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.md,
+  },
+  ideasIcon: { width: 36, height: 36, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  ideasTitle: { fontFamily: fonts.semibold, ...type.body },
+  ideasSub: { fontFamily: fonts.text, ...type.caption, marginTop: 2 },
+  ideaRecipe: { borderRadius: radius.card, borderWidth: 1, padding: spacing.lg },
+  ideaName: { fontFamily: fonts.bold, ...type.body },
+  ideaMeta: { fontFamily: fonts.medium, ...type.bodySmall, marginTop: 2 },
+  ideaSubhead: { fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1, marginTop: spacing.md, marginBottom: spacing.xs },
+  ideaLine: { fontFamily: fonts.text, ...type.bodySmall, lineHeight: 20 },
+  ideaLogged: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
+  ideaLoggedText: { fontFamily: fonts.semibold, ...type.bodySmall },
+  tagInput: {
+    height: controlHeight, borderRadius: radius.lg, borderWidth: 1,
+    paddingHorizontal: spacing.lg, fontFamily: fonts.text, ...type.body,
+  },
+  addBtn: {
+    width: controlHeight, height: controlHeight, borderRadius: radius.lg,
+    alignItems: "center", justifyContent: "center",
+  },
+  tagList: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  tag: {
+    flexDirection: "row", alignItems: "center", gap: spacing.xs,
+    paddingHorizontal: spacing.md, height: 32, borderRadius: radius.pill, borderWidth: 1,
+  },
+
+  searchBar: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    height: controlHeight, borderRadius: radius.lg, borderWidth: 1, paddingHorizontal: spacing.lg,
+  },
+  searchInput: { flex: 1, fontFamily: fonts.text, ...type.body },
+  searchRow: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    borderRadius: radius.card, borderWidth: 1, padding: spacing.lg,
+  },
+  searchName: { fontFamily: fonts.semibold, ...type.body },
+  searchMacro: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
+  searchEmpty: { fontFamily: fonts.text, ...type.body, textAlign: "center", marginTop: spacing["3xl"] },
+
+  scanClose: {
+    position: "absolute", left: spacing.xl,
+    width: 44, height: 44, borderRadius: radius.pill,
+    backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center",
+  },
+  scanFrame: {
+    position: "absolute", alignSelf: "center", top: "35%",
+    width: "72%", aspectRatio: 1.6, borderRadius: radius.lg,
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.9)",
+  },
+  scanHint: {
+    position: "absolute", alignSelf: "center", textAlign: "center",
+    color: "#fff", fontFamily: fonts.semibold, ...type.bodySmall,
+    paddingHorizontal: spacing.xl,
+  },
+
   // Week
   weekRow: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
-    padding: spacing.lg, borderRadius: radius.lg, marginBottom: spacing.sm, borderWidth: 1,
+    padding: spacing.lg, borderRadius: radius.card, marginBottom: spacing.sm, borderWidth: 1,
   },
   weekDay: { fontFamily: fonts.semibold, ...type.bodySmall, width: 50 },
   weekBarBg: { flex: 1, height: 8, borderRadius: 4, overflow: "hidden" },
@@ -949,7 +1574,7 @@ const s = StyleSheet.create({
   // Favorites/Recipes
   favCard: {
     flexDirection: "row", gap: spacing.lg, padding: spacing.xl,
-    borderRadius: radius.lg, marginBottom: spacing.md, borderWidth: 1,
+    borderRadius: radius.card, marginBottom: spacing.md, borderWidth: 1,
   },
   favName: { fontFamily: fonts.semibold, ...type.body },
   favMacro: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
@@ -1004,4 +1629,9 @@ const s = StyleSheet.create({
     padding: spacing.md, borderRadius: radius.md, marginTop: spacing.md,
   },
   aiWarningText: { fontFamily: fonts.text, ...type.bodySmall, flex: 1 },
+  confirmHint: {
+    flexDirection: "row", gap: spacing.sm, alignItems: "flex-start",
+    padding: spacing.lg, borderRadius: radius.md, marginBottom: spacing.lg,
+  },
+  confirmHintText: { fontFamily: fonts.medium, ...type.bodySmall, flex: 1, lineHeight: 19 },
 });

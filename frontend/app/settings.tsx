@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, TextInput, Pressable, Platform, Linking,
+  View, Text, StyleSheet, TextInput, Pressable, Platform, Linking, ActivityIndicator, Switch,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 
 import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
-import { api } from "@/src/lib/api";
+import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import { useAuth } from "@/src/context/AuthContext";
 import { Screen, IconButton, Overline, PrimaryButton, SecondaryButton } from "@/src/components/ui";
 
@@ -24,11 +26,14 @@ type WearableSummary = {
 };
 
 export default function Settings() {
-  const { colors, isDark, setMode } = useTheme();
+  const { colors, mode, setMode } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { logout, refreshUser } = useAuth();
   const [name, setName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [athleteId, setAthleteId] = useState("0");
   const [connected, setConnected] = useState(false);
@@ -41,6 +46,7 @@ export default function Settings() {
   const [wearableSummary, setWearableSummary] = useState<WearableSummary | null>(null);
   const [wearableLoading, setWearableLoading] = useState(false);
 
+  const [prefs, setPrefs] = useState<any>(null);
   const [isProfessional, setIsProfessional] = useState(false);
   const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; charges_enabled: boolean } | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
@@ -50,6 +56,7 @@ export default function Settings() {
       try {
         const s = await api.get("/settings");
         setName(s.name || "");
+        setAvatarUrl(s.avatar_url || null);
         setConnected(s.intervals_connected);
         setAthleteId(s.intervals_athlete_id || "0");
         setGoals(s.goals || goals);
@@ -57,8 +64,59 @@ export default function Settings() {
         setIsProfessional(roles.includes("nutritionist") || roles.includes("psychologist"));
       } catch {}
     })();
+    (async () => setImageHeaders(await authHeaders()))();
+    (async () => { try { setPrefs(await api.get("/notification-preferences")); } catch {} })();
     loadWearables();
   }, []);
+
+  const togglePref = async (key: string) => {
+    if (!prefs) return;
+    const previous = prefs;
+    const next = { ...prefs, [key]: !prefs[key] };
+    setPrefs(next);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await api.put("/notification-preferences", next);
+    } catch {
+      setPrefs(previous);
+    }
+  };
+
+  const pickAvatar = async () => {
+    setErr("");
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setErr(perm.canAskAgain ? "Precisamos da galeria para escolher a foto." : "Acesso à galeria bloqueado. Abra as configurações.");
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1] });
+    if (res.canceled || !res.assets?.[0]) return;
+    setAvatarBusy(true);
+    try {
+      const out = await api.uploadImage("/profile/avatar", res.assets[0].uri, "PUT");
+      setAvatarUrl(out.avatar_url);
+      setImageHeaders(await authHeaders());
+      await refreshUser();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setErr(e.message || "Falha ao enviar foto");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const removeAvatar = async () => {
+    setAvatarBusy(true);
+    try {
+      await api.del("/profile/avatar");
+      setAvatarUrl(null);
+      await refreshUser();
+    } catch (e: any) {
+      setErr(e.message || "Falha ao remover foto");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const loadWearables = async () => {
     try {
@@ -156,8 +214,11 @@ export default function Settings() {
   };
 
   const doLogout = async () => {
-    await logout();
-    router.replace("/login");
+    try {
+      await logout();
+    } finally {
+      router.replace("/login");
+    }
   };
 
   const setGoal = (k: string, v: string) => {
@@ -184,7 +245,7 @@ export default function Settings() {
       </View>
 
       <KeyboardAwareScrollView
-        contentContainerStyle={{ paddingHorizontal: spacing["2xl"], paddingBottom: insets.bottom + spacing["3xl"] }}
+        contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: insets.bottom + spacing["3xl"] }}
         bottomOffset={20}
         showsVerticalScrollIndicator={false}
       >
@@ -194,39 +255,60 @@ export default function Settings() {
           <View style={s.themeInner}>
             <Text style={[s.themeLabel, { color: colors.text }]}>Tema</Text>
             <View style={s.themeChips}>
-              <Pressable
-                testID="theme-dark"
-                style={[
-                  s.themeChip,
-                  {
-                    backgroundColor: isDark ? colors.accent : colors.surface,
-                    borderColor: isDark ? colors.accent : colors.border,
-                  },
-                ]}
-                onPress={() => setMode("dark")}
-              >
-                <Ionicons name="moon" size={14} color={isDark ? colors.onAccent : colors.textSecondary} />
-                <Text style={[s.themeChipText, { color: isDark ? colors.onAccent : colors.textSecondary }]}>Escuro</Text>
-              </Pressable>
-              <Pressable
-                testID="theme-light"
-                style={[
-                  s.themeChip,
-                  {
-                    backgroundColor: !isDark ? colors.accent : colors.surface,
-                    borderColor: !isDark ? colors.accent : colors.border,
-                  },
-                ]}
-                onPress={() => setMode("light")}
-              >
-                <Ionicons name="sunny" size={14} color={!isDark ? colors.onAccent : colors.textSecondary} />
-                <Text style={[s.themeChipText, { color: !isDark ? colors.onAccent : colors.textSecondary }]}>Claro</Text>
-              </Pressable>
+              {([
+                { key: "dark", label: "Escuro", icon: "moon" },
+                { key: "light", label: "Claro", icon: "sunny" },
+                { key: "system", label: "Auto", icon: "phone-portrait" },
+              ] as const).map((opt) => {
+                const active = mode === opt.key;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    testID={`theme-${opt.key}`}
+                    style={[
+                      s.themeChip,
+                      {
+                        backgroundColor: active ? colors.accent : colors.surface,
+                        borderColor: active ? colors.accent : colors.border,
+                      },
+                    ]}
+                    onPress={() => setMode(opt.key)}
+                  >
+                    <Ionicons name={opt.icon} size={14} color={active ? colors.onAccent : colors.textSecondary} />
+                    <Text style={[s.themeChipText, { color: active ? colors.onAccent : colors.textSecondary }]}>{opt.label}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         </View>
 
         <Overline style={s.section}>PERFIL</Overline>
+        <View style={[s.avatarRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Pressable testID="avatar-picker" onPress={pickAvatar} disabled={avatarBusy} style={[s.avatar, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
+            {avatarBusy ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : avatarUrl ? (
+              <Image source={{ uri: fileUrl(avatarUrl), headers: imageHeaders }} style={s.avatarImg} contentFit="cover" />
+            ) : (
+              <Ionicons name="person" size={28} color={colors.textSecondary} />
+            )}
+            <View style={[s.avatarEdit, { backgroundColor: colors.accent, borderColor: colors.surface }]}>
+              <Ionicons name="camera" size={13} color={colors.onAccent} />
+            </View>
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.themeLabel, { color: colors.text }]}>Foto de perfil</Text>
+            <View style={s.avatarActions}>
+              <Text onPress={pickAvatar} suppressHighlighting style={[s.avatarLink, { color: colors.accent }]}>
+                {avatarUrl ? "Alterar" : "Adicionar"}
+              </Text>
+              {avatarUrl ? (
+                <Text onPress={removeAvatar} suppressHighlighting style={[s.avatarLink, { color: colors.textSecondary }]}>Remover</Text>
+              ) : null}
+            </View>
+          </View>
+        </View>
         <Field label="Nome" colors={colors}>
           <TextInput testID="settings-name-input" style={inputFieldStyle} value={name} onChangeText={setName} placeholderTextColor={colors.textSecondary} />
         </Field>
@@ -235,11 +317,11 @@ export default function Settings() {
         <View style={[
           s.statusBox,
           {
-            backgroundColor: connected ? "rgba(46,204,113,0.1)" : colors.surface,
+            backgroundColor: connected ? colors.successMuted : colors.surface,
             borderColor: colors.border,
           },
         ]}>
-          <View style={[s.statusIcon, { backgroundColor: connected ? "rgba(46,204,113,0.2)" : "rgba(245,166,35,0.2)" }]}>
+          <View style={[s.statusIcon, { backgroundColor: connected ? colors.successMuted : colors.warningMuted }]}>
             <Ionicons name={connected ? "checkmark-circle" : "alert-circle"} size={18} color={connected ? colors.success : colors.warning} />
           </View>
           <Text style={[s.statusText, { color: colors.text }]}>{connected ? "Conta conectada" : "Não conectado"}</Text>
@@ -330,7 +412,7 @@ export default function Settings() {
                   </Text>
                 </View>
                 <View style={[s.statusIcon, {
-                  backgroundColor: stripeStatus?.charges_enabled ? "rgba(46,204,113,0.2)" : "rgba(245,166,35,0.2)",
+                  backgroundColor: stripeStatus?.charges_enabled ? colors.successMuted : colors.warningMuted,
                 }]}>
                   <Ionicons
                     name={stripeStatus?.charges_enabled ? "checkmark-circle" : "alert-circle"}
@@ -358,11 +440,55 @@ export default function Settings() {
           </>
         )}
 
+        <Overline style={s.section}>TREINO</Overline>
+        <Pressable
+          onPress={() => router.push("/training-zones")}
+          style={({ pressed }) => [s.card, s.linkRowCard, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.85 }]}
+        >
+          <Ionicons name="speedometer-outline" size={20} color={colors.accent} />
+          <Text style={[s.themeLabel, { color: colors.text, flex: 1 }]}>Zonas de treino</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </Pressable>
+
+        {prefs && (
+          <>
+            <Overline style={s.section}>NOTIFICAÇÕES</Overline>
+            <View style={cardStyle}>
+              {[
+                ["checkin_reminder", "Lembrete de check-in"],
+                ["workout_reminder", "Lembrete de treino"],
+                ["hydration_reminder", "Lembrete de hidratação"],
+                ["meal_reminders", "Lembretes de refeição"],
+                ["readiness_alerts", "Alertas de prontidão"],
+                ["race_countdown", "Contagem regressiva de provas"],
+                ["weekly_summary", "Resumo semanal"],
+              ].map(([key, label], i) => (
+                <View
+                  key={key}
+                  style={[
+                    s.prefRow,
+                    i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+                  ]}
+                >
+                  <Text style={[s.themeLabel, { color: colors.text, flex: 1 }]}>{label}</Text>
+                  <Switch
+                    value={!!prefs[key]}
+                    onValueChange={() => togglePref(key)}
+                    trackColor={{ false: colors.border, true: colors.accentMuted }}
+                    thumbColor={prefs[key] ? colors.accent : colors.textSecondary}
+                  />
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
         {err ? <Text style={[s.err, { color: colors.error }]}>{err}</Text> : null}
 
         <PrimaryButton
           testID="settings-save-button"
-          label={saved ? "Salvo ✓" : "Salvar"}
+          label={saved ? "Salvo" : "Salvar"}
+          icon={saved ? "checkmark" : undefined}
           onPress={save}
           loading={saving}
           style={s.saveBtn}
@@ -411,7 +537,7 @@ function WearableCard({ label, source, icon, connected, loading, onConnect, onDi
     <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: spacing.md }]}>
       <View style={s.themeInner}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, flex: 1 }}>
-          <View style={[s.statusIcon, { backgroundColor: connected ? "rgba(46,204,113,0.2)" : "rgba(245,166,35,0.2)" }]}>
+          <View style={[s.statusIcon, { backgroundColor: connected ? colors.successMuted : colors.warningMuted }]}>
             <Ionicons name={icon} size={18} color={connected ? colors.success : colors.textSecondary} />
           </View>
           <View>
@@ -427,7 +553,7 @@ function WearableCard({ label, source, icon, connected, loading, onConnect, onDi
           style={[
             s.themeChip,
             {
-              backgroundColor: connected ? "rgba(231,76,60,0.1)" : colors.accentMuted,
+              backgroundColor: connected ? colors.errorMuted : colors.accentMuted,
               borderColor: connected ? colors.error : colors.accent,
             },
           ]}
@@ -456,12 +582,28 @@ function WearableMetric({ label, value, date, colors }: any) {
 const s = StyleSheet.create({
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: spacing["2xl"], paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.xl, paddingBottom: spacing.xl,
   },
   title: { fontFamily: fonts.bold, ...type.h1 },
   section: { marginTop: spacing["2xl"], marginBottom: spacing.lg },
 
-  card: { borderRadius: radius.xl, padding: spacing.xl, borderWidth: 1 },
+  card: { borderRadius: radius.card, padding: spacing.xl, borderWidth: 1 },
+  avatarRow: {
+    flexDirection: "row", alignItems: "center", gap: spacing.lg,
+    borderRadius: radius.card, padding: spacing.lg, borderWidth: 1, marginBottom: spacing.lg,
+  },
+  avatar: {
+    width: 64, height: 64, borderRadius: radius.pill, borderWidth: 1,
+    alignItems: "center", justifyContent: "center", overflow: "visible",
+  },
+  avatarImg: { width: 64, height: 64, borderRadius: radius.pill },
+  avatarEdit: {
+    position: "absolute", right: -2, bottom: -2,
+    width: 24, height: 24, borderRadius: radius.pill, borderWidth: 2,
+    alignItems: "center", justifyContent: "center",
+  },
+  avatarActions: { flexDirection: "row", gap: spacing.lg, marginTop: spacing.xs },
+  avatarLink: { fontFamily: fonts.semibold, ...type.bodySmall },
   themeInner: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
@@ -491,6 +633,11 @@ const s = StyleSheet.create({
   help: { fontFamily: fonts.text, ...type.bodySmall, lineHeight: 20, marginBottom: spacing.lg },
   goalGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.lg },
   goalField: { width: "47%", flexGrow: 1 },
+  linkRowCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  prefRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: spacing.md, gap: spacing.md,
+  },
   err: { fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.md },
   saveBtn: { marginTop: spacing["2xl"] },
   logoutBtn: { marginTop: spacing.lg },

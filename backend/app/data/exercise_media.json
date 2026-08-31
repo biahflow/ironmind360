@@ -1,0 +1,228 @@
+{
+  "_note": "Gerado por scripts/enrich_exercise_media.py. Nao editar a mao.",
+  "media": {
+    "warmup-inchworm": {
+      "edb_id": "1471",
+      "edb_name": "inchworm",
+      "primary_muscles": [
+        "core"
+      ],
+      "secondary_muscles": [
+        "hamstrings"
+      ],
+      "image_url": "/api/v1/exercises/warmup-inchworm/media"
+    },
+    "warmup-glute-bridge": {
+      "edb_id": "3561",
+      "edb_name": "glute bridge march",
+      "primary_muscles": [
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings"
+      ],
+      "image_url": "/api/v1/exercises/warmup-glute-bridge/media"
+    },
+    "squat-goblet": {
+      "edb_id": "1760",
+      "edb_name": "dumbbell goblet squat",
+      "primary_muscles": [
+        "quadriceps"
+      ],
+      "secondary_muscles": [
+        "glutes",
+        "hamstrings",
+        "calves"
+      ],
+      "image_url": "/api/v1/exercises/squat-goblet/media"
+    },
+    "squat-bodyweight": {
+      "edb_id": "3533",
+      "edb_name": "quads (bodyweight squat)",
+      "primary_muscles": [
+        "quadriceps"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "glutes"
+      ],
+      "image_url": "/api/v1/exercises/squat-bodyweight/media"
+    },
+    "squat-barbell-front": {
+      "edb_id": "0042",
+      "edb_name": "barbell front squat",
+      "primary_muscles": [
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings",
+        "calves"
+      ],
+      "image_url": "/api/v1/exercises/squat-barbell-front/media"
+    },
+    "row-dumbbell-unilateral": {
+      "edb_id": "1330",
+      "edb_name": "dumbbell reverse grip incline bench one arm row",
+      "primary_muscles": [
+        "upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps"
+      ],
+      "image_url": "/api/v1/exercises/row-dumbbell-unilateral/media"
+    },
+    "row-band": {
+      "edb_id": "0990",
+      "edb_name": "band one arm twisting seated row",
+      "primary_muscles": [
+        "upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps"
+      ],
+      "image_url": "/api/v1/exercises/row-band/media"
+    },
+    "row-dumbbell-bilateral": {
+      "edb_id": "0293",
+      "edb_name": "dumbbell bent over row",
+      "primary_muscles": [
+        "upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "forearms"
+      ],
+      "image_url": "/api/v1/exercises/row-dumbbell-bilateral/media"
+    },
+    "row-barbell": {
+      "edb_id": "0027",
+      "edb_name": "barbell bent over row",
+      "primary_muscles": [
+        "upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "forearms"
+      ],
+      "image_url": "/api/v1/exercises/row-barbell/media"
+    },
+    "row-cable": {
+      "edb_id": "0861",
+      "edb_name": "cable seated row",
+      "primary_muscles": [
+        "upper_back"
+      ],
+      "secondary_muscles": [
+        "biceps",
+        "forearms"
+      ],
+      "image_url": "/api/v1/exercises/row-cable/media"
+    },
+    "hinge-single-leg-rdl-db": {
+      "edb_id": "1757",
+      "edb_name": "dumbbell single leg deadlift",
+      "primary_muscles": [
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings"
+      ],
+      "image_url": "/api/v1/exercises/hinge-single-leg-rdl-db/media"
+    },
+    "hinge-single-leg-rdl-heavy": {
+      "edb_id": "1757",
+      "edb_name": "dumbbell single leg deadlift",
+      "primary_muscles": [
+        "glutes"
+      ],
+      "secondary_muscles": [
+        "hamstrings"
+      ],
+      "image_url": "/api/v1/exercises/hinge-single-leg-rdl-heavy/media"
+    },
+    "push-pushup": {
+      "edb_id": "0258",
+      "edb_name": "clock push-up",
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps"
+      ],
+      "image_url": "/api/v1/exercises/push-pushup/media"
+    },
+    "push-incline-pushup": {
+      "edb_id": "0492",
+      "edb_name": "incline push up depth jump",
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps"
+      ],
+      "image_url": "/api/v1/exercises/push-incline-pushup/media"
+    },
+    "push-db-bench-press": {
+      "edb_id": "0289",
+      "edb_name": "dumbbell bench press",
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps"
+      ],
+      "image_url": "/api/v1/exercises/push-db-bench-press/media"
+    },
+    "push-barbell-bench-press": {
+      "edb_id": "0025",
+      "edb_name": "barbell bench press",
+      "primary_muscles": [
+        "chest"
+      ],
+      "secondary_muscles": [
+        "triceps"
+      ],
+      "image_url": "/api/v1/exercises/push-barbell-bench-press/media"
+    },
+    "calf-raise-standing": {
+      "edb_id": "1373",
+      "edb_name": "bodyweight standing calf raise",
+      "primary_muscles": [
+        "calves"
+      ],
+      "secondary_muscles": [],
+      "image_url": "/api/v1/exercises/calf-raise-standing/media"
+    },
+    "calf-raise-weighted": {
+      "edb_id": "0417",
+      "edb_name": "dumbbell standing calf raise",
+      "primary_muscles": [
+        "calves"
+      ],
+      "secondary_muscles": [],
+      "image_url": "/api/v1/exercises/calf-raise-weighted/media"
+    },
+    "calf-raise-seated-weighted": {
+      "edb_id": "1379",
+      "edb_name": "dumbbell seated calf raise",
+      "primary_muscles": [
+        "calves"
+      ],
+      "secondary_muscles": [
+        "hamstrings"
+      ],
+      "image_url": "/api/v1/exercises/calf-raise-seated-weighted/media"
+    },
+    "anti-rot-pallof-press-band": {
+      "edb_id": "0979",
+      "edb_name": "band horizontal pallof press",
+      "primary_muscles": [
+        "core"
+      ],
+      "secondary_muscles": [
+        "glutes"
+      ],
+      "image_url": "/api/v1/exercises/anti-rot-pallof-press-band/media"
+    }
+  }
+}

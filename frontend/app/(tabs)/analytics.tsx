@@ -1,26 +1,32 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { View, Text, ScrollView, StyleSheet, Modal, Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LineTrend } from "@/src/components/LineTrend";
+import * as Haptics from "expo-haptics";
 
-import { spacing, fonts, type } from "@/src/theme";
+import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
+import { exportReportPdf } from "@/src/lib/export-pdf";
 import {
-  Screen, ScreenHeader, Card, PillTabs, Overline, EmptyState,
+  Screen, ScreenHeader, Card, PillTabs, Overline, EmptyState, LoadingState,
+  Input, PrimaryButton, SecondaryButton, layout,
 } from "@/src/components/ui";
 
-type Tab = "overview" | "records" | "races";
+type Tab = "overview" | "body" | "records" | "races";
 
 export default function Analytics() {
   const [tab, setTab] = useState<Tab>("overview");
 
   return (
     <Screen>
-      <ScreenHeader title="Analytics" />
+      <ScreenHeader title="Insights" />
       <PillTabs
         tabs={[
-          { key: "overview" as Tab, label: "Visão geral" },
+          { key: "overview" as Tab, label: "Semana" },
+          { key: "body" as Tab, label: "Corpo" },
           { key: "records" as Tab, label: "Recordes" },
           { key: "races" as Tab, label: "Provas" },
         ]}
@@ -28,27 +34,96 @@ export default function Analytics() {
         onChange={setTab}
       />
       {tab === "overview" && <OverviewTab />}
+      {tab === "body" && <BodyTab />}
       {tab === "records" && <RecordsTab />}
       {tab === "races" && <RacesTab />}
     </Screen>
   );
 }
 
+function buildDailySeries(rows: any[], days: number): { date: string; value: number }[] {
+  const byDate: Record<string, number> = {};
+  for (const r of rows || []) {
+    const key = String(r._id || r.date || "").slice(0, 10);
+    if (key) byDate[key] = Math.round(r.total_tss || r.value || 0);
+  }
+  const out: { date: string; value: number }[] = [];
+  const today = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    out.push({ date: key, value: byDate[key] || 0 });
+  }
+  return out;
+}
+
+// Chip de variação vs semana anterior (verde sobe / vermelho desce).
+function DeltaChip({ cur, prev, unit, colors, higherIsBetter = true }: {
+  cur: number | null; prev: number | null; unit?: string; colors: any; higherIsBetter?: boolean;
+}) {
+  if (cur == null || prev == null) return null;
+  const diff = Math.round((cur - prev) * 10) / 10;
+  if (diff === 0) return <Text style={[s.deltaFlat, { color: colors.textSecondary }]}>=</Text>;
+  const up = diff > 0;
+  const good = higherIsBetter ? up : !up;
+  const color = good ? colors.success : colors.warning;
+  return (
+    <Text style={[s.delta, { color }]}>
+      {up ? "▲" : "▼"} {Math.abs(diff)}{unit || ""}
+    </Text>
+  );
+}
+
+function overviewInsight(dashboard: any): { title: string; body: string } | null {
+  const risk = dashboard?.overtraining?.risk_level;
+  if (risk === "critico" || risk === "alto") {
+    return {
+      title: "Carga de treino pedindo atenção",
+      body: risk === "critico"
+        ? "Sinais de sobrecarga esta semana. Priorize recuperação e fale com o Comandante."
+        : "Sua carga subiu. Considere aliviar a intensidade nos próximos dias.",
+    };
+  }
+  const rd = dashboard?.readiness;
+  if (rd?.level === "red" || rd?.level === "yellow") {
+    const f = rd.factors?.[0];
+    return {
+      title: rd.level === "red" ? "Prontidão baixa hoje" : "Prontidão moderada",
+      body: f?.detail || "Cheque seus fatores de prontidão na Home.",
+    };
+  }
+  return null;
+}
+
 function OverviewTab() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [consistency, setConsistency] = useState<any>(null);
   const [correlations, setCorrelations] = useState<any>(null);
+  const [loadSeries, setLoadSeries] = useState<{ date: string; value: number }[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportErr, setExportErr] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, cor] = await Promise.all([
+      const [c, cor, ld, sum, dash] = await Promise.all([
         api.get("/analytics/consistency?days=28"),
         api.get("/analytics/correlations?days=28"),
+        api.get("/analytics/load?days=28"),
+        api.get("/analytics/weekly-summary"),
+        api.get("/dashboard").catch(() => null),
       ]);
       setConsistency(c);
       setCorrelations(cor);
+      setLoadSeries(buildDailySeries(ld?.data || [], 28));
+      setSummary(sum);
+      setDashboard(dash);
     } catch {} finally {
       setLoading(false);
     }
@@ -56,12 +131,85 @@ function OverviewTab() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading) {
-    return <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />;
-  }
+  if (loading) return <LoadingState />;
+
+  const loadTotal = loadSeries.reduce((s2, p) => s2 + p.value, 0);
+  const loadPeak = loadSeries.reduce((m, p) => Math.max(m, p.value), 0);
+  const prev = summary?.previous || {};
+  const insight = overviewInsight(dashboard);
+
+  // Destaques com comparação vs semana anterior.
+  const highlightTiles = summary ? [
+    { label: "Treinos", value: `${summary.sessions}`, cur: summary.sessions, prev: prev.sessions, unit: "", better: true },
+    { label: "Distância", value: `${summary.km} km`, cur: summary.km, prev: prev.km, unit: "km", better: true },
+    { label: "Carga", value: `${summary.tss} TSS`, cur: summary.tss, prev: prev.tss, unit: "", better: true },
+    { label: "Sono médio", value: summary.avg_sleep ? `${summary.avg_sleep}h` : "—", cur: summary.avg_sleep, prev: prev.avg_sleep, unit: "h", better: true },
+  ] : [];
+
+  const sumTiles = summary ? [
+    { label: "Dias c/ refeição", value: `${summary.meal_days}/7` },
+    { label: "Kcal médio", value: summary.avg_calories ? `${summary.avg_calories}` : "—" },
+    { label: "Check-ins", value: `${summary.checkins}/7` },
+    { label: "Peso (7d)", value: summary.weight_delta != null ? `${summary.weight_delta > 0 ? "+" : ""}${summary.weight_delta}kg` : "—" },
+  ] : [];
 
   return (
-    <ScrollView contentContainerStyle={s.content}>
+    <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
+      {insight && (
+        <Card onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          router.push({ pathname: "/(tabs)/coach", params: { prompt: insight.body } });
+        }}>
+          <View style={s.insightHead}>
+            <Ionicons name="sparkles" size={16} color={colors.accent} />
+            <Overline color={colors.accent}>Comandante sugere</Overline>
+          </View>
+          <Text style={[s.insightTitle, { color: colors.text }]}>{insight.title}</Text>
+          <Text style={[s.insightBody, { color: colors.textSecondary }]}>{insight.body}</Text>
+          <Text style={[s.insightCta, { color: colors.accent }]}>Conversar ›</Text>
+        </Card>
+      )}
+
+      {summary && (
+        <Card>
+          <Overline color={colors.accent}>Sua semana em números</Overline>
+          <View style={s.hlGrid}>
+            {highlightTiles.map((t) => (
+              <View key={t.label} style={s.hlTile}>
+                <Text style={[s.hlValue, { color: colors.text }]}>{t.value}</Text>
+                <View style={s.hlDeltaRow}>
+                  <DeltaChip cur={t.cur} prev={t.prev} unit={t.unit} colors={colors} higherIsBetter={t.better} />
+                </View>
+                <Text style={[s.hlLabel, { color: colors.textSecondary }]}>{t.label}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={[s.sumDivider, { borderTopColor: colors.border }]} />
+          <View style={s.sumGrid}>
+            {sumTiles.map((t) => (
+              <View key={t.label} style={s.sumTile}>
+                <Text style={[s.sumValue, { color: colors.text }]}>{t.value}</Text>
+                <Text style={[s.sumLabel, { color: colors.textSecondary }]}>{t.label}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={[s.vsHint, { color: colors.textSecondary }]}>Variações comparadas à semana anterior.</Text>
+        </Card>
+      )}
+
+      {loadTotal > 0 && (
+        <Card>
+          <View style={s.trendHead}>
+            <Overline color={colors.accent}>Carga de treino · 28 dias</Overline>
+            <Text style={[s.trendPeak, { color: colors.textSecondary }]}>pico {loadPeak}</Text>
+          </View>
+          <TrendBars points={loadSeries} colors={colors} />
+          <Text style={[s.trendTotal, { color: colors.text }]}>
+            {loadTotal} <Text style={[s.trendUnit, { color: colors.textSecondary }]}>TSS acumulado</Text>
+          </Text>
+        </Card>
+      )}
+
       {consistency && (
         <Card>
           <Overline color={colors.accent}>Consistência · 28 dias</Overline>
@@ -99,7 +247,57 @@ function OverviewTab() {
           </Text>
         </Card>
       )}
+
+      {exportErr ? <Text style={[s.obsDisclaimer, { color: colors.error, textAlign: "center" }]}>{exportErr}</Text> : null}
+      <SecondaryButton
+        label={exporting ? "Gerando PDF..." : "Exportar relatório (PDF)"}
+        icon="download-outline"
+        color={colors.accent}
+        onPress={async () => {
+          setExporting(true); setExportErr("");
+          try { await exportReportPdf(28); }
+          catch (e: any) { setExportErr(e?.message || "Falha ao exportar."); }
+          finally { setExporting(false); }
+        }}
+        style={{ marginTop: spacing.sm }}
+      />
     </ScrollView>
+  );
+}
+
+function TrendBars({ points, colors }: { points: { date: string; value: number }[]; colors: any }) {
+  const max = Math.max(...points.map((p) => p.value), 1);
+  const fmt = (iso: string) => {
+    const d = new Date(iso + "T12:00:00");
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  };
+  return (
+    <View style={{ marginTop: spacing.md }}>
+      <View style={s.trendChart}>
+        {points.map((p, i) => {
+          const active = p.value > 0;
+          return (
+            <View
+              key={i}
+              style={{
+                flex: 1,
+                height: `${active ? Math.max((p.value / max) * 100, 6) : 100}%`,
+                backgroundColor: active ? colors.accent : colors.border,
+                opacity: active ? 1 : 0.35,
+                borderTopLeftRadius: 2,
+                borderTopRightRadius: 2,
+                minHeight: active ? 4 : 1,
+                alignSelf: "flex-end",
+              }}
+            />
+          );
+        })}
+      </View>
+      <View style={s.trendLabels}>
+        <Text style={[s.trendLabel, { color: colors.textSecondary }]}>{fmt(points[0]?.date)}</Text>
+        <Text style={[s.trendLabel, { color: colors.textSecondary }]}>{fmt(points[points.length - 1]?.date)}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -113,8 +311,88 @@ function StatItem({ label, value, sub, colors }: any) {
   );
 }
 
+function BodyTab() {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null);
+  const [weightInput, setWeightInput] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api.get("/analytics/body-metrics?days=90");
+      setData(d);
+    } catch {} finally { setLoading(false); }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const saveWeight = async () => {
+    const kg = parseFloat(weightInput.replace(",", "."));
+    if (!kg || kg < 20 || kg > 300) return;
+    setSaving(true);
+    try {
+      await api.put("/habits", { date: new Date().toISOString().slice(0, 10), weight_kg: kg });
+      setWeightInput("");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await load();
+    } catch {} finally { setSaving(false); }
+  };
+
+  if (loading) return <LoadingState />;
+
+  const weight = data?.weight || [];
+  const ws = data?.weight_summary || {};
+  const deltaSign = ws.delta > 0 ? "+" : "";
+
+  return (
+    <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
+      <Card>
+        <Overline color={colors.accent}>Registrar peso</Overline>
+        <View style={[s.weightLogRow, { marginTop: spacing.md }]}>
+          <Input
+            containerStyle={{ flex: 1 }}
+            placeholder="Ex: 72.5"
+            keyboardType="decimal-pad"
+            value={weightInput}
+            onChangeText={setWeightInput}
+          />
+          <PrimaryButton label="Salvar" onPress={saveWeight} loading={saving} small style={{ height: 56 }} />
+        </View>
+      </Card>
+
+      {weight.length >= 2 ? (
+        <Card>
+          <View style={s.trendHead}>
+            <Overline color={colors.accent}>Peso · 90 dias</Overline>
+            <Text style={[s.trendPeak, { color: colors.textSecondary }]}>
+              {deltaSign}{ws.delta} kg
+            </Text>
+          </View>
+          <Text style={[s.trendTotal, { color: colors.text }]}>
+            {ws.latest} <Text style={[s.trendUnit, { color: colors.textSecondary }]}>kg</Text>
+          </Text>
+          <LineTrend points={weight} colors={colors} />
+          <View style={s.trendLabels}>
+            <Text style={[s.trendLabel, { color: colors.textSecondary }]}>mín {ws.min}</Text>
+            <Text style={[s.trendLabel, { color: colors.textSecondary }]}>máx {ws.max}</Text>
+          </View>
+        </Card>
+      ) : (
+        <EmptyState
+          icon="body-outline"
+          title="Sem histórico de peso"
+          text="Registre seu peso por alguns dias para ver a evolução aqui."
+        />
+      )}
+    </ScrollView>
+  );
+}
+
 function RecordsTab() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<any>(null);
 
@@ -130,7 +408,7 @@ function RecordsTab() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading) return <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />;
+  if (loading) return <LoadingState />;
 
   const formatPace = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -146,7 +424,7 @@ function RecordsTab() {
   ];
 
   return (
-    <ScrollView contentContainerStyle={s.content}>
+    <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
       {sections.map((sec) => {
         const data = records?.[sec.key] || {};
         const entries = Object.entries(data);
@@ -180,10 +458,26 @@ function RecordsTab() {
   );
 }
 
+const RACE_TYPES = [
+  { key: "sprint", label: "Sprint" },
+  { key: "olympic", label: "Olímpico" },
+  { key: "half_ironman", label: "70.3" },
+  { key: "ironman", label: "Ironman" },
+  { key: "custom", label: "Outra" },
+];
+const PRIORITIES = [
+  { key: "A", label: "A · Principal" },
+  { key: "B", label: "B · Secundária" },
+  { key: "C", label: "C · Treino" },
+];
+
 function RacesTab() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [races, setRaces] = useState<any[]>([]);
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -197,7 +491,7 @@ function RacesTab() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading) return <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />;
+  if (loading) return <LoadingState />;
 
   const raceTypeLabel: Record<string, string> = {
     sprint: "Sprint", olympic: "Olímpico",
@@ -207,12 +501,30 @@ function RacesTab() {
   const stars = (rating: number) => "★".repeat(rating) + "☆".repeat(5 - rating);
 
   return (
-    <ScrollView contentContainerStyle={s.content}>
+    <ScrollView contentContainerStyle={[s.content, { paddingBottom: layout.tabBarPad(insets.bottom) }]}>
+      <PrimaryButton label="Adicionar prova" icon="add" onPress={() => setAdding(true)} />
+
+      <RaceModal
+        visible={adding}
+        onClose={() => setAdding(false)}
+        onSaved={() => { setAdding(false); load(); }}
+      />
+
       {races.length === 0 ? (
-        <EmptyState icon="flag-outline" title="Nenhuma prova registrada" text="Adicione provas na aba de Calendário." />
+        <EmptyState
+          icon="flag-outline"
+          title="Nenhuma prova registrada"
+          text="Cadastre suas provas para acompanhar objetivos, estratégia e retrospectiva."
+        />
       ) : (
         races.map((r) => (
-          <Card key={r.id}>
+          <Card
+            key={r.id}
+            onPress={() => router.push({
+              pathname: "/race-detail",
+              params: { id: r.id, name: r.name, type: r.race_type, date: r.date },
+            })}
+          >
             <View style={s.raceHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={[s.raceName, { color: colors.text }]}>{r.name}</Text>
@@ -220,6 +532,7 @@ function RacesTab() {
                   {raceTypeLabel[r.race_type] || r.race_type} · {r.date} · Prioridade {r.priority}
                 </Text>
               </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </View>
             {r.retrospective && (
               <View style={s.retroSection}>
@@ -248,8 +561,161 @@ function RacesTab() {
   );
 }
 
+function RaceModal({ visible, onClose, onSaved }: { visible: boolean; onClose: () => void; onSaved: () => void }) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [name, setName] = useState("");
+  const [raceType, setRaceType] = useState("olympic");
+  const [priority, setPriority] = useState("B");
+  const [date, setDate] = useState("");
+  const [location, setLocation] = useState("");
+  const [goal, setGoal] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const reset = () => {
+    setName(""); setRaceType("olympic"); setPriority("B");
+    setDate(""); setLocation(""); setGoal(""); setError("");
+  };
+
+  const save = async () => {
+    if (!name.trim()) { setError("Informe o nome da prova."); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) { setError("Data no formato AAAA-MM-DD."); return; }
+    setSaving(true);
+    setError("");
+    try {
+      await api.post("/races", {
+        name: name.trim(),
+        race_type: raceType,
+        priority,
+        date: date.trim(),
+        location: location.trim(),
+        goal: goal.trim(),
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      reset();
+      onSaved();
+    } catch (e: any) {
+      setError(e.message || "Falha ao cadastrar prova.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Screen>
+        <View style={[s.modalHeader, { paddingTop: insets.top + spacing.md }]}>
+          <Text style={[s.modalTitle, { color: colors.text }]}>Nova prova</Text>
+          <Pressable onPress={onClose} hitSlop={8}>
+            <Ionicons name="close" size={24} color={colors.text} />
+          </Pressable>
+        </View>
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.xl, paddingBottom: insets.bottom + spacing["3xl"], gap: spacing.lg }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Input label="Nome" placeholder="Ex: Ironman 70.3 Florianópolis" value={name} onChangeText={setName} />
+
+          <View>
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>MODALIDADE</Text>
+            <View style={s.pickRow}>
+              {RACE_TYPES.map((t) => {
+                const active = raceType === t.key;
+                return (
+                  <Pressable
+                    key={t.key}
+                    onPress={() => setRaceType(t.key)}
+                    style={[s.pick, { backgroundColor: active ? colors.accent : colors.surface, borderColor: active ? colors.accent : colors.border }]}
+                  >
+                    <Text style={[s.pickText, { color: active ? colors.onAccent : colors.textSecondary }]}>{t.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View>
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>PRIORIDADE</Text>
+            <View style={s.pickRow}>
+              {PRIORITIES.map((p) => {
+                const active = priority === p.key;
+                return (
+                  <Pressable
+                    key={p.key}
+                    onPress={() => setPriority(p.key)}
+                    style={[s.pick, { backgroundColor: active ? colors.accent : colors.surface, borderColor: active ? colors.accent : colors.border }]}
+                  >
+                    <Text style={[s.pickText, { color: active ? colors.onAccent : colors.textSecondary }]}>{p.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <Input label="Data" placeholder="AAAA-MM-DD" value={date} onChangeText={setDate} autoCapitalize="none" />
+          <Input label="Local (opcional)" placeholder="Cidade / país" value={location} onChangeText={setLocation} />
+          <Input label="Objetivo (opcional)" placeholder="Ex: sub 5h30" value={goal} onChangeText={setGoal} />
+
+          {error ? <Text style={[s.raceError, { color: colors.error }]}>{error}</Text> : null}
+
+          <PrimaryButton label="Salvar prova" onPress={save} loading={saving} style={{ marginTop: spacing.sm }} />
+          <SecondaryButton label="Cancelar" onPress={onClose} />
+        </ScrollView>
+      </Screen>
+    </Modal>
+  );
+}
+
 const s = StyleSheet.create({
-  content: { padding: spacing.xl, gap: spacing.md, paddingBottom: 120 },
+  content: { padding: spacing.xl, gap: spacing.md },
+
+  modalHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: spacing.xl, paddingBottom: spacing.lg,
+  },
+  modalTitle: { fontFamily: fonts.bold, ...type.h1 },
+  fieldLabel: {
+    fontFamily: fonts.semibold, ...type.caption, letterSpacing: 1,
+    textTransform: "uppercase", marginBottom: spacing.sm,
+  },
+  pickRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  pick: {
+    paddingHorizontal: spacing.lg, height: 40, borderRadius: radius.pill, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+  },
+  pickText: { fontFamily: fonts.semibold, ...type.bodySmall },
+  raceError: { fontFamily: fonts.text, ...type.bodySmall },
+
+  trendHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  trendPeak: { fontFamily: fonts.medium, ...type.caption },
+  trendChart: { flexDirection: "row", alignItems: "flex-end", height: 96, gap: 2 },
+  trendLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm },
+  trendLabel: { fontFamily: fonts.text, ...type.caption },
+  trendTotal: { fontFamily: fonts.bold, ...type.metric, marginTop: spacing.md, fontVariant: ["tabular-nums"] },
+  trendUnit: { fontFamily: fonts.text, ...type.bodySmall },
+  weightLogRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+
+  sumGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: spacing.md },
+  sumTile: { width: "25%", paddingVertical: spacing.sm, alignItems: "center" },
+  sumValue: { fontFamily: fonts.bold, ...type.body, fontVariant: ["tabular-nums"] },
+  sumLabel: { fontFamily: fonts.text, fontSize: 10, lineHeight: 13, marginTop: 2, textAlign: "center" },
+
+  insightHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs },
+  insightTitle: { fontFamily: fonts.bold, ...type.body, marginTop: spacing.xs },
+  insightBody: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2, lineHeight: 19 },
+  insightCta: { fontFamily: fonts.semibold, ...type.bodySmall, marginTop: spacing.sm },
+
+  hlGrid: { flexDirection: "row", marginTop: spacing.md },
+  hlTile: { flex: 1, alignItems: "center" },
+  hlValue: { fontFamily: fonts.bold, ...type.h2, fontVariant: ["tabular-nums"] },
+  hlDeltaRow: { height: 16, justifyContent: "center", marginTop: 1 },
+  hlLabel: { fontFamily: fonts.text, fontSize: 10, lineHeight: 13, marginTop: 2, textAlign: "center" },
+  delta: { fontFamily: fonts.semibold, fontSize: 11, lineHeight: 14, fontVariant: ["tabular-nums"] },
+  deltaFlat: { fontFamily: fonts.medium, fontSize: 11, lineHeight: 14 },
+  sumDivider: { borderTopWidth: 1, marginTop: spacing.md, paddingTop: spacing.xs },
+  vsHint: { fontFamily: fonts.text, ...type.caption, fontStyle: "italic", marginTop: spacing.sm },
 
   statsRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
   statItem: { alignItems: "center", flex: 1 },

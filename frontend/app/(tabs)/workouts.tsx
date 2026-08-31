@@ -30,6 +30,29 @@ const TYPE_ICON: Record<string, any> = {
   ironmind: "barbell",
 };
 
+// Rótulos amigáveis em pt-BR para os tipos vindos do intervals.icu.
+const TYPE_LABEL: Record<string, string> = {
+  Ride: "Pedal", VirtualRide: "Pedal virtual", Run: "Corrida", Swim: "Natação",
+  Workout: "Treino", WeightTraining: "Musculação", Walk: "Caminhada",
+};
+
+function typeLabel(type?: string | null): string | null {
+  if (!type) return null;
+  return TYPE_LABEL[type] || type;
+}
+
+// Origem/categoria de um item de histórico: treinos do app (força/academia/casa)
+// vs. atividades sincronizadas do intervals.icu (cardio do relógio).
+type HistFilter = "all" | "forca" | "cardio";
+function itemCategory(source?: string): "forca" | "cardio" {
+  return source === "ironmind" ? "forca" : "cardio";
+}
+const HIST_FILTERS: { key: HistFilter; label: string }[] = [
+  { key: "all", label: "Todos" },
+  { key: "forca", label: "Força" },
+  { key: "cardio", label: "Cardio" },
+];
+
 function fmtDuration(sec: number) {
   if (!sec) return "—";
   const h = Math.floor(sec / 3600);
@@ -80,6 +103,7 @@ export default function Workouts() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("plan");
+  const [histFilter, setHistFilter] = useState<HistFilter>("all");
   const [plan, setPlan] = useState<Plan | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [intervalsItems, setIntervalsItems] = useState<HistoryItem[]>([]);
@@ -111,6 +135,10 @@ export default function Workouts() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await api.post("/intervals/sync");
+      // Puxa também métricas de saúde (sono, FC repouso, HRV, peso) do intervals.
+      // Best-effort: se a conta não tiver dados de wellness, não deve derrubar o
+      // sync de treinos que acabou de dar certo.
+      try { await api.post("/intervals/sync-wellness?days=30"); } catch {}
       await load();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
@@ -170,13 +198,22 @@ export default function Workouts() {
       return (
         <EmptyState
           icon="barbell-outline"
-          title="Nenhum programa ativo"
-          text="Escolha um programa de preparação física auxiliar para começar."
+          title="Como quer treinar hoje?"
+          text="Siga um programa de preparação física estruturado ou monte seu próprio treino escolhendo os exercícios."
           action={
-            <PrimaryButton
-              label="Escolher programa"
-              onPress={() => router.push("/program-select")}
-            />
+            <View style={{ alignSelf: "stretch", gap: spacing.md }}>
+              <PrimaryButton
+                label="Seguir um programa"
+                icon="list-outline"
+                onPress={() => router.push("/program-select")}
+              />
+              <SecondaryButton
+                label="Montar meu treino"
+                icon="add-circle-outline"
+                color={colors.accent}
+                onPress={() => router.push("/custom-workout")}
+              />
+            </View>
           }
         />
       );
@@ -202,16 +239,18 @@ export default function Workouts() {
             </ProgressRing>
           </View>
 
-          <View style={s.planStats}>
-            <View style={[s.planStat, { backgroundColor: colors.elevated }]}>
+          <View style={[s.planStats, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+            <View style={s.planStat}>
               <Text style={[s.planStatValue, { color: colors.text }]}>{plan.completed_sessions}</Text>
               <Text style={[s.planStatLabel, { color: colors.textSecondary }]}>Concluídas</Text>
             </View>
-            <View style={[s.planStat, { backgroundColor: colors.elevated }]}>
+            <View style={[s.planStatDivider, { backgroundColor: colors.border }]} />
+            <View style={s.planStat}>
               <Text style={[s.planStatValue, { color: colors.text }]}>{remaining}</Text>
               <Text style={[s.planStatLabel, { color: colors.textSecondary }]}>Restantes</Text>
             </View>
-            <View style={[s.planStat, { backgroundColor: colors.elevated }]}>
+            <View style={[s.planStatDivider, { backgroundColor: colors.border }]} />
+            <View style={s.planStat}>
               <Text style={[s.planStatValue, { color: colors.text }]}>{plan.current_session}</Text>
               <Text style={[s.planStatLabel, { color: colors.textSecondary }]}>Próxima</Text>
             </View>
@@ -226,7 +265,7 @@ export default function Workouts() {
           )}
 
           {plan.status === "completed" && (
-            <View style={[s.completedBanner, { backgroundColor: colors.elevated }]}>
+            <View style={[s.completedBanner, { backgroundColor: colors.successMuted }]}>
               <Ionicons name="trophy" size={20} color={colors.success} />
               <Text style={[s.completedText, { color: colors.success }]}>Programa concluído</Text>
             </View>
@@ -255,6 +294,14 @@ export default function Workouts() {
             onPress={() => router.push("/program-select")}
           />
         </View>
+
+        <SecondaryButton
+          style={{ marginTop: spacing.md }}
+          icon="add-circle-outline"
+          label="Montar treino avulso"
+          color={colors.accent}
+          onPress={() => router.push("/custom-workout")}
+        />
       </View>
     );
   };
@@ -268,6 +315,11 @@ export default function Workouts() {
     return db.localeCompare(da);
   });
 
+  const filteredHistory =
+    histFilter === "all"
+      ? allHistory
+      : allHistory.filter((it) => itemCategory(it.source) === histFilter);
+
   const renderHistoryItem = ({ item }: { item: HistoryItem }) => {
     if (item.source === "ironmind") {
       const setsCount = (item.exercises || []).reduce(
@@ -279,9 +331,12 @@ export default function Workouts() {
             <Ionicons name="barbell" size={22} color={colors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[s.cardTitle, { color: colors.text }]} numberOfLines={1}>
-              {item.title || `Sessão ${item.session_number}`}
-            </Text>
+            <View style={s.titleRow}>
+              <Text style={[s.cardTitle, { color: colors.text, flex: 1 }]} numberOfLines={1}>
+                {item.title || `Sessão ${item.session_number}`}
+              </Text>
+              <SourceBadge kind="forca" colors={colors} />
+            </View>
             <Text style={[s.cardDate, { color: colors.textSecondary }]}>
               {fmtDate(item.completed_at || item.started_at || "")} · Semana {item.week} · Dia {item.day}
             </Text>
@@ -304,11 +359,16 @@ export default function Workouts() {
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[s.cardTitle, { color: colors.text }]} numberOfLines={1}>
-            {item.name || item.type || "Treino"}
-          </Text>
+          <View style={s.titleRow}>
+            <Text style={[s.cardTitle, { color: colors.text, flex: 1 }]} numberOfLines={1}>
+              {item.name || typeLabel(item.type) || "Treino"}
+            </Text>
+            <SourceBadge kind="cardio" colors={colors} />
+          </View>
           <Text style={[s.cardDate, { color: colors.textSecondary }]}>
-            {fmtDate(item.start_date_local || "")} · {item.type} · intervals.icu
+            {[fmtDate(item.start_date_local || ""), typeLabel(item.type), "intervals.icu"]
+              .filter(Boolean)
+              .join(" · ")}
           </Text>
           <View style={s.metricsRow}>
             <Metric
@@ -358,16 +418,14 @@ export default function Workouts() {
       />
 
       {/* Tab switcher */}
-      <View style={s.tabRow}>
-        <PillTabs<Tab>
-          tabs={[
-            { key: "plan", label: "Meu plano" },
-            { key: "history", label: "Histórico" },
-          ]}
-          value={tab}
-          onChange={setTab}
-        />
-      </View>
+      <PillTabs<Tab>
+        tabs={[
+          { key: "plan", label: "Meu plano" },
+          { key: "history", label: "Histórico" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
 
       {loading ? (
         <View style={s.center}>
@@ -387,12 +445,46 @@ export default function Workouts() {
         />
       ) : (
         <FlatList
-          data={allHistory}
+          data={filteredHistory}
           keyExtractor={(i) => i.id}
           renderItem={renderHistoryItem}
           contentContainerStyle={{
             paddingHorizontal: layout.screenPad, paddingTop: spacing.md, paddingBottom: tabBarPad,
           }}
+          ListHeaderComponent={
+            <View style={s.filterRow}>
+              {HIST_FILTERS.map((f) => {
+                const active = histFilter === f.key;
+                return (
+                  <Pressable
+                    key={f.key}
+                    onPress={() => setHistFilter(f.key)}
+                    style={[
+                      s.filterChip,
+                      {
+                        backgroundColor: active ? colors.accent : colors.surface,
+                        borderColor: active ? colors.accent : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        s.filterChipText,
+                        { color: active ? colors.onAccent : colors.textSecondary },
+                      ]}
+                    >
+                      {f.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          }
+          ListEmptyComponent={
+            <Text style={[s.filterEmpty, { color: colors.textSecondary }]}>
+              Nenhum treino nesse filtro.
+            </Text>
+          }
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -413,6 +505,18 @@ function Metric({ value, label, colors }: { value: any; label: string; colors: a
   );
 }
 
+function SourceBadge({ kind, colors }: { kind: "forca" | "cardio"; colors: any }) {
+  const cfg =
+    kind === "forca"
+      ? { label: "FORÇA", bg: colors.accentMuted, fg: colors.accent }
+      : { label: "CARDIO", bg: colors.elevated, fg: colors.textSecondary };
+  return (
+    <View style={[s.badge, { backgroundColor: cfg.bg }]}>
+      <Text style={[s.badgeText, { color: cfg.fg }]}>{cfg.label}</Text>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 
@@ -423,8 +527,21 @@ const s = StyleSheet.create({
   },
   syncText: { fontFamily: fonts.bold, ...type.bodySmall },
 
-  tabRow: {
-    paddingHorizontal: layout.screenPad, paddingBottom: spacing.md,
+  // Badge de origem + filtro do histórico
+  titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  badge: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill,
+  },
+  badgeText: { fontFamily: fonts.bold, fontSize: 9, letterSpacing: 0.8 },
+  filterRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  filterChip: {
+    paddingHorizontal: spacing.lg, height: 34, borderRadius: radius.pill,
+    borderWidth: 1, alignItems: "center", justifyContent: "center",
+  },
+  filterChipText: { fontFamily: fonts.semibold, ...type.bodySmall },
+  filterEmpty: {
+    fontFamily: fonts.text, ...type.bodySmall,
+    textAlign: "center", marginTop: spacing.xl,
   },
 
   // Plan
@@ -434,11 +551,13 @@ const s = StyleSheet.create({
   ringNum: { fontFamily: fonts.bold, ...type.h2 },
   ringPct: { fontFamily: fonts.medium, ...type.bodySmall },
 
-  planStats: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.xl },
-  planStat: {
-    flex: 1, borderRadius: radius.lg,
-    paddingVertical: spacing.lg, alignItems: "center",
+  planStats: {
+    flexDirection: "row", alignItems: "center",
+    borderTopWidth: 1, borderBottomWidth: 1,
+    paddingVertical: spacing.lg, marginBottom: spacing.xl,
   },
+  planStat: { flex: 1, alignItems: "center" },
+  planStatDivider: { width: 1, height: 32 },
   planStatValue: { fontFamily: fonts.bold, ...type.metric, fontVariant: ["tabular-nums"] },
   planStatLabel: {
     fontFamily: fonts.medium, ...type.caption, letterSpacing: 1, marginTop: 2,

@@ -22,6 +22,7 @@ class CustomHabitIn(BaseModel):
     kind: HabitKind = "boolean"
     target: Optional[float] = Field(default=None, ge=0)
     unit: str = Field(default="", max_length=30)
+    icon: str = Field(default="ellipse-outline", max_length=40)
 
 
 class CustomHabitLogIn(BaseModel):

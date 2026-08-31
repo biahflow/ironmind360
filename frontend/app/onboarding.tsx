@@ -8,31 +8,78 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { spacing, radius, fonts, type as tp } from "@/src/theme";
+import { spacing, radius, fonts, type as tp, controlHeight } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/lib/api";
-import { PrimaryButton, SecondaryButton, Overline } from "@/src/components/ui";
+import { Screen, PrimaryButton, SecondaryButton, Overline } from "@/src/components/ui";
 
 const TOTAL_STEPS = 5;
 
 type Discipline = "swim" | "bike" | "run";
+type Modality = "triathlon" | "running";
 type Experience = "none" | "beginner" | "recreational" | "competitive" | "elite";
 type Environment = "home" | "gym" | "both";
 type ComplementaryLevel = "beginner" | "intermediate" | "advanced";
 
-const DISCIPLINE_LABELS: Record<Discipline, string> = { swim: "Natação", bike: "Ciclismo", run: "Corrida" };
+const MODALITY_LABELS: Record<Modality, string> = { triathlon: "Triatlo", running: "Corrida" };
+const MODALITY_DISCIPLINES: Record<Modality, Discipline[]> = {
+  triathlon: ["swim", "bike", "run"],
+  running: ["run"],
+};
 const EXPERIENCE_LABELS: Record<Experience, string> = {
   none: "Nenhuma", beginner: "Iniciante", recreational: "Recreativo",
   competitive: "Competitivo", elite: "Elite",
 };
 const ENV_LABELS: Record<Environment, string> = { home: "Casa", gym: "Academia", both: "Ambos" };
-const LEVEL_COLORS: Record<ComplementaryLevel, string> = {
-  beginner: "#2ECC71", intermediate: "#F5A623", advanced: "#E74C3C",
-};
 const LEVEL_LABELS: Record<ComplementaryLevel, string> = {
   beginner: "Iniciante", intermediate: "Intermediário", advanced: "Avançado",
 };
+
+function TagInput({ label, items, setItems, colors }: {
+  label: string; items: string[]; setItems: (v: string[]) => void; colors: any;
+}) {
+  const [text, setText] = useState("");
+  const add = () => {
+    const trimmed = text.trim();
+    if (trimmed && !items.includes(trimmed)) {
+      setItems([...items, trimmed]);
+    }
+    setText("");
+  };
+  return (
+    <View style={{ marginBottom: spacing.lg }}>
+      <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>{label}</Text>
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <TextInput
+          style={[s.tagInput, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border, flex: 1 }]}
+          value={text}
+          onChangeText={setText}
+          placeholder="Adicionar..."
+          placeholderTextColor={colors.textSecondary}
+          onSubmitEditing={add}
+          returnKeyType="done"
+          blurOnSubmit={false}
+        />
+        <Pressable onPress={add} style={[s.addBtn, { backgroundColor: colors.accentMuted }]}>
+          <Ionicons name="add" size={20} color={colors.accent} />
+        </Pressable>
+      </View>
+      {items.length > 0 && (
+        <View style={s.tagList}>
+          {items.map((item, i) => (
+            <View key={i} style={[s.tag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={{ color: colors.text, fontFamily: fonts.text, ...tp.bodySmall }}>{item}</Text>
+              <Pressable onPress={() => setItems(items.filter((_, j) => j !== i))}>
+                <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function Onboarding() {
   const { colors } = useTheme();
@@ -43,8 +90,20 @@ export default function Onboarding() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const LEVEL_COLOR: Record<ComplementaryLevel, string> = {
+    beginner: colors.success, intermediate: colors.warning, advanced: colors.error,
+  };
+  const LEVEL_MUTED: Record<ComplementaryLevel, string> = {
+    beginner: colors.successMuted, intermediate: colors.warningMuted, advanced: colors.errorMuted,
+  };
+
   // Step 1
-  const [disciplines, setDisciplines] = useState<Discipline[]>([]);
+  const [modalities, setModalities] = useState<Modality[]>(["triathlon"]);
+  const disciplines = React.useMemo<Discipline[]>(() => {
+    const set = new Set<Discipline>();
+    modalities.forEach((m) => MODALITY_DISCIPLINES[m].forEach((d) => set.add(d)));
+    return Array.from(set);
+  }, [modalities]);
   const [experience, setExperience] = useState<Experience>("beginner");
   const [availDays, setAvailDays] = useState(3);
   const [availHours, setAvailHours] = useState(6);
@@ -73,38 +132,55 @@ export default function Onboarding() {
   const [intervalsKey, setIntervalsKey] = useState("");
   const [intervalsId, setIntervalsId] = useState("");
 
-  const toggleDiscipline = (d: Discipline) => {
-    setDisciplines(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+  const toggleModality = (m: Modality) => {
+    setModalities(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   };
+
+  const buildSportPayload = () => ({
+    disciplines,
+    experience,
+    weekly_availability_days: availDays,
+    weekly_availability_hours: availHours,
+    environment,
+    equipment: [],
+    restrictions: [],
+    self_assessment: {
+      strength_training_months: strengthMonths,
+      weekly_active_days: activeDays,
+      returning_from_sedentary: sedentary,
+      can_squat_bodyweight: canSquat,
+      can_hinge_pattern: canHinge,
+      has_pain_or_injury: hasPain,
+    },
+    complementary_level_override: levelOverride,
+  });
 
   const submitSportProfile = async () => {
     setBusy(true);
     setError("");
     try {
-      const res = await api.put("/profile/sport", {
-        disciplines,
-        experience,
-        weekly_availability_days: availDays,
-        weekly_availability_hours: availHours,
-        environment,
-        equipment: [],
-        restrictions: [],
-        self_assessment: {
-          strength_training_months: strengthMonths,
-          weekly_active_days: activeDays,
-          returning_from_sedentary: sedentary,
-          can_squat_bodyweight: canSquat,
-          can_hinge_pattern: canHinge,
-          has_pain_or_injury: hasPain,
-        },
-        complementary_level_override: levelOverride,
-      });
+      const res = await api.put("/profile/sport", buildSportPayload());
       setRecommended(res.complementary_level.recommended);
       setReasons(res.complementary_level.reasons || []);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setStep(2);
     } catch (e: any) {
       setError(e.message || "Falha ao salvar perfil");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmLevel = async () => {
+    if (!levelOverride) { setStep(3); return; }
+    setBusy(true);
+    setError("");
+    try {
+      await api.put("/profile/sport", buildSportPayload());
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setStep(3);
+    } catch (e: any) {
+      setError(e.message || "Erro");
     } finally {
       setBusy(false);
     }
@@ -226,48 +302,6 @@ export default function Onboarding() {
     </View>
   );
 
-  const TagInput = ({ label, items, setItems }: { label: string; items: string[]; setItems: (v: string[]) => void }) => {
-    const [text, setText] = useState("");
-    const add = () => {
-      const trimmed = text.trim();
-      if (trimmed && !items.includes(trimmed)) {
-        setItems([...items, trimmed]);
-      }
-      setText("");
-    };
-    return (
-      <View style={{ marginBottom: spacing.lg }}>
-        <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>{label}</Text>
-        <View style={{ flexDirection: "row", gap: spacing.sm }}>
-          <TextInput
-            style={[s.tagInput, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border, flex: 1 }]}
-            value={text}
-            onChangeText={setText}
-            placeholder="Adicionar..."
-            placeholderTextColor={colors.textSecondary}
-            onSubmitEditing={add}
-            returnKeyType="done"
-          />
-          <Pressable onPress={add} style={[s.addBtn, { backgroundColor: colors.accentMuted }]}>
-            <Ionicons name="add" size={20} color={colors.accent} />
-          </Pressable>
-        </View>
-        {items.length > 0 && (
-          <View style={s.tagList}>
-            {items.map((item, i) => (
-              <View key={i} style={[s.tag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={{ color: colors.text, fontFamily: fonts.text, ...tp.bodySmall }}>{item}</Text>
-                <Pressable onPress={() => setItems(items.filter((_, j) => j !== i))}>
-                  <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
-    );
-  };
-
   const renderStep = () => {
     switch (step) {
       case 0:
@@ -281,8 +315,8 @@ export default function Onboarding() {
 
             <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Modalidades</Text>
             <View style={s.chipRow}>
-              {(["swim", "bike", "run"] as Discipline[]).map(d => (
-                <Chip key={d} label={DISCIPLINE_LABELS[d]} selected={disciplines.includes(d)} onPress={() => toggleDiscipline(d)} />
+              {(["triathlon", "running"] as Modality[]).map(m => (
+                <Chip key={m} label={MODALITY_LABELS[m]} selected={modalities.includes(m)} onPress={() => toggleModality(m)} />
               ))}
             </View>
 
@@ -322,7 +356,7 @@ export default function Onboarding() {
             <View style={{ marginTop: spacing.lg }}>
               <ToggleRow label="Voltando do sedentarismo" value={sedentary} onChange={setSedentary} />
               <ToggleRow label="Consigo agachar com peso corporal" value={canSquat} onChange={setCanSquat} />
-              <ToggleRow label="Consigo fazer hip hinge" value={canHinge} onChange={setCanHinge} />
+              <ToggleRow label="Consigo fazer o padrão de dobradiça de quadril (hip hinge)" value={canHinge} onChange={setCanHinge} />
               <ToggleRow label="Tenho dor ou lesão ativa" value={hasPain} onChange={setHasPain} />
             </View>
           </View>
@@ -338,11 +372,11 @@ export default function Onboarding() {
             </Text>
 
             <View style={[s.levelCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <View style={[s.levelBadge, { backgroundColor: LEVEL_COLORS[recommended] + "22" }]}>
+              <View style={[s.levelBadge, { backgroundColor: LEVEL_MUTED[recommended] }]}>
                 <Ionicons
                   name={recommended === "beginner" ? "leaf" : recommended === "intermediate" ? "fitness" : "flame"}
                   size={28}
-                  color={LEVEL_COLORS[recommended]}
+                  color={LEVEL_COLOR[recommended]}
                 />
               </View>
               <Text style={[s.levelTitle, { color: colors.text }]}>{LEVEL_LABELS[recommended]}</Text>
@@ -379,10 +413,10 @@ export default function Onboarding() {
               Opcional — ajuda nas sugestões de refeições e hidratação.
             </Text>
 
-            <TagInput label="Alergias" items={allergies} setItems={setAllergies} />
-            <TagInput label="Intolerâncias" items={intolerances} setItems={setIntolerances} />
-            <TagInput label="Preferências alimentares" items={preferences} setItems={setPreferences} />
-            <TagInput label="Alimentos que não gosta" items={disliked} setItems={setDisliked} />
+            <TagInput label="Alergias" items={allergies} setItems={setAllergies} colors={colors} />
+            <TagInput label="Intolerâncias" items={intolerances} setItems={setIntolerances} colors={colors} />
+            <TagInput label="Preferências alimentares" items={preferences} setItems={setPreferences} colors={colors} />
+            <TagInput label="Alimentos que não gosta" items={disliked} setItems={setDisliked} colors={colors} />
           </View>
         );
 
@@ -439,10 +473,11 @@ export default function Onboarding() {
   const stepTitles = ["Esporte", "Avaliação", "Nível", "Nutrição", "intervals.icu"];
 
   return (
-    <View style={[s.root, { backgroundColor: colors.bg }]}>
+    <Screen>
       <KeyboardAwareScrollView
         contentContainerStyle={{
           flexGrow: 1,
+          paddingHorizontal: spacing.xl,
           paddingTop: insets.top + spacing.xl,
           paddingBottom: insets.bottom + spacing["3xl"],
         }}
@@ -503,45 +538,18 @@ export default function Onboarding() {
 
             <PrimaryButton
               label={step === 4 ? "Concluir" : step === 2 ? "Confirmar nível" : "Próximo"}
-              onPress={step === 2 ? () => {
-                if (levelOverride) {
-                  setBusy(true);
-                  api.put("/profile/sport", {
-                    disciplines, experience,
-                    weekly_availability_days: availDays,
-                    weekly_availability_hours: availHours,
-                    environment,
-                    equipment: [], restrictions: [],
-                    self_assessment: {
-                      strength_training_months: strengthMonths,
-                      weekly_active_days: activeDays,
-                      returning_from_sedentary: sedentary,
-                      can_squat_bodyweight: canSquat,
-                      can_hinge_pattern: canHinge,
-                      has_pain_or_injury: hasPain,
-                    },
-                    complementary_level_override: levelOverride,
-                  }).then(() => {
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    setStep(3);
-                  }).catch((e: any) => setError(e.message || "Erro"))
-                    .finally(() => setBusy(false));
-                } else {
-                  setStep(3);
-                }
-              } : next}
+              onPress={step === 2 ? confirmLevel : next}
               loading={busy}
             />
           </View>
         </View>
       </KeyboardAwareScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
-  content: { flex: 1, paddingHorizontal: spacing.xl },
+  content: { flex: 1 },
 
   indicator: {
     flexDirection: "row", justifyContent: "center", alignItems: "flex-start",
@@ -587,7 +595,7 @@ const s = StyleSheet.create({
   toggleLabel: { fontFamily: fonts.text, ...tp.body, flex: 1, marginRight: spacing.md },
 
   levelCard: {
-    borderRadius: radius.xl, padding: spacing["2xl"], borderWidth: 1,
+    borderRadius: radius.cardLarge, padding: spacing["2xl"], borderWidth: 1,
     alignItems: "center", marginTop: spacing.lg,
   },
   levelBadge: {
@@ -617,7 +625,7 @@ const s = StyleSheet.create({
   },
 
   intervalsCard: {
-    borderRadius: radius.xl, padding: spacing.xl, borderWidth: 1,
+    borderRadius: radius.cardLarge, padding: spacing.xl, borderWidth: 1,
     marginTop: spacing.lg,
   },
   intervalsRow: {
@@ -627,7 +635,7 @@ const s = StyleSheet.create({
   intervalsTitle: { fontFamily: fonts.bold, ...tp.h2 },
 
   input: {
-    height: 48, borderRadius: radius.lg, borderWidth: 1,
+    height: controlHeight, borderRadius: radius.lg, borderWidth: 1,
     paddingHorizontal: spacing.lg, fontFamily: fonts.text, ...tp.body,
   },
 

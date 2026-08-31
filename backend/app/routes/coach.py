@@ -17,6 +17,7 @@ from app.models.coach import (
     ReflectionIn,
 )
 from app.rate_limit import rate_limit
+from app.services.nutrition_target import compute_today_target
 from app.utils.time import now_utc
 
 router = APIRouter(prefix="/coach", tags=["coach"])
@@ -43,8 +44,14 @@ SAFETY_POLICY = (
 TONE_PROMPTS = {
     "direct": (
         "Voce e o Comandante, coach esportivo de {name}. "
-        "Tom direto e firme: va ao ponto, cobre resultado, nao aceite desculpa facil. "
-        "Mas nunca humilhe, ridicularize ou use linguagem abusiva. "
+        "Tom CRU, direto e provocador: sem rodeios, sem paninho quente. "
+        "Confronte cada desculpa com uma pergunta afiada, exponha a verdade que "
+        "{name} evita ouvir e cobre uma acao concreta para AGORA. Jogue a "
+        "responsabilidade de volta para {name} e desafie-o a fazer o trabalho "
+        "duro. Frases curtas, de impacto, sem enrolacao. "
+        "Intensidade nao e desrespeito: NUNCA humilhe, ofenda, xingue, use "
+        "linguagem abusiva/preconceituosa nem ataque a pessoa — ataque a "
+        "acomodacao, nunca o valor de {name}. Nao cite nem imite pessoas reais. "
         "Fale em portugues do Brasil."
     ),
     "balanced": (
@@ -97,8 +104,20 @@ async def gather_context(user: dict) -> dict:
     )
 
     health_alerts = await db.health_markers.find(
-        {"user_id": user_id, "deleted_at": None, "flag": {"$in": ["attention", "priority"]}}
+        {"user_id": user_id, "deleted_at": None,
+         "flag": {"$in": ["baixo", "alto", "critico_baixo", "critico_alto"]}}
     ).sort("date", -1).to_list(5)
+
+    # Distingue atleta NOVO (nunca treinou pelo app) de atleta que parou de treinar.
+    # Sem isso, a IA presume "abandono" e cobra o atleta por um afastamento que
+    # nunca existiu. O que caracteriza historico de treino sao ATIVIDADES e
+    # REFEICOES; um check-in solto (humor/sono) nao conta. Basta um registro
+    # desses (mesmo fora da janela de 7 dias) para deixar de ser novo.
+    is_new_user = not (activities or meals)
+    if is_new_user:
+        is_new_user = not await db.activities.find_one({"user_id": user_id})
+    if is_new_user:
+        is_new_user = not await db.meals.find_one({"user_id": user_id, "deleted_at": None})
 
     context_parts = [
         f"Ultimos 7 dias: {len(activities)} treinos",
@@ -124,10 +143,51 @@ async def gather_context(user: dict) -> dict:
     if stress is not None:
         context_parts.append(f"estresse medio {stress}/5")
 
-    if profile:
-        level = profile.get("sport_profile", {}).get("experience_level")
-        if level:
-            context_parts.append(f"nivel {level}")
+    weekly_tss = round(sum(a.get("icu_training_load") or 0 for a in activities))
+    if weekly_tss:
+        context_parts.append(f"carga semanal ~{weekly_tss} TSS")
+
+    weight = None
+    async for h in db.habits.find(
+        {"user_id": user_id, "weight_kg": {"$ne": None}}, {"weight_kg": 1}
+    ).sort("date", -1).limit(1):
+        weight = h.get("weight_kg")
+    if weight:
+        context_parts.append(f"peso atual {weight}kg")
+
+    sport = (profile or {}).get("sport") or {}
+    disciplines = sport.get("disciplines") or []
+    if disciplines:
+        d = set(disciplines)
+        modality = (
+            "triatlo" if {"swim", "bike", "run"}.issubset(d)
+            else "corrida" if disciplines == ["run"]
+            else "+".join(sorted(d))
+        )
+        context_parts.append(f"modalidade {modality}")
+    if sport.get("experience"):
+        context_parts.append(f"experiencia {sport['experience']}")
+
+    plan_doc = await db.nutrition_plans.find_one({"user_id": user_id})
+    if plan_doc and plan_doc.get("plan"):
+        context_parts.append(
+            f"plano nutricional ~{plan_doc['plan'].get('daily_calories')} kcal/dia"
+        )
+
+    # Meta nutricional de HOJE (interligada à carga/prova/recuperação) — permite
+    # o coach conectar treino e alimentação na mesma resposta.
+    try:
+        fuel = await compute_today_target(user)
+        ctx_label = {
+            "race": "dia de prova", "training": "dia de treino",
+            "recovery": "recuperação", "rest": "dia leve",
+        }.get(fuel.get("context", ""), fuel.get("context", ""))
+        fuel_bits = f"combustível de hoje ({ctx_label}): ~{fuel.get('calories')} kcal"
+        if fuel.get("carbs_g"):
+            fuel_bits += f", carbo ~{fuel.get('carbs_g')}g"
+        context_parts.append(fuel_bits)
+    except Exception:
+        fuel = None
 
     if upcoming_race:
         context_parts.append(
@@ -139,6 +199,26 @@ async def gather_context(user: dict) -> dict:
         alert_strs = [f"{a.get('name')}: {a.get('value')}{a.get('unit', '')}" for a in health_alerts[:3]]
         context_parts.append(f"alertas de saude: {', '.join(alert_strs)}")
 
+    # Consistência de hábitos de estilo de vida nos últimos 7 dias.
+    habit_bits = []
+    for key, label in (("meditate", "meditação"), ("read", "leitura"),
+                       ("cold_shower", "banho gelado")):
+        done_days = sum(1 for h in habits if h.get(key))
+        if done_days:
+            habit_bits.append(f"{label} {done_days}/7d")
+    custom_habits = await db.custom_habits.find(
+        {"user_id": user_id, "deleted_at": None}
+    ).to_list(50)
+    for cst in custom_habits:
+        logs = await db.custom_habit_logs.find(
+            {"habit_id": str(cst["_id"]), "user_id": user_id, "date": {"$gte": week_ago}}
+        ).to_list(10)
+        done_days = sum(1 for log in logs if (log.get("value") or 0))
+        if done_days:
+            habit_bits.append(f"{cst.get('name')} {done_days}/7d")
+    if habit_bits:
+        context_parts.append("habitos: " + ", ".join(habit_bits))
+
     sources = []
     if activities:
         sources.append("atividades")
@@ -146,14 +226,31 @@ async def gather_context(user: dict) -> dict:
         sources.append("refeicoes")
     if habits:
         sources.append("check-ins")
+    if habit_bits:
+        sources.append("hábitos")
     if profile:
         sources.append("perfil")
     if upcoming_race:
         sources.append("calendario")
     if health_alerts:
         sources.append("exames")
+    if weight:
+        sources.append("peso")
+    if plan_doc and plan_doc.get("plan"):
+        sources.append("plano nutricional")
+    if fuel:
+        sources.append("nutrição do dia")
 
     text = "; ".join(context_parts) + "."
+    if is_new_user:
+        text = (
+            "ATENCAO — ATLETA NOVO: ainda nao registrou NENHUM treino, refeicao "
+            "ou check-in. Esta COMECANDO agora; NAO houve abandono nem recaida. "
+            "NUNCA cobre um afastamento nem pergunte 'o que te afastou dos treinos'. "
+            "Trate como onboarding: de as boas-vindas, explique de forma simples "
+            "como comecar (primeiro treino, primeiro check-in, primeira refeicao) "
+            "e proponha 1 primeiro passo leve. " + text
+        )
     return {"text": text, "sources": sources}
 
 

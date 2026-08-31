@@ -456,26 +456,26 @@ async def process_document_extraction(doc_id: str, user_id: str) -> None:
 
     if len(text.strip()) < 20:
         try:
-            from app.adapters.ai import build_chat
-            import base64
-            chat = build_chat(
-                f"health-ocr-{doc_id}",
-                EXTRACTION_SYSTEM_PROMPT,
-                "openai",
-                "gpt-5.4",
-            )
-            from app.adapters.ai import ImageContent, UserMessage
-            if ImageContent is None:
-                raise Exception("AI provider not available")
+            from app.adapters.ai import complete_image, complete_text
+            from app.config import settings
             if doc["content_type"] == "application/pdf":
                 ocr_hint = "(Documento PDF sem texto extraivel. Analise a imagem.)"
-                message = UserMessage(text=build_extraction_prompt(ocr_hint))
-            else:
-                message = UserMessage(
-                    text="Extraia os marcadores deste exame medico.",
-                    file_contents=[ImageContent(image_base64=base64.b64encode(data).decode())],
+                raw_response = await complete_text(
+                    session_id=f"health-ocr-{doc_id}",
+                    system=EXTRACTION_SYSTEM_PROMPT,
+                    prompt=build_extraction_prompt(ocr_hint),
+                    provider=settings.vision_provider,
+                    model=settings.vision_model,
                 )
-            raw_response = (await chat.send_message(message) or "").strip()
+            else:
+                raw_response = await complete_image(
+                    system=EXTRACTION_SYSTEM_PROMPT,
+                    prompt="Extraia os marcadores deste exame medico.",
+                    image_bytes=data,
+                    provider=settings.vision_provider,
+                    model=settings.vision_model,
+                    media_type=doc["content_type"],
+                )
         except Exception as e:
             await db.health_documents.update_one(
                 {"_id": doc_id},

@@ -44,6 +44,7 @@ def public_user(document: dict) -> dict:
         "goals": document.get("goals", Goals().model_dump()),
         "intervals_connected": bool(document.get("intervals_api_key")),
         "intervals_athlete_id": document.get("intervals_athlete_id", "0"),
+        "avatar_url": document.get("avatar_url"),
     }
 
 

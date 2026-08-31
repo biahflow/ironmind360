@@ -8,6 +8,7 @@ ALLOWED_ACTIONS = frozenset(
         "consent.revoked",
         "profile.sport.updated",
         "profile.nutrition.updated",
+        "profile.avatar.updated",
         "race.created",
         "race.updated",
         "race.deleted",

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator,
-  RefreshControl, Alert, Platform,
+  RefreshControl, Alert, Platform, Modal, ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -12,7 +12,18 @@ import * as DocumentPicker from "expo-document-picker";
 import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
-import { Screen, ScreenHeader, PrimaryButton, EmptyState, layout } from "@/src/components/ui";
+import { Screen, ScreenHeader, PrimaryButton, EmptyState, Chip, StatusPill, layout } from "@/src/components/ui";
+
+type Tone = "accent" | "neutral" | "success" | "warning" | "error" | "info";
+
+const STATUS_TONE: Record<string, Tone> = {
+  uploaded: "neutral",
+  extracting: "warning",
+  validating: "warning",
+  needs_review: "warning",
+  ready: "success",
+  failed: "error",
+};
 
 type HealthDoc = {
   id: string;
@@ -38,17 +49,6 @@ const STATUS_LABEL: Record<string, string> = {
   failed: "Falhou",
 };
 
-function useStatusColor(colors: ReturnType<typeof useTheme>["colors"]) {
-  return {
-    uploaded: colors.textSecondary,
-    extracting: colors.warning,
-    validating: colors.warning,
-    needs_review: colors.warning,
-    ready: colors.success,
-    failed: colors.error,
-  } as Record<string, string>;
-}
-
 function useAlertColor(colors: ReturnType<typeof useTheme>["colors"]) {
   return {
     informativo: colors.textSecondary,
@@ -65,7 +65,6 @@ function fmtDate(iso: string) {
 
 export default function Health() {
   const { colors } = useTheme();
-  const statusColor = useStatusColor(colors);
   const alertColor = useAlertColor(colors);
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -73,6 +72,7 @@ export default function Health() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
 
   const loadDocs = useCallback(async () => {
     try {
@@ -160,9 +160,7 @@ export default function Health() {
               {item.title || item.original_name || "Documento"}
             </Text>
             <View style={s.cardMeta}>
-              {item.doc_type && (
-                <Text style={[s.metaChip, { color: colors.accent, backgroundColor: colors.accentMuted }]}>{item.doc_type}</Text>
-              )}
+              {item.doc_type && <Chip label={item.doc_type} tone="accent" />}
               {item.doc_date && (
                 <Text style={[s.metaText, { color: colors.textSecondary }]}>{fmtDate(item.doc_date)}</Text>
               )}
@@ -171,12 +169,10 @@ export default function Health() {
               )}
             </View>
           </View>
-          <View style={s.statusBadge}>
-            <View style={[s.statusDot, { backgroundColor: statusColor[item.status] || colors.textSecondary }]} />
-            <Text style={[s.statusText, { color: statusColor[item.status] || colors.textSecondary }]}>
-              {STATUS_LABEL[item.status] || item.status}
-            </Text>
-          </View>
+          <StatusPill
+            label={STATUS_LABEL[item.status] || item.status}
+            tone={STATUS_TONE[item.status] || "neutral"}
+          />
         </View>
 
         {item.status === "ready" && item.marker_count > 0 && (
@@ -207,7 +203,7 @@ export default function Health() {
     <Screen>
       <ScreenHeader
         title="Saúde"
-        right={<PrimaryButton label="Enviar exame" icon="cloud-upload" loading={uploading} onPress={pickAndUpload} />}
+        right={<PrimaryButton small label="Enviar exame" icon="cloud-upload" loading={uploading} onPress={pickAndUpload} />}
       />
 
       {loading ? (
@@ -224,6 +220,21 @@ export default function Health() {
           renderItem={renderDoc}
           keyExtractor={item => item.id}
           contentContainerStyle={{ paddingBottom: layout.tabBarPad(insets.bottom), paddingHorizontal: layout.screenPad }}
+          ListHeaderComponent={
+            <Pressable
+              onPress={() => setInsightsOpen(true)}
+              style={({ pressed }) => [s.insightsCta, { backgroundColor: colors.accentMuted }, pressed && { opacity: 0.85 }]}
+            >
+              <View style={[s.insightsIcon, { backgroundColor: colors.accent }]}>
+                <Ionicons name="sparkles" size={18} color={colors.onAccent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.insightsTitle, { color: colors.text }]}>Sugestões alimentares dos exames</Text>
+                <Text style={[s.insightsSub, { color: colors.textSecondary }]}>Ideias gerais da IA — não substitui o nutricionista</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+            </Pressable>
+          }
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -234,13 +245,87 @@ export default function Health() {
           ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         />
       )}
+
+      <HealthInsightsModal visible={insightsOpen} onClose={() => setInsightsOpen(false)} colors={colors} insets={insets} />
     </Screen>
   );
 }
 
+function HealthInsightsModal({ visible, onClose, colors, insets }: any) {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [err, setErr] = useState("");
+
+  React.useEffect(() => {
+    if (!visible) { setData(null); setErr(""); return; }
+    setLoading(true); setErr("");
+    (async () => {
+      try { setData(await api.post("/health/nutrition-insights")); }
+      catch (e: any) { setErr(e?.message || "Falha ao gerar sugestões."); }
+      finally { setLoading(false); }
+    })();
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Screen>
+        <ScreenHeader title="Sugestões alimentares" onBack={onClose} />
+        <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingBottom: insets.bottom + spacing["3xl"], gap: spacing.md }}>
+          <View style={[s.disclaimer, { backgroundColor: colors.warningMuted }]}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.warning} />
+            <Text style={[s.disclaimerText, { color: colors.text }]}>
+              {data?.disclaimer || "Sugestões gerais — não substituem médico/nutricionista."}
+            </Text>
+          </View>
+
+          {loading ? (
+            <View style={{ paddingVertical: 40, alignItems: "center", gap: spacing.md }}>
+              <ActivityIndicator color={colors.accent} />
+              <Text style={{ fontFamily: fonts.medium, ...type.bodySmall, color: colors.textSecondary }}>Analisando seus marcadores...</Text>
+            </View>
+          ) : err ? (
+            <Text style={{ fontFamily: fonts.text, ...type.body, color: colors.error }}>{err}</Text>
+          ) : data?.insights?.length ? (
+            data.insights.map((it: any, i: number) => (
+              <View key={i} style={[s.insightCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={s.insightHead}>
+                  <Text style={[s.insightMarker, { color: colors.text }]}>{it.marker}</Text>
+                  {it.status ? <Text style={[s.insightStatus, { color: colors.warning }]}>{it.status}</Text> : null}
+                </View>
+                <Text style={[s.insightText, { color: colors.textSecondary }]}>{it.suggestion}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={{ fontFamily: fonts.text, ...type.body, color: colors.textSecondary, textAlign: "center", marginTop: spacing.xl }}>
+              {data?.message || "Nenhum marcador alterado nos seus exames."}
+            </Text>
+          )}
+        </ScrollView>
+      </Screen>
+    </Modal>
+  );
+}
+
 const s = StyleSheet.create({
+  insightsCta: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.md,
+  },
+  insightsIcon: { width: 36, height: 36, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
+  insightsTitle: { fontFamily: fonts.semibold, ...type.body },
+  insightsSub: { fontFamily: fonts.text, ...type.caption, marginTop: 2 },
+  disclaimer: {
+    flexDirection: "row", alignItems: "flex-start", gap: spacing.sm,
+    padding: spacing.lg, borderRadius: radius.md,
+  },
+  disclaimerText: { fontFamily: fonts.medium, ...type.bodySmall, flex: 1, lineHeight: 18 },
+  insightCard: { borderRadius: radius.card, borderWidth: 1, padding: spacing.lg },
+  insightHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs },
+  insightMarker: { fontFamily: fonts.bold, ...type.body },
+  insightStatus: { fontFamily: fonts.semibold, ...type.caption },
+  insightText: { fontFamily: fonts.text, ...type.bodySmall, lineHeight: 19 },
   card: {
-    borderRadius: radius.xl, padding: spacing.xl,
+    borderRadius: radius.card, padding: spacing.xl,
     borderWidth: 1,
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
@@ -251,16 +336,8 @@ const s = StyleSheet.create({
   cardTitle: {
     fontFamily: fonts.bold, ...type.body,
   },
-  cardMeta: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs, flexWrap: "wrap" },
-  metaChip: {
-    fontFamily: fonts.medium, ...type.caption,
-    paddingHorizontal: spacing.md, paddingVertical: 2,
-    borderRadius: radius.pill, overflow: "hidden",
-  },
+  cardMeta: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs, flexWrap: "wrap", alignItems: "center" },
   metaText: { fontFamily: fonts.text, ...type.bodySmall },
-  statusBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontFamily: fonts.medium, ...type.bodySmall },
   markerCount: {
     fontFamily: fonts.text, ...type.bodySmall, marginTop: spacing.md,
   },

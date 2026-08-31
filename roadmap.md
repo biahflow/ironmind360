@@ -4,13 +4,13 @@ Este arquivo é a fonte de verdade para continuidade do projeto. Qualquer agente
 
 ## Estado atual
 
-- Status geral: **Fase 8 concluída**. Todas as fases 0–8 completas. Roadmap finalizado.
-- Fase atual: nenhuma — todas as fases implementadas.
+- Status geral: **Fases 0–8 concluídas**. Backlog **Fase 9 (proposta, não iniciada)** registrado com features inspiradas no Zepp.
+- Fase atual: nenhuma em execução — próxima candidata é a Fase 9, Bloco 1 (Training Calendar), quando priorizada.
 - Serviço `ml/` no ar (FastAPI/8100): features (ACWR/monotonia/strain, sono, RPE), risco de overtraining, detecção de anomalias (Isolation Forest), previsão de performance (Riegel + perfil de treino), versionamento, cache Redis; proxy `/api/v1/ml/*` com `/status`, `/retrain`, `/overtraining-risk`, `/anomalies`, `/race-prediction`; risco integrado à readiness; anomalies e overtraining no dashboard/home.
 - Wearables: API de permissões, importação batch com dedup, revogação e resumo. HealthKit (iOS) e Health Connect (Android) integrados via frontend. HRV e FC de repouso agora disponíveis no modelo de dados.
 - Pagamentos: Stripe Connect para profissionais (onboarding, checkout, webhooks, reembolsos). Provider fail-open (503 sem stripe).
-- Última atualização: 2026-08-30.
-- Bloqueios atuais: nenhum.
+- Última atualização: 2026-08-31.
+- Bloqueios atuais: enriquecimento de GIFs de exercícios (ExerciseDB) parcial — 20/~60 baixados; restante aguarda reset da cota mensal do plano gratuito (690 req/mês) ou upgrade. Ver `backend/scripts/enrichment_report.md`.
 
 ### Protocolo de retomada
 
@@ -507,6 +507,35 @@ Serviço Python separado (`ml/`) com FastAPI/Uvicorn, isolado do backend princip
 - CFN: prescrição dietética e atuação profissional.
 - WHO: governança responsável de IA em saúde.
 
+## Fase 9 (proposta) — Features inspiradas no Zepp (não iniciada)
+
+> Backlog priorizado a partir do changelog do Zepp (ago/2026), filtrado pelo que faz sentido num **app que consome intervals.icu** (não somos um SO de relógio). Nada aqui foi iniciado; implementar na ordem abaixo quando priorizado. Features de hardware de relógio (botão de coroa, rotas/navegação/mapa no relógio, alarme, tela pré-treino com traçado) **foram descartadas** por não se aplicarem.
+
+### Bloco 1 — Training Calendar (prioridade máxima; "fecha o círculo")
+Amarra visualmente o que já é calculado no backend. Reaproveita `session_sequence` do plano, `races` (prioridade A/B/C), periodização e taper.
+- [ ] Visão de calendário (mensal/semanal) unindo: sessões de força planejadas, atividades/treinos planejados do intervals.icu, provas-alvo e dias de deload/descanso.
+- [ ] Mostrar o taper aparecendo nos dias corretos antes da prova A (já derivado em `_taper_session`/`compute_periodization`).
+- [ ] Reusar o `GET /api/v1/calendar` existente (provas+atividades+sessões) como base; estender com estado (planejado/feito/pulado) e marcação de deload.
+- Aceite: atleta vê a semana/mês com tudo integrado; toca num dia e abre a sessão/prova; taper e deload visíveis.
+
+### Bloco 2 — Daily Update noturno (extensão barata do push matinal)
+O push matinal já existe (prontidão + combustível + prova, commit `d8430a6`). O Zepp evoluiu Morning→Daily somando o resumo da noite.
+- [ ] Resumo noturno: treino realizado no dia, aderência da nutrição, recuperação/prontidão, e preview de amanhã.
+- [ ] Reusar readiness, hábitos, `smart_reminders.py` e o contexto do coach; agendar via Celery (respeitando horário silencioso já existente).
+- Aceite: usuário recebe/visualiza um recap noturno coerente com os dados do dia.
+
+### Bloco 3 — Rastreio de equipamento (gear) por uso
+Apelo forte pro público triatlo (tênis ~600–800 km, corrente/pneu, neoprene). **Já existe um inventário de equipamentos na Fase 6** (CRUD 5 categorias, acúmulo de distância/horas, alertas de vida útil) — aqui é o **vínculo automático com as atividades**.
+- [ ] Vincular `activities` do intervals.icu a um item de gear (ex.: par de tênis) e acumular quilometragem/uso automaticamente.
+- [ ] Alerta de troca ao atingir o limite de vida útil (reusar os alertas de manutenção já existentes).
+- Aceite: registrar uma corrida soma km ao tênis vinculado; alerta dispara perto do limite.
+
+### Bloco 4 — HRV como input de prontidão (invertendo o do Zepp)
+O Zepp exporta HRV pro Apple Health; o valor pra nós é o **oposto**: ingerir HRV do intervals.icu no readiness. A base já existe (`POST /intervals/sync-wellness`, `wearable_data`, HRV/FC de repouso no modelo — Fase 8 e sync wellness).
+- [ ] Alimentar `compute_readiness`/auto-regulação com HRV e FC de repouso (hoje usa TSS/ACWR, sono e subjetivos — ver decisão de 2026-08-29 sobre features sem HRV).
+- [ ] (Menor) Surfar VO2max/limiar de lactato do intervals.icu no perfil/analytics e como contexto do coach, **sem calcular** (é dado do relógio).
+- Aceite: readiness reflete HRV quando disponível, com fonte/versão registradas; nunca apresenta como diagnóstico.
+
 ## Registro de decisões
 
 | Data | Decisão | Motivo |
@@ -528,6 +557,8 @@ Serviço Python separado (`ml/`) com FastAPI/Uvicorn, isolado do backend princip
 | 2026-08-29 | Serviço `ml` sobe por padrão no Compose | Integração backend→ml testável out-of-the-box; sem perfil `ml`. Como não há TF, o build é leve. Backend faz fail-open (503) se o ml estiver fora |
 | 2026-08-29 | Features do Bloco 1 sem HRV/FC de repouso | Modelo de dados atual não tem HRV nem FC repouso; pipeline usa TSS/ACWR, sono e escalas subjetivas + RPE. HRV/FC ficam nulos até sincronizar o wellness do intervals.icu (tarefa futura) |
 | 2026-08-29 | Risco de overtraining com modelo composto (não supervisionado) | Sem outcomes rotulados (lesão/overtraining), XGBoost/LSTM supervisionado não teria o que aprender. Score transparente baseado em ciência do esporte (ACWR/Gabbett + monotonia-strain/Foster + carga subjetiva). Supervisionado fica para quando houver dados de desfecho reais |
+| 2026-08-31 | GIFs de exercícios via ExerciseDB, empacotados no repo | Mídia animada + grupo muscular por exercício (ref. Hevy). Catálogo curado pt-BR continua fonte de verdade; script offline resolve→baixa→empacota (S3 fallback). Não chamar a API em runtime (key/rate limit); GIFs versionados garantem reprodutibilidade sem depender da cota mensal |
+| 2026-08-31 | Registrar backlog "Fase 9" inspirado no Zepp | Priorizar Training Calendar, Daily Update noturno, gear tracking por uso e HRV no readiness; descartar features de hardware de relógio por não caberem num app que consome intervals.icu |
 
 ## Log de execução
 

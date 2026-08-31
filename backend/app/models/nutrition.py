@@ -3,6 +3,11 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+class RecipeIdeasIn(BaseModel):
+    ingredients: list[str] = Field(min_length=1, max_length=30)
+    meal_type: Optional[str] = Field(default=None, max_length=40)
+
+
 class MealItemIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     quantity: float = Field(gt=0)

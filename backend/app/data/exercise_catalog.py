@@ -4,11 +4,11 @@ Cada exercício é um dicionário compatível com ExerciseDefinition.
 O catálogo é imutável em runtime — versões novas geram entradas no CHANGELOG.
 """
 
-CATALOG_VERSION = "1.0.0"
-CATALOG_RELEASED_AT = "2026-08-29"
+CATALOG_VERSION = "1.1.0"
+CATALOG_RELEASED_AT = "2026-08-30"
 CATALOG_CHANGELOG = (
-    "Versão inicial: exercícios para programas iniciante,"
-    " intermediário e avançado, casa e academia."
+    "1.1.0: nomes localizados para o português do Brasil (halteres em vez de"
+    " dumbbell; termos em inglês com tradução). 1.0.0: versão inicial."
 )
 
 EXERCISES: list[dict] = [
@@ -32,7 +32,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "warmup-world-greatest-stretch",
-        "name": "World's greatest stretch",
+        "name": "Alongamento dinâmico (world's greatest stretch)",
         "movement_pattern": "warmup",
         "equipment": ["bodyweight"],
         "environment": "both",
@@ -50,7 +50,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "warmup-inchworm",
-        "name": "Inchworm",
+        "name": "Caminhada com as mãos (inchworm)",
         "movement_pattern": "warmup",
         "equipment": ["bodyweight"],
         "environment": "both",
@@ -84,7 +84,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "warmup-band-pull-apart",
-        "name": "Band pull-apart",
+        "name": "Abertura com faixa (band pull-apart)",
         "movement_pattern": "warmup",
         "equipment": ["band"],
         "environment": "both",
@@ -133,7 +133,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "warmup-miniband-lateral-walk",
-        "name": "Caminhada lateral com miniband",
+        "name": "Caminhada lateral com mini band",
         "movement_pattern": "warmup",
         "equipment": ["miniband"],
         "environment": "both",
@@ -210,7 +210,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "squat-sumo",
-        "name": "Agachamento sumô com dumbbell",
+        "name": "Agachamento sumô com halteres",
         "movement_pattern": "squat",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -230,7 +230,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "squat-front-rack",
-        "name": "Agachamento front rack com dumbbell",
+        "name": "Agachamento com halteres à frente (front rack)",
         "movement_pattern": "squat",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -270,7 +270,7 @@ EXERCISES: list[dict] = [
     # ── REMADA (pull horizontal) — Sessão A ──
     {
         "id": "row-dumbbell-unilateral",
-        "name": "Remada unilateral com dumbbell",
+        "name": "Remada unilateral com halteres",
         "movement_pattern": "pull_horizontal",
         "equipment": ["dumbbell", "bench"],
         "environment": "both",
@@ -309,7 +309,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "row-dumbbell-bilateral",
-        "name": "Remada bilateral curvada com dumbbell",
+        "name": "Remada bilateral curvada com halteres",
         "movement_pattern": "pull_horizontal",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -387,7 +387,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "hinge-single-leg-rdl-db",
-        "name": "Stiff unilateral com dumbbell",
+        "name": "Stiff unilateral com halteres",
         "movement_pattern": "hinge",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -481,7 +481,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "push-db-bench-press",
-        "name": "Supino com dumbbell",
+        "name": "Supino com halteres",
         "movement_pattern": "push_horizontal",
         "equipment": ["dumbbell", "bench"],
         "environment": "both",
@@ -632,7 +632,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "anti-rot-dead-bug",
-        "name": "Dead bug",
+        "name": "Dead bug (inseto morto)",
         "movement_pattern": "anti_extension",
         "equipment": ["bodyweight"],
         "environment": "both",
@@ -668,7 +668,7 @@ EXERCISES: list[dict] = [
     # ── HINGE BILATERAL — Sessão B ──
     {
         "id": "hinge-rdl-db",
-        "name": "Stiff bilateral com dumbbell",
+        "name": "Stiff bilateral com halteres",
         "movement_pattern": "hinge",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -689,7 +689,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "hinge-hip-hinge-bw",
-        "name": "Hip hinge (peso corporal)",
+        "name": "Dobradiça de quadril (peso corporal)",
         "movement_pattern": "hinge",
         "equipment": ["bodyweight"],
         "environment": "both",
@@ -787,7 +787,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "lunge-reverse-db",
-        "name": "Avanço reverso com dumbbell",
+        "name": "Avanço reverso com halteres",
         "movement_pattern": "lunge",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -806,7 +806,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "lunge-step-up",
-        "name": "Step-up",
+        "name": "Subida no step",
         "movement_pattern": "lunge",
         "equipment": ["bodyweight", "box"],
         "environment": "both",
@@ -824,7 +824,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "lunge-step-up-db",
-        "name": "Step-up com dumbbell",
+        "name": "Subida no step com halteres",
         "movement_pattern": "lunge",
         "equipment": ["dumbbell", "box"],
         "environment": "both",
@@ -842,7 +842,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "lunge-walking-db",
-        "name": "Avanço caminhando com dumbbell",
+        "name": "Avanço caminhando com halteres",
         "movement_pattern": "lunge",
         "equipment": ["dumbbell"],
         "environment": "gym",
@@ -939,7 +939,7 @@ EXERCISES: list[dict] = [
     # ── EMPURRADA AMIGÁVEL AO OMBRO (push vertical) — Sessão B ──
     {
         "id": "push-overhead-db-half-kneeling",
-        "name": "Press unilateral ajoelhado com dumbbell",
+        "name": "Press unilateral ajoelhado com halteres",
         "movement_pattern": "push_vertical",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -958,7 +958,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "push-overhead-db-standing",
-        "name": "Press com dumbbell em pé",
+        "name": "Press com halteres em pé",
         "movement_pattern": "push_vertical",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -978,7 +978,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "push-landmine-press",
-        "name": "Landmine press",
+        "name": "Desenvolvimento landmine",
         "movement_pattern": "push_vertical",
         "equipment": ["barbell"],
         "environment": "gym",
@@ -1109,7 +1109,7 @@ EXERCISES: list[dict] = [
     # ── ESTABILIDADE LATERAL / CARRY — Sessão B ──
     {
         "id": "carry-farmer-walk",
-        "name": "Farmer's walk",
+        "name": "Caminhada do fazendeiro (farmer's walk)",
         "movement_pattern": "carry",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -1128,7 +1128,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "carry-suitcase-walk",
-        "name": "Suitcase carry (unilateral)",
+        "name": "Transporte lateral unilateral (suitcase carry)",
         "movement_pattern": "carry",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -1148,7 +1148,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "carry-overhead-walk",
-        "name": "Overhead carry (unilateral)",
+        "name": "Transporte acima da cabeça (unilateral)",
         "movement_pattern": "carry",
         "equipment": ["dumbbell"],
         "environment": "both",
@@ -1205,7 +1205,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "anti-lat-copenhagen-plank",
-        "name": "Copenhagen plank",
+        "name": "Prancha Copenhagen",
         "movement_pattern": "anti_lateral_flexion",
         "equipment": ["bench"],
         "environment": "both",
@@ -1244,7 +1244,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "mob-couch-stretch",
-        "name": "Couch stretch (flexor do quadril)",
+        "name": "Alongamento do sofá (flexor do quadril)",
         "movement_pattern": "mobility",
         "equipment": ["bodyweight", "wall"],
         "environment": "both",
@@ -1316,7 +1316,7 @@ EXERCISES: list[dict] = [
     },
     {
         "id": "mob-foam-roll-thoracic",
-        "name": "Foam roller torácico",
+        "name": "Liberação torácica com rolo",
         "movement_pattern": "mobility",
         "equipment": ["foam_roller"],
         "environment": "both",
@@ -1331,6 +1331,145 @@ EXERCISES: list[dict] = [
         ),
         "alternatives": ["mob-thoracic-rotation"],
     },
+
+    # -----------------------------------------------------------------
+    # Potência / pliometria — bloco opcional de fim de ciclo (avançado).
+    # Trabalho explosivo: poucas reps, máxima velocidade, descanso longo.
+    # Sempre com aterrissagem controlada; parar se houver dor ou fadiga alta.
+    # -----------------------------------------------------------------
+    {
+        "id": "power-squat-jump",
+        "name": "Agachamento com salto",
+        "movement_pattern": "power",
+        "equipment": ["bodyweight"],
+        "environment": "both",
+        "min_level": "advanced",
+        "primary_muscles": ["quadriceps", "glutes", "calves"],
+        "secondary_muscles": ["hamstrings"],
+        "instructions": (
+            "Agache até meia profundidade e salte com máxima força,"
+            " estendendo quadris, joelhos e tornozelos. Aterrisse suave,"
+            " absorvendo com joelhos alinhados. Reset a cada repetição."
+        ),
+        "common_errors": (
+            "Aterrissar com joelhos rígidos ou colapsando para dentro,"
+            " encadear saltos sem controle ou perder a postura do tronco."
+        ),
+        "alternatives": ["power-split-jump", "squat-bodyweight"],
+    },
+    {
+        "id": "power-broad-jump",
+        "name": "Salto horizontal",
+        "movement_pattern": "power",
+        "equipment": ["bodyweight"],
+        "environment": "both",
+        "min_level": "advanced",
+        "primary_muscles": ["glutes", "quadriceps", "hamstrings"],
+        "secondary_muscles": ["calves"],
+        "instructions": (
+            "Parta de meio agachamento e projete o corpo à frente com os"
+            " braços. Salte o mais longe possível e aterrisse firme, com"
+            " quadril para trás e joelhos flexionados. Recupere antes de repetir."
+        ),
+        "common_errors": (
+            "Aterrissar desequilibrado, joelhos para dentro"
+            " ou emendar saltos sem estabilizar."
+        ),
+        "alternatives": ["power-squat-jump"],
+    },
+    {
+        "id": "power-box-jump",
+        "name": "Salto no caixote",
+        "movement_pattern": "power",
+        "equipment": ["box"],
+        "environment": "gym",
+        "min_level": "advanced",
+        "primary_muscles": ["quadriceps", "glutes", "calves"],
+        "secondary_muscles": ["hamstrings"],
+        "instructions": (
+            "De frente para um caixote estável, salte para cima do topo"
+            " aterrissando suave e em meio agachamento. Suba de pé e"
+            " DESÇA sempre andando (nunca pule para baixo)."
+        ),
+        "common_errors": (
+            "Pular de volta ao chão (impacto alto), caixote instável"
+            " ou aterrissar com pernas estendidas."
+        ),
+        "alternatives": ["power-squat-jump", "power-broad-jump"],
+    },
+    {
+        "id": "power-split-jump",
+        "name": "Salto alternado (afundo)",
+        "movement_pattern": "power",
+        "equipment": ["bodyweight"],
+        "environment": "both",
+        "min_level": "advanced",
+        "primary_muscles": ["quadriceps", "glutes"],
+        "secondary_muscles": ["hamstrings", "calves"],
+        "instructions": (
+            "Em posição de afundo, salte trocando as pernas no ar e"
+            " aterrisse suave no afundo oposto. Mantenha o tronco ereto"
+            " e o joelho da frente alinhado ao pé."
+        ),
+        "common_errors": (
+            "Joelho da frente passando muito da ponta do pé,"
+            " tronco caindo à frente ou aterrissagem dura."
+        ),
+        "alternatives": ["power-squat-jump", "lunge-reverse-bw"],
+    },
+    {
+        "id": "power-pogo-hops",
+        "name": "Saltitos rápidos (pogo)",
+        "movement_pattern": "power",
+        "equipment": ["bodyweight"],
+        "environment": "both",
+        "min_level": "advanced",
+        "primary_muscles": ["calves"],
+        "secondary_muscles": ["quadriceps"],
+        "instructions": (
+            "Saltitos curtos e rápidos usando só os tornozelos, pernas"
+            " quase estendidas e rígidas. Mínimo tempo de contato com o"
+            " chão, como uma mola. Bom para rigidez elástica da corrida."
+        ),
+        "common_errors": (
+            "Flexionar muito os joelhos, contato lento com o solo"
+            " ou perder o ritmo."
+        ),
+        "alternatives": ["calf-raise-standing"],
+    },
 ]
+
+
+def _apply_media_enrichment(exercises: list[dict]) -> None:
+    """Funde a mídia do ExerciseDB (GIF animado + músculos) no catálogo curado.
+
+    A fonte de verdade continua sendo este arquivo; o JSON só acrescenta o
+    `image_url` (GIF servido pelo nosso S3) e preenche músculos quando ainda não
+    foram curados à mão. Ausência do arquivo/entrada é tolerada — o app cai no
+    ícone-placeholder por padrão de movimento."""
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).with_name("exercise_media.json")
+    try:
+        media = json.loads(path.read_text(encoding="utf-8")).get("media", {})
+    except (OSError, ValueError):
+        return
+
+    for ex in exercises:
+        entry = media.get(ex["id"])
+        if not entry:
+            continue
+        if entry.get("image_url"):
+            ex["image_url"] = entry["image_url"]
+        # Só preenche músculos quando não há curadoria manual, para não
+        # sobrescrever ajustes feitos à mão no catálogo.
+        if not ex.get("primary_muscles") and entry.get("primary_muscles"):
+            ex["primary_muscles"] = entry["primary_muscles"]
+        if not ex.get("secondary_muscles") and entry.get("secondary_muscles"):
+            ex["secondary_muscles"] = entry["secondary_muscles"]
+
+
+_apply_media_enrichment(EXERCISES)
 
 EXERCISES_BY_ID: dict[str, dict] = {e["id"]: e for e in EXERCISES}

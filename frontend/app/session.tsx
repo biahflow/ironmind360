@@ -17,6 +17,7 @@ import { PrimaryButton } from "@/src/components/ui";
 const PHASE_LABEL: Record<string, string> = {
   warmup: "Aquecimento",
   strength: "Força",
+  power: "Potência",
   stability: "Estabilidade",
   circuit: "Circuito",
   cooldown: "Mobilidade",
@@ -24,6 +25,7 @@ const PHASE_LABEL: Record<string, string> = {
 const PHASE_ICON: Record<string, string> = {
   warmup: "flame-outline",
   strength: "barbell-outline",
+  power: "flash",
   stability: "body-outline",
   circuit: "flash-outline",
   cooldown: "leaf-outline",
@@ -68,6 +70,8 @@ type SessionData = {
   is_deload: boolean;
   exercises: { exercise_id: string; sets: { set_number: number; reps?: number; weight_kg?: number; rpe?: number }[] }[];
   status: string;
+  custom?: boolean;
+  prescription?: SessionExercise[];
 };
 
 export default function SessionScreen() {
@@ -77,6 +81,7 @@ export default function SessionScreen() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<SessionData | null>(null);
   const [programExercises, setProgramExercises] = useState<SessionExercise[]>([]);
+  const [autoNote, setAutoNote] = useState<string | null>(null);
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [sets, setSets] = useState<SetEntry[]>([]);
   const [saving, setSaving] = useState(false);
@@ -89,20 +94,30 @@ export default function SessionScreen() {
       const { session: sess, resumed } = await api.post("/training/sessions/start");
       setSession(sess);
 
-      const plan = await api.get("/training/active");
-      if (plan?.plan) {
-        const progData = await api.get(
-          `/programs/${plan.plan.program_id}/sessions/${sess.session_number}`
-        );
-        setProgramExercises(progData.exercises || []);
-
-        if (resumed && sess.exercises?.length) {
-          const lastExId = sess.exercises[sess.exercises.length - 1].exercise_id;
-          const idx = (progData.exercises || []).findIndex(
-            (e: SessionExercise) => e.exercise_id === lastExId
+      let exercises: SessionExercise[] = [];
+      if (sess.custom && Array.isArray(sess.prescription)) {
+        exercises = sess.prescription;
+      } else {
+        const plan = await api.get("/training/active");
+        if (plan?.plan) {
+          // Personalização por tempo (session_length) + auto-regulação por
+          // carga de endurance (ML) — tudo interligado.
+          const len = plan.plan.session_length || "full";
+          const progData = await api.get(
+            `/programs/${plan.plan.program_id}/sessions/${sess.session_number}?length=${len}&autoregulate=1`
           );
-          if (idx >= 0) setCurrentExIdx(idx);
+          exercises = progData.exercises || [];
+          if (progData.autoregulated && progData.autoregulation_note) {
+            setAutoNote(progData.autoregulation_note);
+          }
         }
+      }
+      setProgramExercises(exercises);
+
+      if (resumed && sess.exercises?.length) {
+        const lastExId = sess.exercises[sess.exercises.length - 1].exercise_id;
+        const idx = exercises.findIndex((e) => e.exercise_id === lastExId);
+        if (idx >= 0) setCurrentExIdx(idx);
       }
     } catch {}
     setLoading(false);
@@ -244,8 +259,9 @@ export default function SessionScreen() {
         <View style={s.topCenter}>
           <Text style={[s.topTitle, { color: colors.text }]}>{session.title}</Text>
           <Text style={[s.topSub, { color: colors.textSecondary }]}>
-            Semana {session.week} · Dia {session.day}
-            {session.is_deload ? " · Deload" : ""}
+            {session.custom
+              ? "Treino personalizado"
+              : `Semana ${session.week} · Dia ${session.day}${session.is_deload ? " · Deload" : ""}`}
           </Text>
         </View>
         <View style={[s.timerBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -309,6 +325,14 @@ export default function SessionScreen() {
             />
           </View>
         ) : null}
+
+        {/* Auto-regulação: aviso quando o volume foi reduzido pela carga */}
+        {autoNote && (
+          <View style={[s.autoBanner, { backgroundColor: colors.warningMuted, borderColor: colors.warning }]}>
+            <Ionicons name="pulse" size={16} color={colors.warning} />
+            <Text style={[s.autoBannerText, { color: colors.text }]}>{autoNote}</Text>
+          </View>
+        )}
 
         {/* Exercise name + info link */}
         <Pressable
@@ -496,6 +520,13 @@ const s = StyleSheet.create({
     marginBottom: spacing.md,
   },
   exName: { fontFamily: fonts.bold, ...tp.h1, flex: 1 },
+  autoBanner: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    borderRadius: radius.md, borderWidth: 1,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  autoBannerText: { flex: 1, fontFamily: fonts.medium, ...tp.bodySmall, lineHeight: 18 },
 
   prescriptionRow: {
     flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md,

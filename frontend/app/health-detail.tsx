@@ -10,7 +10,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
 import { api } from "@/src/lib/api";
-import { Screen, ScreenHeader, IconButton, layout } from "@/src/components/ui";
+import { Screen, ScreenHeader, IconButton, Chip, layout } from "@/src/components/ui";
+
+type Tone = "accent" | "neutral" | "success" | "warning" | "error" | "info";
+
+function flagTone(flag: string): Tone {
+  if (flag === "normal") return "success";
+  if (flag === "baixo" || flag === "alto") return "warning";
+  return "error";
+}
 
 type HealthDoc = {
   id: string;
@@ -79,12 +87,6 @@ export default function HealthDetail() {
   const [refreshing, setRefreshing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-
-  const flagColor = (flag: string) => {
-    if (flag === "normal") return colors.success;
-    if (flag === "baixo" || flag === "alto") return colors.warning;
-    return colors.error;
-  };
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -239,11 +241,7 @@ export default function HealthDetail() {
                   <View key={marker.id} style={[s.markerCard, { backgroundColor: colors.surface, borderColor: colors.border }, !marker.context_enabled && s.markerDisabled]}>
                     <View style={s.markerHeader}>
                       <Text style={[s.markerName, { color: colors.text }]}>{marker.name}</Text>
-                      <View style={[s.flagBadge, { backgroundColor: flagColor(marker.flag) + "22" }]}>
-                        <Text style={[s.flagText, { color: flagColor(marker.flag) }]}>
-                          {FLAG_LABEL[marker.flag]}
-                        </Text>
-                      </View>
+                      <Chip label={FLAG_LABEL[marker.flag]} tone={flagTone(marker.flag)} />
                     </View>
 
                     <View style={s.markerBody}>
@@ -354,7 +352,7 @@ const s = StyleSheet.create({
   },
   metaCard: {
     marginHorizontal: layout.screenPad,
-    borderRadius: radius.xl, padding: spacing.xl,
+    borderRadius: radius.card, padding: spacing.xl,
     borderWidth: 1,
   },
   metaRow: {
@@ -371,19 +369,17 @@ const s = StyleSheet.create({
   },
   alertCard: {
     flexDirection: "row", alignItems: "flex-start", gap: spacing.md,
-    borderRadius: radius.lg, borderWidth: 1,
+    borderRadius: radius.card, borderWidth: 1,
     padding: spacing.xl, borderLeftWidth: 3, marginBottom: spacing.md,
   },
   alertTextDetail: { fontFamily: fonts.text, ...type.bodySmall, flex: 1 },
   markerCard: {
-    borderRadius: radius.lg, borderWidth: 1,
+    borderRadius: radius.card, borderWidth: 1,
     padding: spacing.xl, marginBottom: spacing.md,
   },
   markerDisabled: { opacity: 0.5 },
-  markerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  markerHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm },
   markerName: { fontFamily: fonts.bold, ...type.body, flex: 1 },
-  flagBadge: { paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill },
-  flagText: { fontFamily: fonts.semibold, ...type.bodySmall },
   markerBody: { marginTop: spacing.xs },
   markerValue: { fontFamily: fonts.bold, ...type.metric },
   refText: { fontFamily: fonts.text, ...type.bodySmall, marginTop: 2 },
@@ -406,7 +402,7 @@ const s = StyleSheet.create({
   failedCard: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
     marginHorizontal: layout.screenPad, marginTop: spacing.xl,
-    borderRadius: radius.lg,
+    borderRadius: radius.card,
     padding: spacing.lg, borderWidth: 1,
   },
   failedText: { fontFamily: fonts.text, ...type.body, flex: 1 },

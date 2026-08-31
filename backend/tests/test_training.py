@@ -11,7 +11,7 @@ class TestExerciseCatalog:
         r = api_client.get(f"{base_url}{V1}/exercises/catalog/version", headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
-        assert data["version"] == "1.0.0"
+        assert data["version"] == "1.1.0"
         assert data["total_exercises"] >= 60
 
     def test_catalog_list_all(self, base_url, auth_headers, api_client):
@@ -302,3 +302,60 @@ class TestTrainingExecution:
         api_client.post(f"{base_url}{V1}/training/cancel", headers=auth_headers)
         r = api_client.post(f"{base_url}{V1}/training/cancel", headers=auth_headers)
         assert r.status_code == 404
+
+
+class TestCustomWorkout:
+    def _two_exercise_ids(self, base_url, auth_headers, api_client):
+        r = api_client.get(f"{base_url}{V1}/exercises/catalog", headers=auth_headers)
+        exercises = r.json()["exercises"]
+        return [exercises[0]["id"], exercises[1]["id"]]
+
+    def _clear_session(self, base_url, auth_headers, api_client):
+        # Finaliza qualquer sessão em andamento para isolar o teste.
+        api_client.post(f"{base_url}{V1}/training/sessions/complete", headers=auth_headers)
+
+    def test_custom_start_resume_and_complete(self, base_url, auth_headers, api_client):
+        self._clear_session(base_url, auth_headers, api_client)
+        ids = self._two_exercise_ids(base_url, auth_headers, api_client)
+        payload = {
+            "title": "Treino Teste",
+            "items": [
+                {"exercise_id": ids[0], "sets": 3, "reps": "10", "rest_seconds": 60},
+                {"exercise_id": ids[1], "sets": 4, "reps": "8", "rest_seconds": 90},
+            ],
+        }
+        r = api_client.post(f"{base_url}{V1}/training/custom/start", headers=auth_headers, json=payload)
+        assert r.status_code == 200, r.text
+        session = r.json()["session"]
+        assert session["custom"] is True
+        assert session["title"] == "Treino Teste"
+        assert len(session["prescription"]) == 2
+        assert session["prescription"][0]["exercise"]["id"] == ids[0]
+        assert session["prescription"][0]["sets"] == 3
+
+        # sessions/start retoma a sessão custom (sem exigir plano)
+        resume = api_client.post(f"{base_url}{V1}/training/sessions/start", headers=auth_headers)
+        assert resume.status_code == 200
+        assert resume.json()["session"]["custom"] is True
+
+        # completa (limpa o estado)
+        done = api_client.post(f"{base_url}{V1}/training/sessions/complete", headers=auth_headers)
+        assert done.status_code == 200
+        assert done.json()["completed"] is True
+
+    def test_custom_rejects_when_session_active(self, base_url, auth_headers, api_client):
+        self._clear_session(base_url, auth_headers, api_client)
+        ids = self._two_exercise_ids(base_url, auth_headers, api_client)
+        item = {"items": [{"exercise_id": ids[0], "sets": 2, "reps": "10", "rest_seconds": 45}]}
+        first = api_client.post(f"{base_url}{V1}/training/custom/start", headers=auth_headers, json=item)
+        assert first.status_code == 200
+        second = api_client.post(f"{base_url}{V1}/training/custom/start", headers=auth_headers, json=item)
+        assert second.status_code == 409
+        # limpeza
+        self._clear_session(base_url, auth_headers, api_client)
+
+    def test_custom_invalid_exercise(self, base_url, auth_headers, api_client):
+        self._clear_session(base_url, auth_headers, api_client)
+        payload = {"items": [{"exercise_id": "nao-existe-xyz", "sets": 3, "reps": "10", "rest_seconds": 60}]}
+        r = api_client.post(f"{base_url}{V1}/training/custom/start", headers=auth_headers, json=payload)
+        assert r.status_code == 400

@@ -88,3 +88,7 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Testes na academia (Opção 1) — arquivos locais
+.gym-tunnel.pid
+.gym-tunnel.log

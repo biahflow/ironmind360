@@ -1,16 +1,17 @@
 import React, { useCallback, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, ActivityIndicator, Linking, Pressable,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
-import { api } from "@/src/lib/api";
+import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import MuscleMap from "@/src/components/MuscleMap";
-import { Screen, ScreenHeader, Card, Overline } from "@/src/components/ui";
+import { Screen, ScreenHeader, Card, Overline, Chip } from "@/src/components/ui";
 
 const MUSCLE_LABEL: Record<string, string> = {
   quadriceps: "Quadríceps", hamstrings: "Isquiotibiais", glutes: "Glúteos",
@@ -26,6 +27,14 @@ const LEVEL_LABEL: Record<string, string> = {
   beginner: "Iniciante", intermediate: "Intermediário", advanced: "Avançado",
 };
 
+const EQUIPMENT_LABEL: Record<string, string> = {
+  bodyweight: "Peso corporal", dumbbell: "Halteres", barbell: "Barra",
+  kettlebell: "Kettlebell", band: "Faixa elástica", miniband: "Mini band",
+  bench: "Banco", pull_up_bar: "Barra fixa", cable: "Cabo", machine: "Máquina",
+  foam_roller: "Rolo de espuma", swiss_ball: "Bola suíça", trx: "TRX",
+  box: "Caixa / step", wall: "Parede",
+};
+
 const PATTERN_LABEL: Record<string, string> = {
   squat: "Agachamento", hinge: "Hinge", lunge: "Avanço",
   push_horizontal: "Empurrada horizontal", push_vertical: "Empurrada vertical",
@@ -33,7 +42,20 @@ const PATTERN_LABEL: Record<string, string> = {
   anti_rotation: "Antirrotação", anti_extension: "Anti-extensão",
   anti_lateral_flexion: "Anti-flexão lateral",
   carry: "Carry", calf: "Panturrilha", hip_stability: "Estabilidade de quadril",
-  mobility: "Mobilidade", warmup: "Aquecimento",
+  power: "Potência", mobility: "Mobilidade", warmup: "Aquecimento",
+};
+
+// Placeholder visual por padrão de movimento até termos mídia real por
+// exercício (ver referência Hevy). Cada padrão ganha um ícone consistente.
+type IconName = keyof typeof Ionicons.glyphMap;
+const PATTERN_ICON: Record<string, IconName> = {
+  squat: "barbell", hinge: "body", lunge: "walk",
+  push_horizontal: "arrow-forward-circle", push_vertical: "arrow-up-circle",
+  pull_horizontal: "arrow-back-circle", pull_vertical: "arrow-down-circle",
+  anti_rotation: "sync-circle", anti_extension: "shield",
+  anti_lateral_flexion: "shield-half",
+  carry: "briefcase", calf: "footsteps", hip_stability: "accessibility",
+  power: "flash", mobility: "refresh-circle", warmup: "flame",
 };
 
 type Exercise = {
@@ -61,12 +83,26 @@ export default function ExerciseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
+  const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
+  // O GIF é servido por rota autenticada; se falhar (mídia ausente no storage),
+  // caímos no ícone-placeholder por padrão de movimento.
+  const [gifFailed, setGifFailed] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
+    setGifFailed(false);
     try {
+      setImageHeaders(await authHeaders());
       const d = await api.get(`/exercises/${id}`);
-      setExercise(d);
+      // Alguns exercícios (ex.: variações de peso corporal) vêm sem os arrays
+      // de músculos/equipamento; normalizamos para não quebrar a renderização.
+      setExercise({
+        ...d,
+        primary_muscles: d.primary_muscles ?? [],
+        secondary_muscles: d.secondary_muscles ?? [],
+        equipment: d.equipment ?? [],
+        alternatives: d.alternatives ?? [],
+      });
     } catch {}
     setLoading(false);
   }, [id]);
@@ -89,32 +125,66 @@ export default function ExerciseDetail() {
       <ScreenHeader title={exercise.name} onBack={() => router.back()} />
 
       <ScrollView
-        contentContainerStyle={{ padding: spacing["2xl"], paddingTop: spacing.md, paddingBottom: insets.bottom + spacing.xl }}
+        contentContainerStyle={{ padding: spacing.xl, paddingTop: spacing.md, paddingBottom: insets.bottom + spacing.xl }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Muscle map illustration */}
+        {/* GIF animado (ExerciseDB via nosso storage) quando houver; senão,
+            ícone-placeholder por padrão de movimento. Sempre com mapa muscular. */}
         <View style={[s.illustrationArea, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <MuscleMap
-            primary={exercise.primary_muscles as any[]}
-            secondary={exercise.secondary_muscles as any[]}
-            size={100}
-          />
+          {exercise.image_url && !gifFailed ? (
+            <Image
+              source={{ uri: fileUrl(exercise.image_url), headers: imageHeaders }}
+              style={s.gif}
+              contentFit="contain"
+              onError={() => setGifFailed(true)}
+            />
+          ) : (
+            <View style={s.patternCol}>
+              <View style={[s.patternBadge, { backgroundColor: colors.accentMuted }]}>
+                <Ionicons
+                  name={PATTERN_ICON[exercise.movement_pattern] || "fitness"}
+                  size={44}
+                  color={colors.accent}
+                />
+              </View>
+              <Text style={[s.patternCaption, { color: colors.textSecondary }]}>
+                {PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern}
+              </Text>
+            </View>
+          )}
+          {(exercise.primary_muscles.length > 0 || exercise.secondary_muscles.length > 0) && (
+            <View style={s.mapWrap}>
+              <MuscleMap
+                primary={exercise.primary_muscles as any[]}
+                secondary={exercise.secondary_muscles as any[]}
+                size={92}
+              />
+            </View>
+          )}
         </View>
 
         {/* Badges */}
         <View style={s.badgeRow}>
-          <View style={[s.badge, { backgroundColor: colors.elevated }]}>
-            <Text style={[s.badgeText, { color: colors.textSecondary }]}>{PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern}</Text>
-          </View>
-          <View style={[s.badge, { backgroundColor: colors.elevated }]}>
-            <Text style={[s.badgeText, { color: colors.textSecondary }]}>{LEVEL_LABEL[exercise.min_level]}</Text>
-          </View>
+          <Chip label={PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern} tone="neutral" />
+          <Chip label={LEVEL_LABEL[exercise.min_level]} tone="neutral" />
           {exercise.equipment.map((eq) => (
-            <View key={eq} style={[s.badge, { backgroundColor: colors.elevated }]}>
-              <Text style={[s.badgeText, { color: colors.textSecondary }]}>{eq}</Text>
-            </View>
+            <Chip key={eq} label={EQUIPMENT_LABEL[eq] || eq} tone="neutral" />
           ))}
         </View>
+
+        {/* Vídeo demonstrativo: link curado se houver, senão busca no YouTube. */}
+        <Pressable
+          onPress={() => {
+            const url = exercise.video_url
+              || `https://www.youtube.com/results?search_query=${encodeURIComponent(`${exercise.name} exercício técnica execução`)}`;
+            Linking.openURL(url).catch(() => {});
+          }}
+          style={[s.videoBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
+          <Ionicons name="logo-youtube" size={20} color="#FF0000" />
+          <Text style={[s.videoBtnText, { color: colors.text }]}>Ver como fazer no YouTube</Text>
+          <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+        </Pressable>
 
         {/* Muscles */}
         {(exercise.primary_muscles.length > 0 || exercise.secondary_muscles.length > 0) && (
@@ -125,9 +195,7 @@ export default function ExerciseDetail() {
                 <Text style={[s.muscleLabel, { color: colors.textSecondary }]}>Primários</Text>
                 <View style={s.muscleChips}>
                   {exercise.primary_muscles.map((m) => (
-                    <View key={m} style={[s.musclePrimary, { backgroundColor: colors.accentMuted }]}>
-                      <Text style={[s.musclePrimaryText, { color: colors.accent }]}>{MUSCLE_LABEL[m] || m}</Text>
-                    </View>
+                    <Chip key={m} label={MUSCLE_LABEL[m] || m} tone="accent" />
                   ))}
                 </View>
               </View>
@@ -137,9 +205,7 @@ export default function ExerciseDetail() {
                 <Text style={[s.muscleLabel, { color: colors.textSecondary }]}>Secundários</Text>
                 <View style={s.muscleChips}>
                   {exercise.secondary_muscles.map((m) => (
-                    <View key={m} style={[s.muscleSecondary, { backgroundColor: colors.elevated }]}>
-                      <Text style={[s.muscleSecondaryText, { color: colors.textSecondary }]}>{MUSCLE_LABEL[m] || m}</Text>
-                    </View>
+                    <Chip key={m} label={MUSCLE_LABEL[m] || m} tone="neutral" />
                   ))}
                 </View>
               </View>
@@ -202,14 +268,28 @@ const s = StyleSheet.create({
   illustrationArea: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: spacing.lg, marginBottom: spacing.xl, paddingVertical: spacing.xl,
-    borderRadius: radius.xl, borderWidth: 1, minHeight: 200,
+    borderRadius: radius.cardLarge, borderWidth: 1, minHeight: 200,
   },
+  gif: { width: 148, height: 148, borderRadius: radius.card, backgroundColor: "#fff" },
+  patternCol: { alignItems: "center", gap: spacing.sm },
+  patternBadge: {
+    width: 88, height: 88, borderRadius: 44,
+    alignItems: "center", justifyContent: "center",
+  },
+  patternCaption: {
+    fontFamily: fonts.semibold, ...type.caption,
+    textTransform: "uppercase", letterSpacing: 1,
+  },
+  mapWrap: { alignItems: "center", justifyContent: "center" },
 
   badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
-  badge: {
-    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
+  videoBtn: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    borderRadius: radius.card, borderWidth: 1,
+    paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
   },
-  badgeText: { fontFamily: fonts.medium, fontSize: 11, letterSpacing: 0.5 },
+  videoBtnText: { flex: 1, fontFamily: fonts.semibold, ...type.body },
 
   section: { marginBottom: spacing["2xl"] },
   sectionTitle: { marginBottom: spacing.md },
@@ -217,14 +297,6 @@ const s = StyleSheet.create({
   muscleRow: {},
   muscleLabel: { fontFamily: fonts.semibold, ...type.bodySmall, marginBottom: spacing.xs },
   muscleChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-  musclePrimary: {
-    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
-  },
-  musclePrimaryText: { fontFamily: fonts.semibold, fontSize: 11 },
-  muscleSecondary: {
-    paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill,
-  },
-  muscleSecondaryText: { fontFamily: fonts.medium, fontSize: 11 },
 
   infoCard: {
     flexDirection: "row", gap: spacing.md,

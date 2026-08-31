@@ -1,10 +1,14 @@
+import json
 from datetime import timedelta
 
+import requests
 from bson import ObjectId
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.concurrency import run_in_threadpool
 
-from app.adapters.ai import analyze_food_image
+from app.adapters.ai import analyze_food_image, complete_text
 from app.adapters.legacy_storage import legacy_storage
+from app.config import settings
 from app.database import db
 from app.dependencies import current_user
 from app.models import Goals
@@ -12,10 +16,12 @@ from app.models.nutrition import (
     FavoriteIn,
     ManualMealIn,
     MealEditIn,
+    RecipeIdeasIn,
     RecipeIn,
 )
 from app.rate_limit import rate_limit
 from app.services.files import create_file, delete_file, ensure_legacy_meal_file
+from app.services.nutrition_target import compute_today_target
 from app.utils.time import now_utc, today_str
 
 router = APIRouter(prefix="/nutrition", tags=["nutrition"])
@@ -117,6 +123,293 @@ async def analyze_meal(
     meal["id"] = str(result.inserted_id)
     meal["photo_url"] = f"/api/v1/files/{stored_file['_id']}"
     return meal
+
+
+# ── Busca por código de barras (OpenFoodFacts) ─────────────────
+
+
+def _num(nutriments: dict, key: str) -> float:
+    value = nutriments.get(key)
+    if value in (None, ""):
+        return 0.0
+    try:
+        return round(float(value), 1)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+@router.get("/barcode/{code}", dependencies=[Depends(rate_limit("barcode", 30, 60))])
+async def barcode_lookup(code: str, _user: dict = Depends(current_user)):
+    code = code.strip()
+    if not code.isdigit() or not (6 <= len(code) <= 14):
+        raise HTTPException(400, "Código de barras inválido")
+
+    def fetch():
+        return requests.get(
+            f"https://world.openfoodfacts.org/api/v2/product/{code}.json",
+            params={"fields": "product_name,product_name_pt,brands,nutriments"},
+            headers={"User-Agent": "IronMind360/1.0 (nutrition)"},
+            timeout=8,
+        )
+
+    try:
+        resp = await run_in_threadpool(fetch)
+    except Exception as exc:
+        raise HTTPException(502, "Falha ao consultar a base de alimentos") from exc
+
+    if resp.status_code != 200:
+        raise HTTPException(404, "Produto não encontrado")
+    body = resp.json()
+    product = body.get("product")
+    if body.get("status") != 1 or not product:
+        raise HTTPException(404, "Produto não encontrado")
+
+    nutriments = product.get("nutriments") or {}
+    name = product.get("product_name_pt") or product.get("product_name") or "Produto"
+    brand = (product.get("brands") or "").split(",")[0].strip()
+    item = {
+        "name": f"{name} ({brand})" if brand else name,
+        "quantity": 100,
+        "unit": "g",
+        "calories": _num(nutriments, "energy-kcal_100g"),
+        "protein_g": _num(nutriments, "proteins_100g"),
+        "carbs_g": _num(nutriments, "carbohydrates_100g"),
+        "fat_g": _num(nutriments, "fat_100g"),
+        "fiber_g": _num(nutriments, "fiber_100g"),
+        "sodium_mg": round(_num(nutriments, "sodium_100g") * 1000, 1),
+        "sugar_g": _num(nutriments, "sugars_100g"),
+    }
+    return {"found": True, "code": code, "item": item}
+
+
+def _product_to_item(product: dict) -> dict | None:
+    nutriments = product.get("nutriments") or {}
+    calories = _num(nutriments, "energy-kcal_100g")
+    name = product.get("product_name_pt") or product.get("product_name")
+    if isinstance(name, list):
+        name = name[0] if name else None
+    if not isinstance(name, str) or not name.strip() or calories <= 0:
+        return None
+    name = name.strip()
+    brands = product.get("brands")
+    if isinstance(brands, list):
+        brand = (brands[0] if brands else "")
+    else:
+        brand = str(brands or "").split(",")[0]
+    brand = brand.strip()
+    return {
+        "name": f"{name} ({brand})" if brand else name,
+        "quantity": 100,
+        "unit": "g",
+        "calories": calories,
+        "protein_g": _num(nutriments, "proteins_100g"),
+        "carbs_g": _num(nutriments, "carbohydrates_100g"),
+        "fat_g": _num(nutriments, "fat_100g"),
+        "fiber_g": _num(nutriments, "fiber_100g"),
+        "sodium_mg": round(_num(nutriments, "sodium_100g") * 1000, 1),
+        "sugar_g": _num(nutriments, "sugars_100g"),
+    }
+
+
+@router.get("/search", dependencies=[Depends(rate_limit("food_search", 30, 60))])
+async def food_search(q: str = Query(..., min_length=2, max_length=80), _user: dict = Depends(current_user)):
+    def fetch():
+        # Serviço de busca novo (Elasticsearch) — mais estável que o cgi/search.pl.
+        return requests.get(
+            "https://search.openfoodfacts.org/search",
+            params={
+                "q": q,
+                "page_size": 15,
+                "fields": "product_name,product_name_pt,brands,nutriments",
+            },
+            headers={"User-Agent": "IronMind360/1.0 (nutrition)"},
+            timeout=12,
+        )
+
+    try:
+        resp = await run_in_threadpool(fetch)
+    except Exception as exc:
+        raise HTTPException(502, "Falha ao buscar alimentos") from exc
+
+    products: list = []
+    if resp.status_code == 200:
+        try:
+            products = resp.json().get("hits", []) or []
+        except ValueError:
+            products = []
+
+    items = [i for i in (_product_to_item(p) for p in products) if i]
+    return {"query": q, "results": items[:20]}
+
+
+# ── Plano nutricional sugerido (IA, por modalidade) ────────────
+
+PLAN_DISCLAIMER = (
+    "Sugestão automática gerada por IA com base nos seus dados. NÃO substitui "
+    "acompanhamento com nutricionista — que fica disponível ao enviar seus exames."
+)
+
+
+def _derive_modality(disciplines: list) -> str:
+    d = set(disciplines or [])
+    if {"swim", "bike", "run"}.issubset(d):
+        return "triatlo"
+    if d == {"run"}:
+        return "corrida"
+    if d:
+        return "+".join(sorted(d))
+    return "geral"
+
+
+async def _gather_plan_context(user: dict) -> dict:
+    user_id = str(user["_id"])
+    profile = await db.profiles.find_one({"user_id": user_id}) or {}
+    sport = profile.get("sport") or {}
+    goals = user.get("goals") or Goals().model_dump()
+
+    since = (now_utc() - timedelta(days=14)).strftime("%Y-%m-%d")
+    cursor = await db.activities.aggregate([
+        {"$match": {"user_id": user_id, "start_date_local": {"$gte": since}}},
+        {"$group": {"_id": None, "tss": {"$sum": {"$ifNull": ["$icu_training_load", 0]}}, "n": {"$sum": 1}}},
+    ])
+    agg = await cursor.to_list(1)
+    weekly_tss = round((agg[0]["tss"] / 2) if agg else 0)
+    sessions_14d = agg[0]["n"] if agg else 0
+
+    weight = None
+    async for h in db.habits.find(
+        {"user_id": user_id, "weight_kg": {"$ne": None}}, {"weight_kg": 1}
+    ).sort("date", -1).limit(1):
+        weight = h.get("weight_kg")
+
+    return {
+        "modality": _derive_modality(sport.get("disciplines")),
+        "experience": sport.get("experience"),
+        "weekly_availability_hours": sport.get("weekly_availability_hours"),
+        "goals": goals,
+        "avg_weekly_tss": weekly_tss,
+        "sessions_last_14d": sessions_14d,
+        "weight_kg": weight,
+    }
+
+
+@router.get("/plan")
+async def get_nutrition_plan(user: dict = Depends(current_user)):
+    doc = await db.nutrition_plans.find_one({"user_id": str(user["_id"])})
+    if not doc:
+        return {"plan": None, "disclaimer": PLAN_DISCLAIMER}
+    return {
+        "plan": doc.get("plan"),
+        "modality": doc.get("modality"),
+        "generated_at": doc.get("created_at"),
+        "disclaimer": PLAN_DISCLAIMER,
+    }
+
+
+@router.post("/plan/generate", dependencies=[Depends(rate_limit("nutrition_plan", 6, 3600))])
+async def generate_nutrition_plan(user: dict = Depends(current_user)):
+    ctx = await _gather_plan_context(user)
+    system = (
+        "Voce e um nutricionista esportivo criando uma SUGESTAO de plano alimentar "
+        "diario para um atleta de " + ctx["modality"] + ". Use os dados fornecidos "
+        "para calibrar calorias e macros a carga de treino. NAO faca diagnostico nem "
+        "prescricao medica. Maximo 6 refeicoes, sugestoes curtas. Responda SOMENTE "
+        "JSON valido, sem markdown e sem texto fora do JSON, no formato: "
+        '{"summary":"", "daily_calories":0, "protein_g":0, "carbs_g":0, "fat_g":0, '
+        '"hydration_ml":0, "meals":[{"name":"", "suggestion":"", "kcal":0}], '
+        '"pre_workout":"", "post_workout":"", "notes":""}'
+    )
+    prompt = "Dados do atleta (JSON):\n" + json.dumps(ctx, ensure_ascii=False)
+
+    try:
+        raw = await complete_text(
+            session_id=f"nutriplan-{user['_id']}",
+            system=system,
+            prompt=prompt,
+            provider=settings.coach_provider,
+            model=settings.coach_model,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, "Falha ao gerar o plano") from exc
+
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1].removeprefix("json").strip()
+    try:
+        plan = json.loads(raw)
+    except json.JSONDecodeError:
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end <= start:
+            raise HTTPException(502, "Resposta invalida da IA")
+        plan = json.loads(raw[start:end + 1])
+
+    now = now_utc()
+    await db.nutrition_plans.update_one(
+        {"user_id": str(user["_id"])},
+        {"$set": {"plan": plan, "modality": ctx["modality"], "created_at": now}},
+        upsert=True,
+    )
+    return {"plan": plan, "modality": ctx["modality"], "generated_at": now, "disclaimer": PLAN_DISCLAIMER}
+
+
+# ── Meta do dia ajustada pela carga de treino ──────────────────
+
+@router.get("/today-target")
+async def today_target(user: dict = Depends(current_user)):
+    return await compute_today_target(user)
+
+
+# ── Receitas fit com o que tem em casa (IA) ────────────────────
+
+def _json_from_ai(raw: str) -> dict:
+    raw = (raw or "").strip()
+    if raw.startswith("```"):
+        raw = raw.split("```", 2)[1].removeprefix("json").strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        start, end = raw.find("{"), raw.rfind("}")
+        if start < 0 or end <= start:
+            raise HTTPException(502, "Resposta invalida da IA")
+        return json.loads(raw[start:end + 1])
+
+
+@router.post("/recipe-ideas", dependencies=[Depends(rate_limit("recipe_ideas", 10, 3600))])
+async def recipe_ideas(data: RecipeIdeasIn, user: dict = Depends(current_user)):
+    ingredients = [i.strip() for i in data.ingredients if i.strip()][:30]
+    if not ingredients:
+        raise HTTPException(400, "Informe ao menos um ingrediente")
+
+    system = (
+        "Voce e um chef de nutricao esportiva. Crie 1 a 2 receitas FIT usando "
+        "PRINCIPALMENTE os ingredientes que o usuario tem em casa (pode assumir "
+        "basicos: sal, agua, azeite, temperos). Sugestoes praticas e saudaveis. "
+        "NAO faca prescricao medica. Responda SOMENTE JSON valido, sem markdown e "
+        "sem texto fora do JSON, no formato: "
+        '{"recipes":[{"name":"", "ingredients":[""], "steps":[""], "calories":0, '
+        '"protein_g":0, "carbs_g":0, "fat_g":0, "prep_minutes":0}]}'
+    )
+    prompt = "Ingredientes disponiveis: " + ", ".join(ingredients)
+    if data.meal_type:
+        prompt += f"\nTipo de refeicao desejado: {data.meal_type}"
+
+    try:
+        raw = await complete_text(
+            session_id=f"recipe-{user['_id']}",
+            system=system,
+            prompt=prompt,
+            provider=settings.coach_provider,
+            model=settings.coach_model,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, "Falha ao gerar receitas") from exc
+
+    parsed = _json_from_ai(raw)
+    return {"recipes": parsed.get("recipes", [])}
 
 
 # ── Manual entry ────────────────────────────────────────────────

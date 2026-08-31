@@ -28,10 +28,12 @@ class Settings:
         "CORS_ORIGINS", "http://localhost:8081,http://localhost:19006"
     )
     emergent_llm_key: str | None = os.getenv("EMERGENT_LLM_KEY") or None
+    openai_api_key: str | None = os.getenv("OPENAI_API_KEY") or None
+    anthropic_api_key: str | None = os.getenv("ANTHROPIC_API_KEY") or None
     coach_provider: str = os.getenv("COACH_MODEL_PROVIDER", "anthropic")
     coach_model: str = os.getenv("COACH_MODEL_NAME", "claude-sonnet-5")
     vision_provider: str = os.getenv("VISION_MODEL_PROVIDER", "openai")
-    vision_model: str = os.getenv("VISION_MODEL_NAME", "gpt-5.4")
+    vision_model: str = os.getenv("VISION_MODEL_NAME", "gpt-4o-mini")
     app_storage_name: str = os.getenv("APP_STORAGE_NAME", "ironmind360")
     s3_endpoint_url: str = os.getenv("S3_ENDPOINT_URL", "http://localhost:9000")
     s3_bucket: str = os.getenv("S3_BUCKET", "ironmind360")
@@ -43,6 +45,13 @@ class Settings:
     s3_kms_key_id: str | None = os.getenv("S3_KMS_KEY_ID") or None
     integration_proxy_url: str = os.getenv(
         "INTEGRATION_PROXY_URL", "https://integrations.emergentagent.com"
+    )
+    # ExerciseDB: consumido só pelo script offline de enriquecimento de mídia.
+    exercisedb_provider: str = os.getenv("EXERCISEDB_PROVIDER", "rapidapi")
+    exercisedb_api_host: str = os.getenv("EXERCISEDB_API_HOST", "exercisedb.p.rapidapi.com")
+    exercisedb_api_key: str | None = os.getenv("EXERCISEDB_API_KEY") or None
+    exercisedb_base_url: str = os.getenv(
+        "EXERCISEDB_BASE_URL", "https://exercisedb.p.rapidapi.com"
     )
     smtp_host: str = os.getenv("SMTP_HOST", "localhost")
     smtp_port: int = int(os.getenv("SMTP_PORT", "1025"))

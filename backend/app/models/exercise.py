@@ -9,6 +9,7 @@ MovementPattern = Literal[
     "pull_horizontal", "pull_vertical",
     "anti_rotation", "anti_extension", "anti_lateral_flexion",
     "carry", "calf", "hip_stability",
+    "power",
     "mobility", "warmup",
 ]
 
@@ -19,7 +20,7 @@ Equipment = Literal[
     "trx", "box", "wall",
 ]
 
-SessionPhase = Literal["warmup", "strength", "stability", "circuit", "cooldown"]
+SessionPhase = Literal["warmup", "strength", "power", "stability", "circuit", "cooldown"]
 
 ProgramLevel = Literal["beginner", "intermediate", "advanced"]
 ProgramEnvironment = Literal["home", "gym"]
@@ -111,7 +112,28 @@ TrainingSessionStatus = Literal["planned", "in_progress", "completed", "skipped"
 
 class StartSessionIn(BaseModel):
     program_id: str
-    session_number: int = Field(ge=1, le=16)
+    session_number: int = Field(default=1, ge=1, le=24)
+    # Personalização por disponibilidade de tempo do atleta.
+    days_per_week: int = Field(default=2, ge=1, le=3)
+    session_length: str = Field(default="full")  # "full" | "essential"
+
+
+class TrainingPrefsIn(BaseModel):
+    """Atualiza a disponibilidade de tempo de um plano JÁ ativo."""
+    days_per_week: int = Field(default=2, ge=1, le=3)
+    session_length: str = Field(default="full")  # "full" | "essential"
+
+
+class CustomSessionItemIn(BaseModel):
+    exercise_id: str
+    sets: int = Field(default=3, ge=1, le=10)
+    reps: Optional[str] = Field(default=None, max_length=20)
+    rest_seconds: int = Field(default=60, ge=0, le=300)
+
+
+class CustomSessionIn(BaseModel):
+    title: str = Field(default="Meu treino", min_length=1, max_length=80)
+    items: list[CustomSessionItemIn] = Field(min_length=1, max_length=30)
 
 
 class LogSetIn(BaseModel):

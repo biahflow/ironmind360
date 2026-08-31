@@ -1,11 +1,10 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, TextInput, Pressable, FlatList, ActivityIndicator,
   ScrollView, Modal, Alert,
 } from "react-native";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -17,8 +16,6 @@ import {
   Screen, ScreenHeader, Card, PillTabs, Overline, PrimaryButton,
   SecondaryButton, EmptyState, SectionTitle,
 } from "@/src/components/ui";
-
-const AVATAR = "https://images.unsplash.com/photo-1581889470536-467bdbe30cd0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwyfHxkYXJrJTIwZ3JpdHR5JTIwcnVubmluZyUyMG1hcmF0aG9uJTIwdG91Z2glMjBmaXRuZXNzfGVufDB8fHx8MTc4ODAyNzc2N3ww&ixlib=rb-4.1.0&q=85";
 
 const TONE_LABELS: Record<string, string> = {
   direct: "Direto",
@@ -35,7 +32,7 @@ const TONE_ICONS: Record<string, string> = {
 const GREETING: Record<string, { role: string; content: string }> = {
   direct: {
     role: "assistant",
-    content: "Você abriu esse chat por um motivo. Me diz: o que você fez HOJE? Sem desculpas.",
+    content: "Sem enrolação. O que você fez HOJE pelo seu objetivo? E não me venha com \"quase\" — me dá o número, a distância, o treino. Se não fez, me diz por quê. Aí a gente conserta agora.",
   },
   balanced: {
     role: "assistant",
@@ -48,6 +45,15 @@ const GREETING: Record<string, { role: string; content: string }> = {
 };
 
 type Tab = "chat" | "wellness" | "reports";
+
+function CoachAvatar() {
+  const { colors } = useTheme();
+  return (
+    <View style={[s.msgAvatar, { backgroundColor: colors.accentMuted }]}>
+      <Ionicons name="chatbubble-ellipses" size={18} color={colors.accent} />
+    </View>
+  );
+}
 
 export default function Coach() {
   const [tab, setTab] = useState<Tab>("chat");
@@ -85,6 +91,16 @@ function ChatTab() {
   const [tone, setTone] = useState("balanced");
   const [showTonePicker, setShowTonePicker] = useState(false);
   const listRef = useRef<FlatList>(null);
+  // Pré-preenche a mensagem quando o coach é aberto via card proativo da Home.
+  const params = useLocalSearchParams<{ prompt?: string }>();
+  const prefilledRef = useRef<string | null>(null);
+  useEffect(() => {
+    const p = typeof params.prompt === "string" ? params.prompt : undefined;
+    if (p && prefilledRef.current !== p) {
+      prefilledRef.current = p;
+      setInput(p);
+    }
+  }, [params.prompt]);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -185,7 +201,7 @@ function ChatTab() {
     const isCoach = item.role === "assistant";
     return (
       <View style={[s.msgRow, isCoach ? s.rowLeft : s.rowRight]}>
-        {isCoach && <Image source={{ uri: AVATAR }} style={s.msgAvatar} contentFit="cover" />}
+        {isCoach && <CoachAvatar />}
         <View style={[
           s.bubble,
           isCoach
@@ -258,7 +274,7 @@ function ChatTab() {
 
       {/* Tone picker modal */}
       <Modal visible={showTonePicker} transparent animationType="fade">
-        <Pressable style={s.modalOverlay} onPress={() => setShowTonePicker(false)}>
+        <Pressable style={[s.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setShowTonePicker(false)}>
           <View style={[s.modalContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[s.modalTitle, { color: colors.text }]}>Tom do Coach</Text>
             {Object.entries(TONE_LABELS).map(([key, label]) => (
@@ -294,7 +310,7 @@ function ChatTab() {
         showsVerticalScrollIndicator={false}
         ListFooterComponent={sending ? (
           <View style={[s.msgRow, s.rowLeft]}>
-            <Image source={{ uri: AVATAR }} style={s.msgAvatar} contentFit="cover" />
+            <CoachAvatar />
             <View style={[s.bubble, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}>
               <Text style={[s.typing, { color: colors.textSecondary }]}>escrevendo...</Text>
             </View>
@@ -314,7 +330,7 @@ function ChatTab() {
           multiline
           onSubmitEditing={send}
         />
-        <Pressable testID="coach-send-button" style={[s.sendBtn, { backgroundColor: colors.accent }]} onPress={send} disabled={sending || !input.trim()}>
+        <Pressable testID="coach-send-button" accessibilityRole="button" accessibilityLabel="Enviar mensagem" style={[s.sendBtn, { backgroundColor: colors.accent }]} onPress={send} disabled={sending || !input.trim()}>
           <Ionicons name="arrow-up" size={22} color={colors.onAccent} />
         </Pressable>
       </View>
@@ -732,10 +748,9 @@ const s = StyleSheet.create({
 
   modalOverlay: {
     flex: 1, justifyContent: "center", alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
   modalContent: {
-    width: "85%", borderRadius: radius.xl, padding: spacing.xl, borderWidth: 1,
+    width: "85%", borderRadius: radius.hero, padding: spacing.xl, borderWidth: 1,
   },
   modalTitle: { fontFamily: fonts.bold, ...type.h2, marginBottom: spacing.lg },
   toneOption: {
@@ -749,7 +764,10 @@ const s = StyleSheet.create({
   msgRow: { flexDirection: "row", gap: spacing.sm, maxWidth: "100%" },
   rowLeft: { justifyContent: "flex-start" },
   rowRight: { justifyContent: "flex-end" },
-  msgAvatar: { width: 36, height: 36, borderRadius: radius.pill, marginTop: 2 },
+  msgAvatar: {
+    width: 36, height: 36, borderRadius: radius.pill, marginTop: 2,
+    alignItems: "center", justifyContent: "center",
+  },
   bubble: { maxWidth: "80%", padding: spacing.lg, borderRadius: radius.lg },
   coachName: { fontFamily: fonts.bold, ...type.caption, marginBottom: 4 },
   msgText: { fontFamily: fonts.text, ...type.body },
