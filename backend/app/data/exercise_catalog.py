@@ -1439,4 +1439,37 @@ EXERCISES: list[dict] = [
     },
 ]
 
+
+def _apply_media_enrichment(exercises: list[dict]) -> None:
+    """Funde a mídia do ExerciseDB (GIF animado + músculos) no catálogo curado.
+
+    A fonte de verdade continua sendo este arquivo; o JSON só acrescenta o
+    `image_url` (GIF servido pelo nosso S3) e preenche músculos quando ainda não
+    foram curados à mão. Ausência do arquivo/entrada é tolerada — o app cai no
+    ícone-placeholder por padrão de movimento."""
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).with_name("exercise_media.json")
+    try:
+        media = json.loads(path.read_text(encoding="utf-8")).get("media", {})
+    except (OSError, ValueError):
+        return
+
+    for ex in exercises:
+        entry = media.get(ex["id"])
+        if not entry:
+            continue
+        if entry.get("image_url"):
+            ex["image_url"] = entry["image_url"]
+        # Só preenche músculos quando não há curadoria manual, para não
+        # sobrescrever ajustes feitos à mão no catálogo.
+        if not ex.get("primary_muscles") and entry.get("primary_muscles"):
+            ex["primary_muscles"] = entry["primary_muscles"]
+        if not ex.get("secondary_muscles") and entry.get("secondary_muscles"):
+            ex["secondary_muscles"] = entry["secondary_muscles"]
+
+
+_apply_media_enrichment(EXERCISES)
+
 EXERCISES_BY_ID: dict[str, dict] = {e["id"]: e for e in EXERCISES}

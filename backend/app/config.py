@@ -46,6 +46,13 @@ class Settings:
     integration_proxy_url: str = os.getenv(
         "INTEGRATION_PROXY_URL", "https://integrations.emergentagent.com"
     )
+    # ExerciseDB: consumido só pelo script offline de enriquecimento de mídia.
+    exercisedb_provider: str = os.getenv("EXERCISEDB_PROVIDER", "rapidapi")
+    exercisedb_api_host: str = os.getenv("EXERCISEDB_API_HOST", "exercisedb.p.rapidapi.com")
+    exercisedb_api_key: str | None = os.getenv("EXERCISEDB_API_KEY") or None
+    exercisedb_base_url: str = os.getenv(
+        "EXERCISEDB_BASE_URL", "https://exercisedb.p.rapidapi.com"
+    )
     smtp_host: str = os.getenv("SMTP_HOST", "localhost")
     smtp_port: int = int(os.getenv("SMTP_PORT", "1025"))
     smtp_from: str = os.getenv("SMTP_FROM", "no-reply@ironmind.local")

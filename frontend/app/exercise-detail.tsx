@@ -2,13 +2,14 @@ import React, { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator, Linking, Pressable,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { spacing, radius, fonts, type } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
-import { api } from "@/src/lib/api";
+import { api, authHeaders, fileUrl } from "@/src/lib/api";
 import MuscleMap from "@/src/components/MuscleMap";
 import { Screen, ScreenHeader, Card, Overline, Chip } from "@/src/components/ui";
 
@@ -82,10 +83,16 @@ export default function ExerciseDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [loading, setLoading] = useState(true);
+  const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
+  // O GIF é servido por rota autenticada; se falhar (mídia ausente no storage),
+  // caímos no ícone-placeholder por padrão de movimento.
+  const [gifFailed, setGifFailed] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
+    setGifFailed(false);
     try {
+      setImageHeaders(await authHeaders());
       const d = await api.get(`/exercises/${id}`);
       // Alguns exercícios (ex.: variações de peso corporal) vêm sem os arrays
       // de músculos/equipamento; normalizamos para não quebrar a renderização.
@@ -121,20 +128,30 @@ export default function ExerciseDetail() {
         contentContainerStyle={{ padding: spacing.xl, paddingTop: spacing.md, paddingBottom: insets.bottom + spacing.xl }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Placeholder visual por padrão de movimento + mapa muscular */}
+        {/* GIF animado (ExerciseDB via nosso storage) quando houver; senão,
+            ícone-placeholder por padrão de movimento. Sempre com mapa muscular. */}
         <View style={[s.illustrationArea, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={s.patternCol}>
-            <View style={[s.patternBadge, { backgroundColor: colors.accentMuted }]}>
-              <Ionicons
-                name={PATTERN_ICON[exercise.movement_pattern] || "fitness"}
-                size={44}
-                color={colors.accent}
-              />
+          {exercise.image_url && !gifFailed ? (
+            <Image
+              source={{ uri: fileUrl(exercise.image_url), headers: imageHeaders }}
+              style={s.gif}
+              contentFit="contain"
+              onError={() => setGifFailed(true)}
+            />
+          ) : (
+            <View style={s.patternCol}>
+              <View style={[s.patternBadge, { backgroundColor: colors.accentMuted }]}>
+                <Ionicons
+                  name={PATTERN_ICON[exercise.movement_pattern] || "fitness"}
+                  size={44}
+                  color={colors.accent}
+                />
+              </View>
+              <Text style={[s.patternCaption, { color: colors.textSecondary }]}>
+                {PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern}
+              </Text>
             </View>
-            <Text style={[s.patternCaption, { color: colors.textSecondary }]}>
-              {PATTERN_LABEL[exercise.movement_pattern] || exercise.movement_pattern}
-            </Text>
-          </View>
+          )}
           {(exercise.primary_muscles.length > 0 || exercise.secondary_muscles.length > 0) && (
             <View style={s.mapWrap}>
               <MuscleMap
@@ -253,6 +270,7 @@ const s = StyleSheet.create({
     gap: spacing.lg, marginBottom: spacing.xl, paddingVertical: spacing.xl,
     borderRadius: radius.cardLarge, borderWidth: 1, minHeight: 200,
   },
+  gif: { width: 148, height: 148, borderRadius: radius.card, backgroundColor: "#fff" },
   patternCol: { alignItems: "center", gap: spacing.sm },
   patternBadge: {
     width: 88, height: 88, borderRadius: 44,

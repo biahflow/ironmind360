@@ -1,8 +1,11 @@
 from datetime import timedelta
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
+from app.services.files import storage
 from app.data.exercise_catalog import (
     CATALOG_CHANGELOG,
     CATALOG_RELEASED_AT,
@@ -68,6 +71,46 @@ async def get_catalog_version(_user: dict = Depends(current_user)):
         "changelog": CATALOG_CHANGELOG,
         "total_exercises": len(EXERCISES),
     }
+
+
+# GIFs do catálogo empacotados no backend (ativo compartilhado, não por-usuário).
+_GIF_DIR = Path(__file__).resolve().parent.parent / "data" / "exercise_gifs"
+
+
+def _catalog_media_key(exercise_id: str) -> str:
+    return f"catalog/exercises/{exercise_id}.gif"
+
+
+@router.get("/exercises/{exercise_id}/media")
+async def get_exercise_media(exercise_id: str, _user: dict = Depends(current_user)):
+    """Serve o GIF animado do exercício.
+
+    Ativo de catálogo compartilhado (não owner-scoped como /files/{id}): basta
+    estar autenticado. Prioriza o GIF empacotado no backend (reproduzível, sem
+    dependência de rede); se não houver, tenta o S3/MinIO (enriquecimentos
+    recentes ainda não empacotados). Sem mídia → 404 e o app cai no ícone."""
+    if exercise_id not in EXERCISES_BY_ID:
+        raise HTTPException(404, "Exercício não encontrado")
+
+    bundled = _GIF_DIR / f"{exercise_id}.gif"
+    content: Optional[bytes] = None
+    if bundled.is_file():
+        content = bundled.read_bytes()
+    else:
+        try:
+            content, _ct = await storage.get(_catalog_media_key(exercise_id))
+        except Exception as exc:
+            raise HTTPException(404, "Mídia do exercício não disponível") from exc
+
+    return Response(
+        content=content,
+        media_type="image/gif",
+        headers={
+            # Ativo estático não sensível: pode cachear no cliente.
+            "Cache-Control": "public, max-age=604800, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.get("/exercises/{exercise_id}")
